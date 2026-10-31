@@ -1,26 +1,156 @@
 @import "tailwindcss";
+@source "./";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #1b2a5e;
+  --foreground: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: #1b2a5e;
+  --color-navy-deep: #13204d;
+  --color-royal: #0a0fc8;
+  --color-gold: #f6b93b;
+  --color-gold-soft: #f9cb6b;
+  --color-plum: #5b3f99;
+  --color-plum-light: #7a62b3;
+  --color-peach: #fdc580;
+  --color-lilac: #f6f4fc;
+  --color-ink: #1d1b33;
+  --font-sans: var(--font-poppins);
+  --font-dm: var(--font-dm-sans);
+  --animate-fade-up: fade-up 0.6s ease-out both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Slim themed scrollbars — no Windows arrow buttons.
+   Chrome ignores the ::-webkit-scrollbar rules below whenever scrollbar-width/color
+   are set (and then draws arrows), so the standard props only go to other browsers. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(91, 63, 153, 0.4) transparent;
+  }
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(91, 63, 153, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(91, 63, 153, 0.55);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-button,
+::-webkit-scrollbar-button:single-button,
+::-webkit-scrollbar-button:start:decrement,
+::-webkit-scrollbar-button:end:increment,
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment,
+::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Soft inset scroll for lilac list panels */
+.soft-scroll {
+  scrollbar-gutter: stable;
+  padding-right: 0.35rem;
+}
+.soft-scroll::-webkit-scrollbar-track {
+  background: rgba(91, 63, 153, 0.06);
+  border-radius: 999px;
+  margin: 12px 2px;
+}
+.soft-scroll::-webkit-scrollbar-thumb {
+  background: rgba(91, 63, 153, 0.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Scrollable but with no visible bar (e.g. sidebar) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Form fields stay selectable so typing/editing works normally */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Formatting inside the Word-style editor and when trainers read the answer */
+.rich-text h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.6rem 0 0.3rem;
+}
+.rich-text h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+}
+.rich-text ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.rich-text ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.rich-text p,
+.rich-text div {
+  min-height: 1.25em;
+}
+.rich-text[contenteditable="true"]:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(29, 27, 51, 0.35);
+  pointer-events: none;
 }
