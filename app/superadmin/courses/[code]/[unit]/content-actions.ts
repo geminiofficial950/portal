@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { requireAdmin } from "@/lib/auth";
+import { adminActor, requireAdmin } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { deleteUploads, ownedUploads } from "@/lib/files";
 import { cleanEditorHtml } from "@/lib/sanitize";
-import { addResource, removeResource, saveOverview } from "@/lib/unit-content";
-import { RESOURCE_LIMITS, validateResource, type Resource, type ResourceInput } from "@/lib/unit-meta";
+import { addResource, removeResource, saveOverview, setSlotResource } from "@/lib/unit-content";
+import { isResourceSlot, RESOURCE_LIMITS, RESOURCE_SLOTS, validateResource, type Resource, type ResourceInput, type ResourceSlot } from "@/lib/unit-meta";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -26,7 +26,7 @@ export async function saveOverviewAction(courseCode: string, unitCode: string, h
   if (!(await unitExists(courseCode, unitCode))) return { ok: false, error: "This unit isn’t in the course any more." };
   const overview = cleanEditorHtml(html, RESOURCE_LIMITS.overview);
   await saveOverview(courseCode, unitCode, overview);
-  await logActivity("Super Admin", `updated the overview for ${unitCode} (${courseCode})`, "course");
+  await logActivity(await adminActor(), `updated the overview for ${unitCode} (${courseCode})`, "course");
   refresh(courseCode, unitCode);
   return { ok: true, overview };
 }
@@ -52,7 +52,7 @@ export async function addResourceAction(courseCode: string, unitCode: string, in
   }
 
   await addResource(courseCode, unitCode, resource);
-  await logActivity("Super Admin", `added resource “${resource.title}” to ${unitCode}`, "course");
+  await logActivity(await adminActor(), `added resource “${resource.title}” to ${unitCode}`, "course");
   refresh(courseCode, unitCode);
   return { ok: true, resource };
 }
@@ -62,7 +62,28 @@ export async function removeResourceAction(courseCode: string, unitCode: string,
   const removed = await removeResource(courseCode, unitCode, resourceId);
   if (!removed) return { ok: false, error: "Resource not found." };
   if (removed.kind === "file") await deleteUploads([removed.file.id]);
-  await logActivity("Super Admin", `removed resource “${removed.title}” from ${unitCode}`, "course");
+  await logActivity(await adminActor(), `removed resource “${removed.title}” from ${unitCode}`, "course");
   refresh(courseCode, unitCode);
   return { ok: true };
+}
+
+// Puts the Learner Guide, PowerPoint Presentation or Supporting Document in place (replacing the old one)
+export async function setSlotDocumentAction(
+  courseCode: string,
+  unitCode: string,
+  slot: ResourceSlot,
+  fileId: string,
+): Promise<Result<{ resource: Resource }>> {
+  const admin = await requireAdmin();
+  if (!isResourceSlot(slot)) return { ok: false, error: "Unknown document." };
+  if (!(await unitExists(courseCode, unitCode))) return { ok: false, error: "This unit isn’t in the course any more." };
+  const [file] = await ownedUploads([String(fileId)], admin.sub);
+  if (!file) return { ok: false, error: "That upload wasn’t found — upload it again." };
+  const label = RESOURCE_SLOTS.find((x) => x.key === slot)!.label;
+  const resource = { id: crypto.randomUUID(), kind: "file" as const, title: label, description: "", file, slot };
+  const previous = await setSlotResource(courseCode, unitCode, resource);
+  if (previous?.kind === "file") await deleteUploads([previous.file.id]);
+  await logActivity(await adminActor(), `uploaded the ${label} for ${unitCode}`, "course");
+  refresh(courseCode, unitCode);
+  return { ok: true, resource };
 }

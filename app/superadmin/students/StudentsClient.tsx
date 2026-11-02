@@ -5,13 +5,16 @@ import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { CheckIcon, PlusIcon, SearchIcon, TrashIcon } from "../../dashboard/_components/icons";
 import CredentialsCard, { type Credentials } from "../_components/CredentialsCard";
+import GroupsPanel from "./GroupsPanel";
 import { initials } from "@/lib/format";
+import { STUDENT_ID_MAX, type GroupDTO } from "@/lib/group-meta";
 import { generatePassword } from "@/lib/password";
 import type { StudentDTO, StudentStatus } from "@/lib/students";
 import {
   createStudentAction,
   deleteStudentAction,
   resetPasswordAction,
+  setStudentGroupAction,
   setStudentStatusAction,
 } from "./actions";
 
@@ -23,18 +26,26 @@ const statusStyle: Record<StudentStatus, string> = {
 
 const filters = ["All", "Active", "Pending", "Suspended"] as const;
 
+const NO_GROUP = "none";
+
 export default function StudentsClient({
   initialStudents,
   courses,
+  initialGroups,
 }: {
   initialStudents: StudentDTO[];
   courses: { code: string; title: string }[];
+  initialGroups: GroupDTO[];
 }) {
+  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "", groupId: "" };
   const [list, setList] = useState(initialStudents);
+  const [groups, setGroups] = useState(initialGroups);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<(typeof filters)[number]>("All");
+  const [groupFilter, setGroupFilter] = useState<string>("All"); // "All", NO_GROUP or a groupId
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", course: courses[0]?.code ?? "", password: "" });
+  const [managingGroups, setManagingGroups] = useState(false);
+  const [form, setForm] = useState(emptyForm);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [saving, startSaving] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -43,11 +54,13 @@ export default function StudentsClient({
   const visible = list.filter(
     (s) =>
       (filter === "All" || s.status === filter) &&
+      (groupFilter === "All" || (groupFilter === NO_GROUP ? !s.groupId : s.groupId === groupFilter)) &&
       (!q || s.name.toLowerCase().includes(q) || s.email.includes(q) || s.studentId.toLowerCase().includes(q)),
   );
 
   const addStudent = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.courses.length === 0) return void toast.error("Pick at least one course.");
     startSaving(async () => {
       const res = await createStudentAction(form);
       if (!res.ok) return void toast.error(res.error);
@@ -59,7 +72,10 @@ export default function StudentsClient({
         email: res.student.email,
         password: form.password,
       });
-      setForm({ name: "", email: "", course: courses[0]?.code ?? "", password: "" });
+      setForm(emptyForm);
+      if (res.student.groupId) {
+        setGroups((g) => g.map((x) => (x.groupId === res.student.groupId ? { ...x, students: x.students + 1 } : x)));
+      }
       setAdding(false);
     });
   };
@@ -91,6 +107,17 @@ export default function StudentsClient({
     );
   };
 
+  const groupName = (id: string | null) => (id ? groups.find((g) => g.groupId === id)?.name : undefined);
+
+  const moveToGroup = (s: StudentDTO, groupId: string | null) =>
+    run(s.studentId, () => setStudentGroupAction(s.studentId, groupId), () => {
+      setList((l) => l.map((x) => (x.studentId === s.studentId ? { ...x, groupId } : x)));
+      setGroups((g) =>
+        g.map((x) => ({ ...x, students: x.students + (x.groupId === groupId ? 1 : 0) - (x.groupId === s.groupId ? 1 : 0) })),
+      );
+      toast.success(groupId ? `${s.name} moved to ${groupName(groupId)}` : `${s.name} removed from the group`);
+    });
+
   const remove = (s: StudentDTO) => {
     if (!window.confirm(`Delete ${s.name}? They won’t be able to log in again.`)) return;
     run(s.studentId, () => deleteStudentAction(s.studentId), () => {
@@ -109,6 +136,20 @@ export default function StudentsClient({
           <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Students</h1>
           <p className="mt-1 text-sm text-ink/55">Create student logins, manage access and track progress.</p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download, not a page */}
+          <a
+            href="/api/student-logs"
+            className="rounded-full bg-lilac px-5 py-3 text-sm font-medium text-plum transition hover:bg-plum/10"
+          >
+            Download all logs (CSV)
+          </a>
+          <button
+            onClick={() => setManagingGroups((v) => !v)}
+            className="rounded-full bg-lilac px-5 py-3 text-sm font-medium text-plum transition hover:bg-plum/10"
+          >
+            Groups ({groups.length})
+          </button>
         <button
           onClick={() => {
             setAdding((v) => !v);
@@ -119,7 +160,20 @@ export default function StudentsClient({
           <PlusIcon className="h-4 w-4" />
           Add student
         </button>
+        </div>
       </div>
+
+      {managingGroups && (
+        <GroupsPanel
+          groups={groups}
+          onChange={setGroups}
+          onDeleted={(groupId) => {
+            setList((l) => l.map((x) => (x.groupId === groupId ? { ...x, groupId: null } : x)));
+            if (groupFilter === groupId) setGroupFilter("All");
+          }}
+          onClose={() => setManagingGroups(false)}
+        />
+      )}
 
       {credentials && <CredentialsCard credentials={credentials} onClose={() => setCredentials(null)} />}
 
@@ -158,27 +212,81 @@ export default function StudentsClient({
               Generate
             </button>
           </div>
-          {/* Course names are long, so the course picker gets its own wide row */}
+          <input
+            value={form.studentId}
+            maxLength={STUDENT_ID_MAX}
+            onChange={(e) => setForm({ ...form, studentId: e.target.value.toUpperCase() })}
+            placeholder="Student ID (blank = automatic)"
+            aria-label="Student ID"
+            className={`${inputClass} font-mono placeholder:font-sans`}
+          />
           <select
-            value={form.course}
-            onChange={(e) => setForm({ ...form, course: e.target.value })}
-            aria-label="Course"
-            className={`${inputClass} min-w-0 truncate sm:col-span-2`}
+            value={form.groupId}
+            onChange={(e) => setForm({ ...form, groupId: e.target.value })}
+            aria-label="Group"
+            className={`${inputClass} min-w-0 lg:col-span-2`}
           >
-            {courses.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} · {c.title}
+            <option value="">No group</option>
+            {groups.map((g) => (
+              <option key={g.groupId} value={g.groupId}>
+                {g.name}
               </option>
             ))}
           </select>
+          {/* A student can be enrolled in several courses */}
+          <fieldset className="rounded-xl bg-white p-3 ring-1 ring-ink/5 sm:col-span-2">
+            <legend className="sr-only">Courses</legend>
+            <p className="px-1 pb-2 text-xs font-medium text-ink">Courses (tick one or more)</p>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {courses.map((c) => (
+                <label key={c.code} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-ink hover:bg-lilac">
+                  <input
+                    type="checkbox"
+                    checked={form.courses.includes(c.code)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        courses: e.target.checked ? [...form.courses, c.code] : form.courses.filter((x) => x !== c.code),
+                      })
+                    }
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-plum"
+                  />
+                  <span className="min-w-0">
+                    <span className="font-medium">{c.code}</span> · {c.title}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <button
             type="submit"
             disabled={saving}
-            className="whitespace-nowrap rounded-full bg-plum px-6 py-3 text-sm font-medium text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60 sm:col-span-2 lg:col-span-1"
+            className="self-end whitespace-nowrap rounded-full bg-plum px-6 py-3 text-sm font-medium text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60 sm:col-span-2 lg:col-span-1"
           >
             {saving ? "Saving…" : "Create login"}
           </button>
         </form>
+      )}
+
+      {groups.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by group">
+          <span className="mr-1 text-xs font-medium text-ink/60">Group:</span>
+          {[
+            { id: "All", label: "All groups", count: list.length },
+            ...groups.map((g) => ({ id: g.groupId, label: g.name, count: list.filter((s) => s.groupId === g.groupId).length })),
+            { id: NO_GROUP, label: "No group", count: list.filter((s) => !s.groupId).length },
+          ].map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setGroupFilter(g.id)}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition ${
+                groupFilter === g.id ? "bg-ink text-white" : "border border-ink/10 bg-white text-ink/70 hover:bg-lilac"
+              }`}
+            >
+              {g.label} <span className="opacity-60">({g.count})</span>
+            </button>
+          ))}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -211,11 +319,12 @@ export default function StudentsClient({
 
       <div className="overflow-hidden rounded-[1.75rem] border border-ink/5 bg-white shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-lilac/60 text-[11px] uppercase tracking-wide text-ink/45">
               <tr>
                 <th className="px-5 py-3 font-medium">Student</th>
-                <th className="px-5 py-3 font-medium">Course</th>
+                <th className="px-5 py-3 font-medium">Courses</th>
+                <th className="px-5 py-3 font-medium">Group</th>
                 <th className="px-5 py-3 font-medium">Progress</th>
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium">Added</th>
@@ -240,7 +349,30 @@ export default function StudentsClient({
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-xs font-medium text-plum">{s.course}</td>
+                    <td className="px-5 py-3.5 text-xs font-medium text-plum">
+                      {s.courses.map((c) => (
+                        <span key={c.code} className="block whitespace-nowrap">
+                          {c.code}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <select
+                        value={s.groupId ?? ""}
+                        disabled={busy}
+                        onChange={(e) => moveToGroup(s, e.target.value || null)}
+                        aria-label={`Group for ${s.name}`}
+                        title={groupName(s.groupId) ?? "No group"}
+                        className="max-w-40 truncate rounded-lg bg-lilac px-2.5 py-1.5 text-xs text-ink outline-none focus:ring-2 focus:ring-plum/30"
+                      >
+                        <option value="">No group</option>
+                        {groups.map((g) => (
+                          <option key={g.groupId} value={g.groupId}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-20 rounded-full bg-lilac">

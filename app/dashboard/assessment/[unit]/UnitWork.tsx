@@ -1,49 +1,86 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { BookIcon, CheckIcon, ClockIcon } from "../../_components/icons";
+import { ArrowRightIcon, BackIcon, BookIcon, CheckIcon, ChevronDownIcon, ClipboardIcon, ClockIcon, CompressIcon, ExpandIcon, FileIcon } from "../../_components/icons";
 import FileList from "../../_components/FileList";
-import ResourceList from "../../_components/ResourceList";
-import RichTextEditor from "../../_components/RichTextEditor";
 import DueLabel from "../_components/DueLabel";
 import LocalTime from "../_components/LocalTime";
 import SubmitPhoto from "../_components/SubmitPhoto";
-import { saveWorkAction, submitQuizAction } from "../actions";
+import { logUnitViewAction, saveWorkAction, submitQuizAction } from "../actions";
+import type { DeclarationText } from "@/lib/declaration";
 import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type StudentAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
-import { statusStyle, type FileRef, type SubmissionDTO } from "@/lib/submission-meta";
-import { canEditWork, resultStyle, type Resource, type UnitResultDTO } from "@/lib/unit-meta";
+import { FILE_RULES, formatBytes, needsRework, statusLabel, statusStyle, type FileRef, type SubmissionDTO, type SubmissionStatus } from "@/lib/submission-meta";
+import { toneCard, toneStyle } from "@/lib/result-meta";
+import { canEditWork, RESOURCE_SLOTS, type Resource, type UnitResultDTO } from "@/lib/unit-meta";
 
 type Subs = Partial<Record<AssessmentPart, SubmissionDTO>>;
 type WrittenPart = Exclude<AssessmentPart, "quiz">;
 
 const card = "rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6";
 
-const SECTIONS = [
-  { key: "overview", label: "Main unit" },
-  { key: "resources", label: "Resources" },
-  { key: "assessment", label: "Assessment" },
-] as const;
-type Section = (typeof SECTIONS)[number]["key"];
+// A unit as the sidebar lists it
+export type OutlineUnit = {
+  code: string;
+  title: string;
+  hasOverview: boolean;
+  resources: { id: string; title: string; kind: Resource["kind"] }[];
+  parts: { key: AssessmentPart; status: SubmissionStatus | "Not started" }[];
+};
+
+// What can be opened in a unit: "overview", "resources" or "part:<assessment part>"
+type Item = { key: string; label: string; kind: "overview" | "resources" | "part"; status?: SubmissionStatus | "Not started" };
+
+const partLabel = (key: AssessmentPart) => ASSESSMENT_PARTS.find((p) => p.key === key)?.label ?? key;
+
+// Students only see learning content here — assessment parts are skipped from the left/course list.
+// Every unit: 1. Quiz and Activities  2. Resources  3. Theory Task  4. Workplacement Task
+function itemsOf(u: Pick<OutlineUnit, "hasOverview" | "resources" | "parts">): Item[] {
+  const part = (p: OutlineUnit["parts"][number]): Item => ({ key: `part:${p.key}`, label: partLabel(p.key), kind: "part", status: p.status });
+  return [
+    ...u.parts.filter((p) => p.key === "quiz").map(part),
+    ...(u.resources.length ? [{ key: "resources", label: "Resources", kind: "resources" as const }] : []),
+    ...u.parts.filter((p) => p.key !== "quiz").map(part),
+  ];
+}
+
+const isPdf = (f: FileRef) => /\.pdf$/i.test(f.name);
+const isSlides = (f: FileRef) => /\.pptx?$/i.test(f.name);
+const isImage = (f: FileRef) => /\.(jpe?g|png)$/i.test(f.name);
+
+function ItemIcon({ kind, className = "h-4 w-4" }: { kind: Item["kind"]; className?: string }) {
+  if (kind === "resources") return <FileIcon className={className} />;
+  if (kind === "part") return <ClipboardIcon className={className} />;
+  return <BookIcon className={className} />;
+}
 
 export default function UnitWork({
   course,
   unit,
+  units,
+  percent,
+  initialItem,
   assessment,
   initialSubmissions,
   pastDue,
   photoRequired,
+  declaration,
   overview,
   resources,
   outcome,
 }: {
   course: { code: string; name: string };
   unit: Unit;
+  units: OutlineUnit[];
+  percent: number; // course progress: assessment parts accepted
+  initialItem?: string;
   assessment: StudentAssessment;
   initialSubmissions: Subs;
   pastDue: boolean;
   photoRequired: boolean;
+  declaration: DeclarationText; // what the student ticks before submitting a task
   overview: string;
   resources: Resource[];
   outcome: UnitResultDTO | null;
@@ -52,140 +89,345 @@ export default function UnitWork({
   const closed = pastDue || !!outcome;
   const [subs, setSubs] = useState(initialSubmissions);
   const set = summarise(assessment);
-  // Students only see what the Super Admin has actually written or uploaded
-  const parts = ASSESSMENT_PARTS.filter((p) => set[p.key]);
-  const sections = SECTIONS.filter((s) =>
-    s.key === "overview" ? !!overview : s.key === "resources" ? resources.length > 0 : parts.length > 0,
-  );
-  const [section, setSection] = useState<Section | undefined>(sections[0]?.key);
-  const nextSection = sections[sections.findIndex((s) => s.key === section) + 1];
-  const firstPart = parts[0]?.key ?? "quiz";
-  const [tab, setTab] = useState<AssessmentPart>(firstPart);
   const update = (s: SubmissionDTO) => setSubs((prev) => ({ ...prev, [s.part]: s }));
+
+  // This unit's items, with live submission statuses
+  const items = itemsOf({
+    hasOverview: !!overview,
+    resources,
+    parts: ASSESSMENT_PARTS.filter((p) => set[p.key]).map((p) => ({ key: p.key, status: subs[p.key]?.status ?? "Not started" })),
+  });
+  const [current, setCurrent] = useState(items.find((i) => i.key === initialItem)?.key ?? items[0]?.key);
+  const index = items.findIndex((i) => i.key === current);
+  const item = items[index];
+
+  // Activity log: which item the student opened
+  useEffect(() => {
+    if (current) logUnitViewAction(course.code, unit.code, current).catch(() => {});
+  }, [course.code, unit.code, current]);
+
+  // Keep the open item in the address bar so a refresh or shared link opens it again
+  useEffect(() => {
+    if (!current) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("item", current);
+    window.history.replaceState(null, "", url);
+  }, [current]);
+
+  const open = (key: string) => {
+    setCurrent(key);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const part = item?.key.startsWith("part:") ? (item.key.slice(5) as AssessmentPart) : undefined;
+  const unitHref = (code: string, key?: string) =>
+    `/dashboard/assessment/${encodeURIComponent(code)}?course=${encodeURIComponent(course.code)}${key ? `&item=${encodeURIComponent(key)}` : ""}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-plum">
-            {course.code} · {course.name}
-          </p>
-          <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">
-            {unit.code} – {unit.title}
-          </h1>
+      {/* Course bar */}
+      <div className="flex flex-wrap items-center gap-4 rounded-[1.5rem] border border-ink/10 bg-white px-5 py-4 shadow-sm">
+        <div className="min-w-56 flex-1">
+          <p className="text-lg font-semibold text-ink">{course.name}</p>
+          <div className="mt-2 flex items-center gap-3">
+            <div className="h-2 w-full max-w-md overflow-hidden rounded-full bg-lilac" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Course progress">
+              <div className="h-full rounded-full bg-plum" style={{ width: `${percent}%` }} />
+            </div>
+            <span className="shrink-0 text-sm font-medium text-ink">{percent}% complete</span>
+          </div>
         </div>
-        <DueLabel dueAt={assessment.dueAt} />
-      </div>
-
-      {outcome && (
-        <div className={`rounded-[1.5rem] px-5 py-4 ${outcome.result === "Pass" ? "bg-emerald-50 text-emerald-900" : outcome.result === "Fail" ? "bg-rose-50 text-rose-900" : "bg-ink/5 text-ink"}`}>
-          <p className="text-[11px] font-medium uppercase tracking-wide opacity-60">Unit outcome</p>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-lg font-medium">
-            Final result:
-            <span className={`rounded-full px-3 py-0.5 text-sm ${resultStyle[outcome.result]}`}>{outcome.result}</span>
-          </p>
-          {outcome.feedback && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{outcome.feedback}</p>}
-          <p className="mt-2 text-[11px] opacity-60">
-            {outcome.decidedBy} · <LocalTime iso={outcome.decidedAt} />
-          </p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/course" className="rounded-xl border border-ink/15 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-lilac">
+            Course page
+          </Link>
         </div>
-      )}
-      {pastDue && !outcome && (
-        <p className="rounded-2xl bg-rose-50 px-5 py-3 text-sm text-rose-700">
-          The due date has passed, so this unit is closed. Contact the college if you need more time.
-        </p>
-      )}
-
-      {sections.length === 0 && (
-        <p className={`${card} text-center text-sm text-ink/55`}>
-          The college hasn’t added anything to this unit yet. Check back soon.
-        </p>
-      )}
-
-      <div role="tablist" aria-label="Unit sections" className="flex flex-wrap gap-2">
-        {sections.map((s, i) => (
-          <button
-            key={s.key}
-            role="tab"
-            aria-selected={section === s.key}
-            onClick={() => setSection(s.key)}
-            className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
-              section === s.key ? "bg-ink text-white" : "bg-lilac text-ink/70 hover:bg-plum/10"
-            }`}
-          >
-            {i + 1}. {s.label}
-            {s.key === "resources" && resources.length > 0 && <span className="ml-1.5 opacity-60">({resources.length})</span>}
-          </button>
-        ))}
       </div>
 
-      {section === "overview" && (
-        // Overview HTML is sanitised on the server (lib/sanitize.ts)
-        <div className={`${card} rich-text text-sm leading-relaxed text-ink`} dangerouslySetInnerHTML={{ __html: overview }} />
-      )}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Selected item */}
+        <main className="min-w-0 space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-plum">{unit.code}</p>
+              <h1 className="mt-0.5 text-2xl font-semibold text-ink">{unit.title}</h1>
+            </div>
+            <DueLabel dueAt={assessment.dueAt} />
+          </div>
 
-      {section === "resources" && <ResourceList resources={resources} />}
+          {outcome && (
+            <div className={`rounded-[1.5rem] px-5 py-4 ${toneCard[outcome.tone]}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide">Unit outcome</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-lg font-medium">
+                Final result:
+                <span className={`rounded-full px-3 py-0.5 text-sm ${toneStyle[outcome.tone]}`}>{outcome.label}</span>
+              </p>
+              {outcome.feedback && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{outcome.feedback}</p>}
+              <p className="mt-2 text-xs">
+                {outcome.decidedBy} · <LocalTime iso={outcome.decidedAt} />
+              </p>
+            </div>
+          )}
+          {pastDue && !outcome && (
+            <p className="rounded-2xl bg-rose-50 px-5 py-3 text-sm text-rose-800">
+              The due date has passed, so this unit is closed. Contact the college if you need more time.
+            </p>
+          )}
 
-      {section !== "assessment" && nextSection && (
-        <button
-          onClick={() => setSection(nextSection.key)}
-          className="inline-flex items-center gap-2 rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light"
-        >
-          <BookIcon className="h-4 w-4" />
-          {nextSection.key === "resources" ? "Next: read the resources" : "Next: start the assessment"}
-        </button>
-      )}
+          {!item && (
+            <p className={`${card} text-center text-sm text-ink`}>The college hasn’t added anything to this unit yet. Check back soon.</p>
+          )}
 
-      {section === "assessment" && (
-      <>
-      <div
-        role="tablist"
-        aria-label="Assessment parts"
-        className={`grid gap-2 sm:grid-cols-2 ${parts.length >= 4 ? "xl:grid-cols-4" : parts.length === 3 ? "xl:grid-cols-3" : ""}`}
-      >
-        {parts.map((p, i) => {
-          const active = tab === p.key;
-          const status = subs[p.key]?.status ?? "Not started";
-          return (
-            <button
-              key={p.key}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(p.key)}
-              className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-left transition ${
-                active ? "bg-plum text-white shadow-md shadow-plum/20" : "bg-lilac text-ink hover:bg-plum/10"
-              }`}
-            >
-              <span
-                className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-medium ${
-                  status === "Accepted" ? "bg-emerald-400 text-white" : active ? "bg-white/20" : "bg-white text-plum"
-                }`}
-              >
-                {status === "Accepted" ? <CheckIcon className="h-4 w-4" /> : i + 1}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-medium">{p.label}</span>
-                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${statusStyle[status]}`}>{status}</span>
-              </span>
-            </button>
-          );
-        })}
+          {item?.kind === "overview" && (
+            <section className={card} aria-label="Unit overview">
+              <h2 className="text-lg font-semibold text-ink">Unit overview</h2>
+              {/* Overview HTML is sanitised on the server (lib/sanitize.ts) */}
+              <div className="rich-text mt-3 text-base leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: overview }} />
+            </section>
+          )}
+
+          {item?.kind === "resources" && <ResourcesView resources={resources} />}
+
+          {part && (
+            <section aria-label={partLabel(part)} className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold text-ink">{partLabel(part)}</h2>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusStyle[subs[part]?.status ?? "Not started"]}`}>
+                  {statusLabel[subs[part]?.status ?? "Not started"]}
+                </span>
+              </div>
+              {/* Once marked Satisfactory the part is complete: the student only sees the status and feedback */}
+              {subs[part]?.status === "Accepted" ? (
+                <Outcome sub={subs[part]!} />
+              ) : part === "quiz" ? (
+                <QuizPart courseCode={course.code} unitCode={unit.code} quiz={assessment.quiz} sub={subs.quiz} pastDue={closed} photoRequired={photoRequired} onSaved={update} />
+              ) : (
+                <WrittenWork key={part} part={part} courseCode={course.code} unitCode={unit.code} assessment={assessment} sub={subs[part]} pastDue={closed} photoRequired={photoRequired} declaration={declaration} onSaved={update} />
+              )}
+            </section>
+          )}
+
+          {items.length > 1 && (
+            <nav aria-label="Previous and next" className="flex flex-wrap justify-between gap-3 pt-2">
+              {index > 0 ? (
+                <button onClick={() => open(items[index - 1].key)} className="inline-flex items-center gap-2 rounded-xl border border-ink/15 bg-white px-5 py-3 text-sm font-medium text-ink transition hover:bg-lilac">
+                  <BackIcon className="h-4 w-4" />
+                  Previous: {items[index - 1].label}
+                </button>
+              ) : (
+                <span />
+              )}
+              {index < items.length - 1 && (
+                <button onClick={() => open(items[index + 1].key)} className="inline-flex items-center gap-2 rounded-xl bg-plum px-5 py-3 text-sm font-semibold text-white transition hover:bg-plum-light">
+                  Next: {items[index + 1].label}
+                  <ArrowRightIcon className="h-4 w-4" />
+                </button>
+              )}
+            </nav>
+          )}
+        </main>
+
+        {/* Every unit of the course */}
+        <aside aria-label="Course content" className="space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:pr-1">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <h2 className="text-lg font-semibold text-ink">Course content</h2>
+            <span className="text-sm text-ink">{units.length} units</span>
+          </div>
+          <ul className="space-y-2.5">
+            {units.map((u, i) => {
+              const here = u.code === unit.code;
+              const list = here ? items : itemsOf(u);
+              const accepted = u.parts.length > 0 && u.parts.every((p) => p.status === "Accepted");
+              return (
+                <li key={u.code}>
+                  <details open={here} className={`group rounded-2xl border ${here ? "border-plum bg-lilac" : "border-ink/10 bg-white"}`}>
+                    <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold ${accepted ? "bg-emerald-600 text-white" : "bg-plum text-white"}`}>
+                        {accepted ? <CheckIcon className="h-5 w-5" /> : i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold leading-snug text-ink">{u.title}</span>
+                        <span className="block text-xs text-ink">
+                          {u.code} · {list.length} {list.length === 1 ? "item" : "items"}
+                        </span>
+                      </span>
+                      <ChevronDownIcon className="h-5 w-5 shrink-0 text-ink transition group-open:rotate-180" />
+                    </summary>
+                    {list.length === 0 ? (
+                      <p className="px-4 pb-4 text-sm text-ink">Nothing added yet.</p>
+                    ) : (
+                      <ul className="space-y-1 px-2 pb-3">
+                        {list.map((it) => {
+                          const active = here && it.key === current;
+                          const body = (
+                            <>
+                              <ItemIcon kind={it.kind} className="h-4 w-4 shrink-0" />
+                              <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                              {it.status && it.status !== "Not started" && (
+                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${active ? "bg-white/20 text-white" : statusStyle[it.status]}`}>{statusLabel[it.status]}</span>
+                              )}
+                            </>
+                          );
+                          const cls = `flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                            active ? "bg-plum font-medium text-white" : "text-ink hover:bg-white"
+                          }`;
+                          return (
+                            <li key={it.key}>
+                              {here ? (
+                                <button onClick={() => open(it.key)} aria-current={active ? "true" : undefined} className={cls}>
+                                  {body}
+                                </button>
+                              ) : (
+                                <Link href={unitHref(u.code, it.key)} className={cls}>
+                                  {body}
+                                </Link>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
       </div>
+    </div>
+  );
+}
 
-      {!set[tab] ? (
-        <p className={`${card} text-center text-sm text-ink/50`}>The college hasn’t set up this part for {unit.code} yet.</p>
-      ) : tab === "quiz" ? (
-        <QuizPart unitCode={unit.code} quiz={assessment.quiz} sub={subs.quiz} pastDue={closed} photoRequired={photoRequired} onSaved={update} />
-      ) : (
-        <WrittenWork key={tab} part={tab} unitCode={unit.code} assessment={assessment} sub={subs[tab]} pastDue={closed} photoRequired={photoRequired} onSaved={update} />
-      )}
-      </>
+// Everything under "Resources": the Learner Guide, PowerPoint Presentation and Supporting Document, then any extras
+function ResourcesView({ resources }: { resources: Resource[] }) {
+  const main = RESOURCE_SLOTS.flatMap((slot) => resources.filter((r) => r.kind === "file" && r.slot === slot.key));
+  const extra = resources.filter((r) => !(r.kind === "file" && r.slot));
+  return (
+    <div className="space-y-10">
+      <h2 className="text-xl font-semibold text-ink">Resources</h2>
+      {main.map((r) => r.kind === "file" && <FileViewer key={r.id} resource={r} />)}
+      {extra.length > 0 && (
+        <div className="space-y-5">
+          {main.length > 0 && <h3 className="text-lg font-semibold text-ink">More resources</h3>}
+          {extra.map((r) =>
+            r.kind === "file" ? (
+              <FileViewer key={r.id} resource={r} />
+            ) : r.kind === "link" ? (
+              <section key={r.id} className={card} aria-label={r.title}>
+                <h3 className="text-lg font-semibold text-ink">{r.title}</h3>
+                {r.description && <p className="mt-2 whitespace-pre-wrap text-base text-ink">{r.description}</p>}
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-plum px-5 py-3 text-sm font-semibold text-white transition hover:bg-plum-light"
+                >
+                  Open link
+                  <ArrowRightIcon className="h-4 w-4" />
+                </a>
+              </section>
+            ) : (
+              <section key={r.id} className={card} aria-label={r.title}>
+                <h3 className="text-lg font-semibold text-ink">{r.title}</h3>
+                {r.description && <p className="mt-2 whitespace-pre-wrap text-base text-ink">{r.description}</p>}
+                {/* Notes HTML is sanitised on the server (lib/sanitize.ts) */}
+                <div className="rich-text mt-3 text-base leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: r.body }} />
+              </section>
+            ),
+          )}
+        </div>
       )}
     </div>
   );
 }
 
+// A resource file: shown in the page when it's a PDF or picture, always downloadable
+function FileViewer({ resource }: { resource: Extract<Resource, { kind: "file" }> }) {
+  const f = resource.file;
+  const src = `/api/files/${f.id}?inline=1`;
+  // Just the document: no browser PDF toolbar or page thumbnails
+  const pdfSrc = `${src}#toolbar=0&navpanes=0&view=FitH`;
+  const box = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setFull(document.fullscreenElement === box.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // Full screen on this page (Esc also leaves it)
+  const toggleFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void box.current?.requestFullscreen?.().catch(() => toast.error("Full screen isn’t available in this browser."));
+  };
+
+  return (
+    <section aria-label={resource.title} className="space-y-4">
+      <div ref={box} className={`flex flex-col overflow-hidden border border-ink/10 bg-ink shadow-md ${full ? "h-dvh rounded-none" : "rounded-[1.5rem]"}`}>
+        <div className="flex items-center justify-between gap-3 bg-ink px-5 py-3 text-white">
+          <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+            <FileIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{resource.title}</span>
+          </span>
+          {(isPdf(f) || isImage(f)) && (
+            <button
+              type="button"
+              onClick={toggleFull}
+              className="flex shrink-0 items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/25"
+            >
+              {full ? <CompressIcon className="h-4 w-4" /> : <ExpandIcon className="h-4 w-4" />}
+              {full ? "Exit full screen" : "Expand full screen"}
+            </button>
+          )}
+        </div>
+        {isPdf(f) ? (
+          <iframe src={pdfSrc} title={resource.title} className={`block w-full bg-white ${full ? "flex-1" : "h-[70dvh] min-h-96"}`} />
+        ) : isImage(f) ? (
+          // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route
+          <img src={src} alt={resource.title} className={`mx-auto block w-auto bg-white ${full ? "max-h-full flex-1 object-contain" : "max-h-[70dvh]"}`} />
+        ) : (
+          <div className="grid min-h-64 place-items-center bg-lilac px-6 py-12 text-center">
+            <div>
+              <FileIcon className="mx-auto h-10 w-10 text-plum" />
+              <p className="mt-3 text-base font-medium text-ink">This {isSlides(f) ? "PowerPoint presentation" : "Word document"} can’t be shown here.</p>
+              <p className="mt-1 text-sm text-ink">Download it below to read it.</p>
+            </div>
+          </div>
+        )}
+      </div>
+      {resource.description && <p className="whitespace-pre-wrap text-base text-ink">{resource.description}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-dashed border-ink/20 bg-white px-5 py-4">
+        <span>
+          <span className="block text-base font-semibold text-ink">Download the file</span>
+          <span className="block text-sm text-ink">
+            {f.name} · {formatBytes(f.size)}
+          </span>
+        </span>
+        <a href={`/api/files/${f.id}`} className="rounded-xl bg-plum px-6 py-3 text-sm font-semibold text-white transition hover:bg-plum-light">
+          Download
+        </a>
+      </div>
+    </section>
+  );
+}
+
 // ---------- Status + feedback ----------
+
+// The declaration certificate made when the student submitted
+function DeclarationLink({ sub }: { sub: SubmissionDTO }) {
+  if (!sub.content.declaration) return null;
+  return (
+    <a
+      href={`/declaration/${sub.submissionId}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-3 inline-flex items-center gap-2 rounded-xl border border-current/30 bg-white px-4 py-2 text-sm font-semibold text-plum transition hover:bg-lilac"
+    >
+      <FileIcon className="h-4 w-4" />
+      View declaration
+    </a>
+  );
+}
 
 function Outcome({ sub }: { sub: SubmissionDTO }) {
   if (sub.status === "Draft") {
@@ -193,17 +435,23 @@ function Outcome({ sub }: { sub: SubmissionDTO }) {
   }
   if (sub.status === "Submitted") {
     return (
-      <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-        <ClockIcon className="h-4 w-4 shrink-0" />
-        Submitted{sub.submittedAt && <> on <LocalTime iso={sub.submittedAt} /></>} — waiting for your trainer to review it.
-      </p>
+      <div className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-900">
+        <p className="flex items-center gap-2">
+          <ClockIcon className="h-4 w-4 shrink-0" />
+          Submitted{sub.submittedAt && <> on <LocalTime iso={sub.submittedAt} /></>} — waiting for your trainer to review it.
+        </p>
+        <DeclarationLink sub={sub} />
+      </div>
     );
   }
   const accepted = sub.status === "Accepted";
   return (
-    <div className={`rounded-2xl px-5 py-4 ${accepted ? "bg-emerald-50 text-emerald-900" : "bg-rose-50 text-rose-900"}`}>
-      <p className="text-sm font-medium">
-        {accepted ? "Accepted ✓" : "Not accepted yet — please fix and resubmit"}
+    <div
+      className={`rounded-2xl px-5 py-4 ${accepted ? "bg-emerald-50 text-emerald-900" : sub.status === "MoreDocs" ? "bg-orange-50 text-orange-900" : "bg-rose-50 text-rose-900"}`}
+    >
+      <p className="text-base font-semibold">
+        {statusLabel[sub.status]}
+        {accepted ? " ✓" : sub.status === "MoreDocs" ? " — please upload the extra documents and resubmit" : " — please fix it and resubmit"}
         {sub.attempt > 1 && <span className="font-normal opacity-70"> · attempt {sub.attempt}</span>}
       </p>
       {sub.feedback && <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed">{sub.feedback}</p>}
@@ -213,13 +461,14 @@ function Outcome({ sub }: { sub: SubmissionDTO }) {
           {sub.decidedAt && <> · <LocalTime iso={sub.decidedAt} /></>}
         </p>
       )}
+      <DeclarationLink sub={sub} />
       {sub.history.length > 0 && (
         <details className="mt-3 text-xs">
           <summary className="cursor-pointer opacity-70">Earlier feedback ({sub.history.length})</summary>
           <ul className="mt-2 space-y-2">
             {sub.history.map((h) => (
               <li key={h.attempt} className="rounded-xl bg-white/60 px-3 py-2">
-                <span className="font-medium">Attempt {h.attempt} · {h.status}</span> — {h.feedback || "No comment"}
+                <span className="font-medium">Attempt {h.attempt} · {statusLabel[h.status]}</span> — {h.feedback || "No comment"}
               </li>
             ))}
           </ul>
@@ -229,9 +478,10 @@ function Outcome({ sub }: { sub: SubmissionDTO }) {
   );
 }
 
-// ---------- Online quiz ----------
+// ---------- Quiz and Activities ----------
 
 function QuizPart({
+  courseCode,
   unitCode,
   quiz,
   sub,
@@ -239,6 +489,7 @@ function QuizPart({
   photoRequired,
   onSaved,
 }: {
+  courseCode: string;
   unitCode: string;
   quiz: StudentAssessment["quiz"];
   sub: SubmissionDTO | undefined;
@@ -256,25 +507,25 @@ function QuizPart({
   const submit = () => {
     if (answered < quiz.questions.length) return void toast.error(`Answer all ${quiz.questions.length} questions first.`);
     if (photoRequired) return setAskPhoto(true);
-    if (!window.confirm("Submit your quiz? It’s marked straight away.")) return;
+    if (!window.confirm("Submit your quiz? Your trainer will check it.")) return;
     send(null);
   };
 
   const send = (photoId: string | null) => {
     setAskPhoto(false);
     startSending(async () => {
-      const res = await submitQuizAction(unitCode, answers as number[], photoId);
+      const res = await submitQuizAction(courseCode, unitCode, answers as number[], photoId);
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.submission);
       setRetrying(false);
-      toast[res.submission.status === "Accepted" ? "success" : "error"](res.submission.status === "Accepted" ? "Quiz passed!" : "Not passed this time");
+      toast.success("Quiz submitted to your trainer");
     });
   };
 
   return (
     <section className="space-y-4">
       {sub && !retrying && <Outcome sub={sub} />}
-      {sub?.status === "Rejected" && !retrying && !pastDue && (
+      {needsRework(sub?.status) && !retrying && !pastDue && (
         <button
           onClick={() => {
             setAnswers(quiz.questions.map(() => null));
@@ -290,7 +541,7 @@ function QuizPart({
         <>
           <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
             <div>
-              <h2 className="text-base font-medium text-ink">Online quiz</h2>
+              <h2 className="text-base font-medium text-ink">Quiz and Activities</h2>
               <p className="mt-0.5 text-xs text-ink/50">
                 {quiz.questions.length} questions · pick one answer each · pass mark {quiz.passMark}%
               </p>
@@ -333,7 +584,7 @@ function QuizPart({
               disabled={sending}
               className="rounded-full bg-plum px-6 py-3 text-sm font-medium text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60"
             >
-              {sending ? "Marking…" : "Submit quiz"}
+              {sending ? "Submitting…" : "Submit quiz"}
             </button>
             {retrying && (
               <button onClick={() => setRetrying(false)} className="rounded-full px-5 py-3 text-sm font-medium text-ink/60 hover:bg-lilac">
@@ -349,42 +600,40 @@ function QuizPart({
   );
 }
 
-// ---------- Theory / role play / workplace ----------
+// ---------- Theory Task / Workplacement Task ----------
 
 function WrittenWork({
   part,
+  courseCode,
   unitCode,
   assessment,
   sub,
   pastDue,
   photoRequired,
+  declaration,
   onSaved,
 }: {
   part: WrittenPart;
+  courseCode: string;
   unitCode: string;
   assessment: StudentAssessment;
   sub: SubmissionDTO | undefined;
   pastDue: boolean;
   photoRequired: boolean;
+  declaration: DeclarationText;
   onSaved: (s: SubmissionDTO) => void;
 }) {
   const [askPhoto, setAskPhoto] = useState(false);
   const canEdit = canEditWork(sub?.status, pastDue, false);
-  const questions = assessment.theory.questions;
-  const initial = () => ({
-    theory: questions.map((q) => sub?.content.theory?.find((t) => t.questionId === q.id)?.html ?? ""),
-    theoryFiles: questions.map((q) => sub?.content.theory?.find((t) => t.questionId === q.id)?.files ?? ([] as FileRef[])),
-    html: sub?.content.html ?? "",
-    supervisor: sub?.content.supervisor ?? "",
-    evidenceFiles: assessment.workplace.evidence.map(
-      (e) => sub?.content.evidence?.find((x) => x.evidenceId === e.id)?.files ?? ([] as FileRef[]),
-    ),
-    files: sub?.files ?? ([] as FileRef[]),
-  });
-  const [work, setWork] = useState(initial);
+  const task = part === "theory" ? assessment.theory.files : assessment.workplace.files;
+  const [files, setFiles] = useState<FileRef[]>(sub?.files ?? []);
   const [saving, startSaving] = useTransition();
-  const [savedJson, setSavedJson] = useState(() => JSON.stringify(work));
-  const dirty = canEdit && JSON.stringify(work) !== savedJson;
+  const [savedIds, setSavedIds] = useState(() => (sub?.files ?? []).map((f) => f.id).join());
+  // every declaration point is ticked on its own, then "I agree" at the end
+  const [ticked, setTicked] = useState<boolean[]>(() => declaration.points.map(() => false));
+  const [agreed, setAgreed] = useState(false);
+  const allTicked = ticked.every(Boolean) && agreed;
+  const dirty = canEdit && files.map((f) => f.id).join() !== savedIds;
 
   useEffect(() => {
     if (!dirty) return;
@@ -395,214 +644,76 @@ function WrittenWork({
 
   const send = (mode: "draft" | "submit", photoId: string | null = null) => {
     if (mode === "submit" && !photoId) {
+      if (files.length === 0) return void toast.error("Upload your completed work first.");
+      if (!ticked.every(Boolean)) return void toast.error("Tick every point of the declaration before you submit.");
+      if (!agreed) return void toast.error(`Tick “${declaration.agree}” before you submit.`);
       if (photoRequired) return setAskPhoto(true);
       if (!window.confirm("Submit to your trainer? You can’t change it while they review it.")) return;
     }
     setAskPhoto(false);
     startSaving(async () => {
-      const res = await saveWorkAction(
-        unitCode,
-        part,
-        {
-          theory: questions.map((q, i) => ({ questionId: q.id, html: work.theory[i], fileIds: work.theoryFiles[i].map((f) => f.id) })),
-          html: work.html,
-          supervisor: work.supervisor,
-          evidence: assessment.workplace.evidence.map((e, i) => ({ evidenceId: e.id, fileIds: work.evidenceFiles[i].map((f) => f.id) })),
-          fileIds: work.files.map((f) => f.id),
-        },
-        mode,
-        photoId,
-      );
+      const res = await saveWorkAction(courseCode, unitCode, part, { fileIds: files.map((f) => f.id) }, mode, photoId, mode === "submit" && allTicked);
       if (!res.ok) return void toast.error(res.error);
-      setSavedJson(JSON.stringify(work));
+      setSavedIds(files.map((f) => f.id).join());
       onSaved(res.submission);
       toast.success(mode === "submit" ? "Submitted to your trainer" : "Draft saved");
     });
   };
 
-  const brief =
-    part === "theory" ? (
-      <p className="text-sm text-ink/60">Answer each question below — type your answer like in Word, upload a document for that question, or both.</p>
-    ) : part === "rolePlay" ? (
-      <div className="space-y-3 text-sm leading-relaxed text-ink/80">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Scenario</p>
-          <p className="mt-1 whitespace-pre-wrap">{assessment.rolePlay.scenario}</p>
-        </div>
-        {assessment.rolePlay.instructions && (
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">What to do</p>
-            <p className="mt-1 whitespace-pre-wrap">{assessment.rolePlay.instructions}</p>
-          </div>
-        )}
-        {assessment.rolePlay.criteria.length > 0 && (
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Your trainer will look for</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5">
-              {assessment.rolePlay.criteria.map((c) => (
-                <li key={c.id}>{c.text}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    ) : (
-      <div className="space-y-3 text-sm leading-relaxed text-ink/80">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Task</p>
-          <p className="mt-1 whitespace-pre-wrap">{assessment.workplace.task}</p>
-        </div>
-      </div>
-    );
-
-  const readOnlyHtml = (html: string) =>
-    html ? (
-      // Stored HTML is sanitised on the server (lib/sanitize.ts)
-      <div className="rich-text rounded-xl bg-lilac/50 px-4 py-3 text-sm leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: html }} />
-    ) : (
-      <p className="text-xs text-ink/45">Nothing written.</p>
-    );
-
-  const label = ASSESSMENT_PARTS.find((p) => p.key === part)!.label;
-
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       {sub && <Outcome sub={sub} />}
-      <div className={card}>
-        <h2 className="mb-3 text-base font-medium text-ink">{label}</h2>
-        {brief}
+
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold text-ink">1. Read and download the task</h3>
+          <p className="mt-0.5 text-sm text-ink">Open the task below, download it, complete it, then upload your work in step 2.</p>
+        </div>
+        {task.map((f) => (
+          <FileViewer key={f.id} resource={{ id: f.id, kind: "file", title: f.name.replace(/\.[^.]+$/, ""), description: "", file: f }} />
+        ))}
       </div>
 
-      {part === "workplace" && assessment.workplace.evidence.length > 0 && (
-        <div className={card}>
-          <h3 className="text-sm font-medium text-ink">Evidence to upload</h3>
-          <p className="mt-0.5 text-xs text-ink/50">Upload at least one file for each item below.</p>
-          <ol className="mt-4 space-y-3">
-            {assessment.workplace.evidence.map((e, i) => (
-              <li key={e.id} className="rounded-2xl bg-lilac/40 p-4">
-                <p className="flex items-start gap-3 text-sm font-medium text-ink">
-                  <span
-                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-[11px] ${
-                      work.evidenceFiles[i].length ? "bg-emerald-400 text-white" : "bg-white text-plum"
-                    }`}
-                  >
-                    {work.evidenceFiles[i].length ? "✓" : i + 1}
-                  </span>
-                  <span className="pt-0.5">{e.text}</span>
-                </p>
-                <div className="mt-3 pl-9">
-                  <FileList
-                    files={work.evidenceFiles[i]}
-                    onChange={
-                      canEdit
-                        ? (files) => setWork((w) => ({ ...w, evidenceFiles: w.evidenceFiles.map((f, j) => (j === i ? files : f)) }))
-                        : undefined
-                    }
-                    emptyText="Nothing uploaded."
-                    uploadLabel="Upload file"
-                    inputLabel={`Upload evidence ${i + 1}`}
+      <div className={`${card} space-y-3`}>
+        <div>
+          <h3 className="text-lg font-semibold text-ink">2. Upload your completed work</h3>
+          <p className="mt-0.5 text-sm text-ink">
+            {canEdit ? `You can attach several files (${FILE_RULES.label}, up to ${FILE_RULES.maxFiles}).` : "What you handed in:"}
+          </p>
+        </div>
+        <FileList
+          files={files}
+          onChange={canEdit ? (next) => setFiles(next.slice(0, FILE_RULES.maxFiles)) : undefined}
+          emptyText="No files uploaded."
+          uploadLabel="Upload file"
+          inputLabel="Upload your completed work"
+        />
+      </div>
+
+      {canEdit && (
+        <div className={`${card} space-y-3`}>
+          <h3 className="text-lg font-semibold text-ink">3. Declaration</h3>
+          <p className="text-base text-ink">{declaration.intro}</p>
+          <p className="text-sm font-medium text-ink">Tick each point, then tick the last box to agree.</p>
+          <ul className="space-y-2">
+            {declaration.points.map((p, i) => (
+              <li key={i}>
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-base text-ink transition hover:bg-lilac">
+                  <input
+                    type="checkbox"
+                    checked={ticked[i] ?? false}
+                    onChange={(e) => setTicked((t) => t.map((v, j) => (j === i ? e.target.checked : v)))}
+                    className="mt-1 h-5 w-5 shrink-0 accent-plum"
                   />
-                </div>
+                  {p}
+                </label>
               </li>
             ))}
-          </ol>
-        </div>
-      )}
-
-      {part === "theory" ? (
-        questions.map((q, i) => (
-          <div key={q.id} className={card}>
-            <p className="flex gap-3 text-sm font-medium text-ink">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-lilac text-[11px] text-plum">{i + 1}</span>
-              <span className="pt-1">{q.text}</span>
-            </p>
-            {q.guidance && <p className="mt-2 pl-10 text-xs text-ink/50">{q.guidance}</p>}
-            <div className="mt-3 pl-0 sm:pl-10">
-              {canEdit ? (
-                <RichTextEditor
-                  label={`Answer to question ${i + 1}`}
-                  value={work.theory[i]}
-                  onChange={(html) => setWork((w) => ({ ...w, theory: w.theory.map((t, j) => (j === i ? html : t)) }))}
-                  placeholder="Type your answer…"
-                  wordLimit={q.wordLimit}
-                  minHeight="8rem"
-                />
-              ) : (
-                readOnlyHtml(work.theory[i])
-              )}
-              {(canEdit || work.theoryFiles[i].length > 0) && (
-                <div className="mt-3">
-                  <FileList
-                    files={work.theoryFiles[i]}
-                    onChange={
-                      canEdit
-                        ? (files) => setWork((w) => ({ ...w, theoryFiles: w.theoryFiles.map((f, j) => (j === i ? files : f)) }))
-                        : undefined
-                    }
-                    uploadLabel={`Upload document for question ${i + 1}`}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className={card}>
-          {part === "workplace" && assessment.workplace.supervisorSignOff && (
-            <label className="mb-4 block">
-              <span className="text-[11px] font-medium text-ink/50">Workplace supervisor’s name (they sign off this task)</span>
-              {canEdit ? (
-                <input
-                  value={work.supervisor}
-                  maxLength={120}
-                  onChange={(e) => setWork((w) => ({ ...w, supervisor: e.target.value }))}
-                  placeholder="e.g. Jane Smith, Team Leader"
-                  className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
-                />
-              ) : (
-                <p className="mt-1 text-sm text-ink">{work.supervisor || "—"}</p>
-              )}
-            </label>
-          )}
-          <p className="mb-2 text-[11px] font-medium text-ink/50">
-            {part === "rolePlay" ? "Your role-play plan or reflection" : "Your workplace report (optional)"}
-          </p>
-          {canEdit ? (
-            <RichTextEditor
-              label={part === "rolePlay" ? "Role play response" : "Workplace report"}
-              value={work.html}
-              onChange={(html) => setWork((w) => ({ ...w, html }))}
-              placeholder={part === "rolePlay" ? "Describe how you handled the scenario…" : "Describe what you did at your workplace…"}
-            />
-          ) : (
-            readOnlyHtml(work.html)
-          )}
-          {/* Documents sit right under the answer, like theory questions */}
-          <div className="mt-3">
-            <p className="mb-2 text-[11px] font-medium text-ink/50">
-              {part === "rolePlay"
-                ? "Upload your role-play script, recording notes or signed observation sheet (optional)"
-                : "Other documents (optional)"}
-            </p>
-            <FileList
-              files={work.files}
-              onChange={canEdit ? (files) => setWork((w) => ({ ...w, files })) : undefined}
-              emptyText="No documents uploaded."
-              uploadLabel={part === "rolePlay" ? "Upload document" : "Upload other document"}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Theory uploads live under each question; this box only shows older whole-part uploads there */}
-      {part === "theory" && work.files.length > 0 && (
-        <div className={card}>
-          <h3 className="mb-3 text-sm font-medium text-ink">Documents for the whole theory part</h3>
-          <FileList
-            files={work.files}
-            onChange={canEdit ? (files) => setWork((w) => ({ ...w, files })) : undefined}
-            emptyText="No documents uploaded."
-          />
+          </ul>
+          <label className="flex w-fit cursor-pointer items-center gap-3 rounded-xl bg-lilac px-4 py-3 text-base font-semibold text-ink">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="h-5 w-5 accent-plum" />
+            {declaration.agree}
+          </label>
         </div>
       )}
 
@@ -611,18 +722,18 @@ function WrittenWork({
           <button
             onClick={() => send("submit")}
             disabled={saving}
-            className="rounded-full bg-plum px-6 py-3 text-sm font-medium text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60"
+            className="rounded-xl bg-plum px-6 py-3.5 text-base font-semibold text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60"
           >
-            {saving ? "Saving…" : sub?.status === "Rejected" ? "Resubmit to trainer" : "Submit to trainer"}
+            {saving ? "Saving…" : needsRework(sub?.status) ? "Resubmit to trainer" : "Submit to trainer"}
           </button>
           <button
             onClick={() => send("draft")}
             disabled={saving || !dirty}
-            className="rounded-full bg-lilac px-6 py-3 text-sm font-medium text-plum transition hover:bg-plum/10 disabled:opacity-50"
+            className="rounded-xl border border-plum/30 bg-lilac px-6 py-3.5 text-base font-semibold text-plum transition hover:bg-plum/10 disabled:opacity-50"
           >
             Save draft
           </button>
-          {dirty && <span className="text-xs text-ink/45">Unsaved changes</span>}
+          {dirty && <span className="text-sm text-amber-800">Not saved yet</span>}
         </div>
       )}
       {askPhoto && (

@@ -1,5 +1,6 @@
 // Pure validation for the Super Admin assessment editor (unit-tested in tests/assessment-validate.test.ts).
-import { LIMITS, type ListItem, type UnitAssessment } from "./assessment-meta";
+import { LIMITS, TASK_FILES_MAX, type ListItem, type UnitAssessment } from "./assessment-meta";
+import type { FileRef } from "./submission-meta";
 
 type Validated = { ok: true; value: UnitAssessment } | { ok: false; error: string };
 
@@ -12,6 +13,12 @@ const list = (items: unknown): ListItem[] =>
     .slice(0, LIMITS.items)
     .map((it: ListItem) => ({ id: id(it?.id), text: str(it?.text) }))
     .filter((it) => it.text); // blank checklist rows are just dropped
+
+const fileRefs = (items: unknown): FileRef[] =>
+  (Array.isArray(items) ? items : [])
+    .slice(0, TASK_FILES_MAX)
+    .map((f: FileRef) => ({ id: String(f?.id ?? ""), name: str(f?.name, 200), size: Math.max(0, Number(f?.size) || 0) }))
+    .filter((f) => /^[a-f\d]{24}$/i.test(f.id));
 
 // Rebuild from the client payload so only known, valid fields get stored
 function clean(input: UnitAssessment): UnitAssessment {
@@ -54,7 +61,7 @@ function clean(input: UnitAssessment): UnitAssessment {
   return {
     dueAt,
     quiz: { passMark, questions: quiz },
-    theory: { questions: theory },
+    theory: { questions: theory, files: fileRefs(input?.theory?.files) },
     rolePlay: {
       scenario: str(input?.rolePlay?.scenario, LIMITS.longText),
       instructions: str(input?.rolePlay?.instructions, LIMITS.longText),
@@ -64,6 +71,7 @@ function clean(input: UnitAssessment): UnitAssessment {
       task: str(input?.workplace?.task, LIMITS.longText),
       evidence: list(input?.workplace?.evidence),
       supervisorSignOff: input?.workplace?.supervisorSignOff === true,
+      files: fileRefs(input?.workplace?.files),
     },
   };
 }

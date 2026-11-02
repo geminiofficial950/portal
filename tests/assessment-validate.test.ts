@@ -5,9 +5,9 @@ import { validateAssessment } from "@/lib/assessment-validate";
 const base = (): UnitAssessment => ({
   ...emptyAssessment(),
   quiz: { passMark: 80, questions: [{ id: "q1", text: "Q?", options: ["a", "b"], answer: 1 }] },
-  theory: { questions: [{ id: "t1", text: "Explain.", guidance: "", wordLimit: 200 }] },
+  theory: { questions: [{ id: "t1", text: "Explain.", guidance: "", wordLimit: 200 }], files: [] },
   rolePlay: { scenario: "Upset client", instructions: "Calm them", criteria: [{ id: "c1", text: "Stays calm" }] },
-  workplace: { task: "Two shifts", evidence: [{ id: "e1", text: "Log" }], supervisorSignOff: true },
+  workplace: { task: "Two shifts", evidence: [{ id: "e1", text: "Log" }], supervisorSignOff: true, files: [] },
 });
 
 const error = (a: UnitAssessment) => {
@@ -94,5 +94,17 @@ describe("validateAssessment", () => {
     const a = { ...base(), hacked: true } as unknown as UnitAssessment;
     const res = validateAssessment(a);
     expect(res.ok && Object.keys(res.value).sort()).toEqual(["dueAt", "quiz", "rolePlay", "theory", "workplace"]);
+  });
+});
+
+describe("task documents (Theory Task / Workplacement Task)", () => {
+  it("keeps valid file references and drops junk", () => {
+    const a = base();
+    a.theory.files = [
+      { id: "6ae591d80e5ad0fc166bedee", name: "Theory task.pdf", size: 1200 },
+      { id: "not-an-id", name: "x.pdf", size: 1 },
+    ];
+    const res = validateAssessment(a);
+    expect(res.ok && res.value.theory.files).toEqual([{ id: "6ae591d80e5ad0fc166bedee", name: "Theory task.pdf", size: 1200 }]);
   });
 });

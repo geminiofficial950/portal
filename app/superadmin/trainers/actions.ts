@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { requireAdmin } from "@/lib/auth";
+import { adminActor, requireAdmin } from "@/lib/auth";
 import { unassignTrainerTickets } from "@/lib/tickets";
 import type { TrainerDTO } from "@/lib/trainer-meta";
 import {
@@ -31,7 +31,7 @@ export async function addTrainerAction(input: {
 
   try {
     const trainer = await createTrainer({ name, email, password: input.password });
-    await logActivity("Super Admin", `added trainer ${trainer.name} (${trainer.trainerId})`, "trainer");
+    await logActivity(await adminActor(), `added trainer ${trainer.name} (${trainer.trainerId})`, "trainer");
     revalidatePath("/superadmin", "layout");
     return { ok: true, trainer };
   } catch (err) {
@@ -45,7 +45,7 @@ export async function setTrainerActiveAction(trainerId: string, active: boolean)
   await requireAdmin();
   const doc = await setTrainerActive(trainerId, active);
   if (!doc) return { ok: false, error: "Trainer not found." };
-  await logActivity("Super Admin", `${active ? "turned on" : "switched off"} access for ${doc.name}`, "trainer");
+  await logActivity(await adminActor(), `${active ? "turned on" : "switched off"} access for ${doc.name}`, "trainer");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
 }
@@ -55,7 +55,7 @@ export async function resetTrainerPasswordAction(trainerId: string, password: st
   if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
   const found = await resetTrainerPassword(trainerId, password);
   if (!found) return { ok: false, error: "Trainer not found." };
-  await logActivity("Super Admin", `reset the password for ${trainerId}`, "trainer");
+  await logActivity(await adminActor(), `reset the password for ${trainerId}`, "trainer");
   return { ok: true };
 }
 
@@ -64,7 +64,7 @@ export async function deleteTrainerAction(trainerId: string): Promise<Result> {
   const doc = await deleteTrainer(trainerId);
   if (!doc) return { ok: false, error: "Trainer not found." };
   await unassignTrainerTickets(trainerId);
-  await logActivity("Super Admin", `removed trainer ${doc.name}`, "trainer");
+  await logActivity(await adminActor(), `removed trainer ${doc.name}`, "trainer");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
 }

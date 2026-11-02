@@ -7,19 +7,19 @@ import { ArrowRightIcon, ClipboardIcon, BoxIcon, TicketIcon } from "./_component
 
 const quickLinks = [
   {
-    href: "/dashboard/assessment",
-    label: "Assessments due",
-    value: "3",
-    hint: "Next due 5 Nov",
-    icon: ClipboardIcon,
+    href: "/dashboard/course",
+    label: "My courses",
+    value: "Go",
+    hint: "Open course details",
+    icon: BoxIcon,
     tone: "bg-[#ffe8d6]",
   },
   {
     href: "/dashboard/course",
     label: "Active courses",
     value: "4",
-    hint: "54% avg progress",
-    icon: BoxIcon,
+    hint: "Continue learning",
+    icon: ClipboardIcon,
     tone: "bg-lilac",
   },
   {
@@ -46,11 +46,11 @@ export default function DashboardPage() {
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80 text-plum">
                 <Icon className="h-5 w-5" />
               </span>
-              <ArrowRightIcon className="h-4 w-4 text-ink/30 transition group-hover:translate-x-0.5 group-hover:text-plum" />
+              <ArrowRightIcon className="h-4 w-4 text-ink/80 transition group-hover:translate-x-0.5 group-hover:text-plum" />
             </div>
-            <p className="mt-4 text-xs text-ink/50">{label}</p>
+            <p className="mt-4 text-sm font-medium text-ink">{label}</p>
             <p className="mt-1 text-2xl font-medium text-ink">{value}</p>
-            <p className="mt-1 text-[11px] text-ink/45">{hint}</p>
+            <p className="mt-1 text-xs font-medium text-ink/85">{hint}</p>
           </Link>
         ))}
       </div>
@@ -73,7 +73,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-xs text-ink/55">6 Nov 2026 · On campus · HLTAID011</p>
             </div>
             <span className="flex shrink-0 items-center gap-1 rounded-full bg-plum px-4 py-2 text-[11px] font-medium text-white">
-              View course
+              Go to my course
               <ArrowRightIcon className="h-3.5 w-3.5" />
             </span>
           </Link>

@@ -3,16 +3,18 @@
 import { useEffect, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { CheckIcon, PlusIcon, TrashIcon } from "../../../../dashboard/_components/icons";
-import Toggle from "../../../_components/Toggle";
+import FileList from "../../../../dashboard/_components/FileList";
 import {
   ASSESSMENT_PARTS,
   LIMITS,
   summarise,
+  TASK_FILES_MAX,
   type AssessmentPart,
-  type ListItem,
   type UnitAssessment,
 } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
+import { toLocalInput } from "@/lib/format";
+import type { FileRef } from "@/lib/submission-meta";
 import { saveAssessmentAction } from "./actions";
 
 const newId = () => crypto.randomUUID();
@@ -29,11 +31,13 @@ export default function AssessmentEditor({
   unit,
   initialAssessment,
   onDirtyChange,
+  canEditDue = true,
 }: {
   course: { code: string; name: string };
   unit: Unit;
   initialAssessment: UnitAssessment;
   onDirtyChange?: (dirty: boolean) => void;
+  canEditDue?: boolean;
 }) {
   const [a, setA] = useState(initialAssessment);
   const [saved, setSaved] = useState(initialAssessment);
@@ -63,9 +67,9 @@ export default function AssessmentEditor({
 
   const tabBadge: Record<AssessmentPart, string> = {
     quiz: summary.quizCount ? `${summary.quizCount} Q` : "",
-    theory: summary.theoryCount ? `${summary.theoryCount} Q` : "",
+    theory: summary.theoryCount ? `${summary.theoryCount} file${summary.theoryCount === 1 ? "" : "s"}` : "",
     rolePlay: summary.rolePlay ? "✓" : "",
-    workplace: summary.workplace ? "✓" : "",
+    workplace: summary.workplaceCount ? `${summary.workplaceCount} file${summary.workplaceCount === 1 ? "" : "s"}` : "",
   };
 
   return (
@@ -73,7 +77,7 @@ export default function AssessmentEditor({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-lg font-medium text-ink">Assessment</h2>
-          <p className="mt-0.5 text-sm text-ink/55">Set the due date and all four parts, then save.</p>
+          <p className="mt-0.5 text-sm text-ink/55">Set the due date and each part, then save.</p>
         </div>
         <div className="flex items-center gap-3">
           {dirty && (
@@ -91,7 +95,7 @@ export default function AssessmentEditor({
         </div>
       </div>
 
-      <DueDate value={a.dueAt} onChange={(dueAt) => setA({ ...a, dueAt })} />
+      <DueDate value={a.dueAt} onChange={(dueAt) => setA({ ...a, dueAt })} canEdit={canEditDue} />
 
       <div role="tablist" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {ASSESSMENT_PARTS.map((p, i) => {
@@ -131,9 +135,20 @@ export default function AssessmentEditor({
       </div>
 
       {tab === "quiz" && <QuizEditor value={a.quiz} onChange={(quiz) => setA({ ...a, quiz })} />}
-      {tab === "theory" && <TheoryEditor value={a.theory} onChange={(theory) => setA({ ...a, theory })} />}
-      {tab === "rolePlay" && <RolePlayEditor value={a.rolePlay} onChange={(rolePlay) => setA({ ...a, rolePlay })} />}
-      {tab === "workplace" && <WorkplaceEditor value={a.workplace} onChange={(workplace) => setA({ ...a, workplace })} />}
+      {tab === "theory" && (
+        <TaskFilesEditor
+          title="Theory Task"
+          files={a.theory.files}
+          onChange={(files) => setA({ ...a, theory: { ...a.theory, files } })}
+        />
+      )}
+      {tab === "workplace" && (
+        <TaskFilesEditor
+          title="Workplacement Task"
+          files={a.workplace.files}
+          onChange={(files) => setA({ ...a, workplace: { ...a.workplace, files } })}
+        />
+      )}
     </div>
   );
 }
@@ -141,14 +156,20 @@ export default function AssessmentEditor({
 // ---------- Due date ----------
 
 // <input type="datetime-local"> works in the viewer's local time; we store an ISO instant
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-function DueDate({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+function DueDate({ value, onChange, canEdit }: { value: string | null; onChange: (v: string | null) => void; canEdit: boolean }) {
+  if (!canEdit) {
+    return (
+      <div className={`${card} flex flex-wrap items-center justify-between gap-4`}>
+        <div>
+          <h2 className="text-base font-medium text-ink">Due date &amp; time</h2>
+          <p className="mt-0.5 text-sm text-ink">Only Super Admin can change dates.</p>
+        </div>
+        <p className="rounded-xl bg-lilac px-4 py-2.5 text-sm font-medium text-ink">
+          {value ? new Date(value).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "No deadline"}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className={`${card} flex flex-wrap items-center justify-between gap-4`}>
       <div>
@@ -175,7 +196,7 @@ function DueDate({ value, onChange }: { value: string | null; onChange: (v: stri
   );
 }
 
-// ---------- Online quiz ----------
+// ---------- Quiz and Activities ----------
 
 function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChange: (v: UnitAssessment["quiz"]) => void }) {
   const update = (i: number, patch: Partial<UnitAssessment["quiz"]["questions"][number]>) =>
@@ -185,7 +206,7 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
     <section className="space-y-4">
       <div className={`${card} flex flex-wrap items-center justify-between gap-4`}>
         <div>
-          <h2 className="text-base font-medium text-ink">Online quiz</h2>
+          <h2 className="text-base font-medium text-ink">Quiz and Activities</h2>
           <p className="mt-0.5 text-xs text-ink/50">Students pick one answer per question. The portal marks it straight away.</p>
         </div>
         <label className="flex items-center gap-3 text-sm text-ink/70">
@@ -286,209 +307,26 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
   );
 }
 
-// ---------- Theory ----------
+// ---------- Theory Task / Workplacement Task ----------
 
-function TheoryEditor({ value, onChange }: { value: UnitAssessment["theory"]; onChange: (v: UnitAssessment["theory"]) => void }) {
-  const update = (i: number, patch: Partial<UnitAssessment["theory"]["questions"][number]>) =>
-    onChange({ questions: value.questions.map((q, j) => (j === i ? { ...q, ...patch } : q)) });
-
+// Super Admin uploads the task (PDF is best — students can read it in the page); students download it and upload their work
+function TaskFilesEditor({ title, files, onChange }: { title: string; files: FileRef[]; onChange: (files: FileRef[]) => void }) {
   return (
-    <section className="space-y-4">
-      <div className={card}>
-        <h2 className="text-base font-medium text-ink">Theory</h2>
-        <p className="mt-0.5 text-xs text-ink/50">Short or long written answers. The trainer reads and marks them.</p>
+    <section className={`${card} space-y-4`}>
+      <div>
+        <h2 className="text-base font-medium text-ink">{title}</h2>
+        <p className="mt-0.5 text-sm text-ink">
+          Upload the task document(s). Students read or download them, do the task and upload their completed work — nothing to type.
+          A PDF opens right in the student’s page. Up to {TASK_FILES_MAX} files. Remember to save.
+        </p>
       </div>
-
-      {value.questions.map((q, i) => (
-        <div key={q.id} className={card}>
-          <div className="flex items-start gap-3">
-            <span className="mt-2 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-lilac text-[11px] font-medium text-plum">{i + 1}</span>
-            <div className="min-w-0 flex-1 space-y-3">
-              <textarea
-                rows={2}
-                value={q.text}
-                maxLength={LIMITS.text}
-                onChange={(e) => update(i, { text: e.target.value })}
-                placeholder="Question"
-                aria-label={`Theory question ${i + 1}`}
-                className={`${field} resize-y`}
-              />
-              <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
-                <input
-                  value={q.guidance}
-                  maxLength={LIMITS.text}
-                  onChange={(e) => update(i, { guidance: e.target.value })}
-                  placeholder="Guidance for the student (optional)"
-                  aria-label={`Theory question ${i + 1} guidance`}
-                  className={field}
-                />
-                <input
-                  type="number"
-                  min={1}
-                  value={q.wordLimit ?? ""}
-                  onChange={(e) => update(i, { wordLimit: e.target.value ? Number(e.target.value) : null })}
-                  placeholder="Word limit"
-                  aria-label={`Theory question ${i + 1} word limit`}
-                  className={field}
-                />
-              </div>
-            </div>
-            <button
-              onClick={() => onChange({ questions: value.questions.filter((_, j) => j !== i) })}
-              aria-label={`Remove theory question ${i + 1}`}
-              className={removeBtn}
-            >
-              <TrashIcon className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      ))}
-
-      <button
-        onClick={() => onChange({ questions: [...value.questions, { id: newId(), text: "", guidance: "", wordLimit: null }] })}
-        disabled={value.questions.length >= LIMITS.questions}
-        className={addBtn}
-      >
-        <PlusIcon className="h-4 w-4" />
-        Add theory question
-      </button>
-    </section>
-  );
-}
-
-// ---------- Shared checklist ----------
-
-function Checklist({
-  items,
-  onChange,
-  placeholder,
-  addLabel,
-}: {
-  items: ListItem[];
-  onChange: (items: ListItem[]) => void;
-  placeholder: string;
-  addLabel: string;
-}) {
-  return (
-    <div className="space-y-2">
-      {items.map((it, i) => (
-        <div key={it.id} className="flex items-center gap-3">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 border-plum/30" aria-hidden />
-          <input
-            value={it.text}
-            maxLength={LIMITS.text}
-            onChange={(e) => onChange(items.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
-            placeholder={placeholder}
-            aria-label={`${addLabel} ${i + 1}`}
-            className={`${field} py-2.5`}
-          />
-          <button onClick={() => onChange(items.filter((_, j) => j !== i))} aria-label={`Remove ${addLabel} ${i + 1}`} className={removeBtn}>
-            <TrashIcon className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-      <button
-        onClick={() => onChange([...items, { id: newId(), text: "" }])}
-        disabled={items.length >= LIMITS.items}
-        className={addBtn}
-      >
-        <PlusIcon className="h-3.5 w-3.5" />
-        {addLabel}
-      </button>
-    </div>
-  );
-}
-
-// ---------- Role play ----------
-
-function RolePlayEditor({ value, onChange }: { value: UnitAssessment["rolePlay"]; onChange: (v: UnitAssessment["rolePlay"]) => void }) {
-  return (
-    <section className="space-y-4">
-      <div className={`${card} space-y-4`}>
-        <div>
-          <h2 className="text-base font-medium text-ink">Role play</h2>
-          <p className="mt-0.5 text-xs text-ink/50">Describe the situation the student acts out. The trainer observes and ticks the checklist.</p>
-        </div>
-        <label className="block">
-          <span className="text-[11px] font-medium text-ink/50">Scenario</span>
-          <textarea
-            rows={4}
-            value={value.scenario}
-            maxLength={LIMITS.longText}
-            onChange={(e) => onChange({ ...value, scenario: e.target.value })}
-            placeholder="e.g. Mrs Lee, 82, is refusing her morning shower and seems upset…"
-            className={`${field} mt-1 resize-y`}
-          />
-        </label>
-        <label className="block">
-          <span className="text-[11px] font-medium text-ink/50">Instructions for the student</span>
-          <textarea
-            rows={3}
-            value={value.instructions}
-            maxLength={LIMITS.longText}
-            onChange={(e) => onChange({ ...value, instructions: e.target.value })}
-            placeholder="e.g. Talk with Mrs Lee, find out why, and agree on a plan that respects her choices."
-            className={`${field} mt-1 resize-y`}
-          />
-        </label>
-      </div>
-      <div className={card}>
-        <h3 className="text-sm font-medium text-ink">What the trainer observes</h3>
-        <p className="mb-3 mt-0.5 text-xs text-ink/50">Each line becomes a tick box when the trainer marks the role play.</p>
-        <Checklist
-          items={value.criteria}
-          onChange={(criteria) => onChange({ ...value, criteria })}
-          placeholder="e.g. Uses open questions and active listening"
-          addLabel="Add criterion"
-        />
-      </div>
-    </section>
-  );
-}
-
-// ---------- Workplace task ----------
-
-function WorkplaceEditor({ value, onChange }: { value: UnitAssessment["workplace"]; onChange: (v: UnitAssessment["workplace"]) => void }) {
-  return (
-    <section className="space-y-4">
-      <div className={`${card} space-y-4`}>
-        <div>
-          <h2 className="text-base font-medium text-ink">Workplace task</h2>
-          <p className="mt-0.5 text-xs text-ink/50">A task the student completes during placement, with proof they did it.</p>
-        </div>
-        <label className="block">
-          <span className="text-[11px] font-medium text-ink/50">Task</span>
-          <textarea
-            rows={5}
-            value={value.task}
-            maxLength={LIMITS.longText}
-            onChange={(e) => onChange({ ...value, task: e.target.value })}
-            placeholder="e.g. Support two clients with personal care over three shifts, following each client’s care plan."
-            className={`${field} mt-1 resize-y`}
-          />
-        </label>
-        <div className="flex items-center justify-between gap-4 rounded-2xl bg-lilac/70 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-ink">Workplace supervisor must sign off</p>
-            <p className="mt-0.5 text-[11px] text-ink/45">The supervisor confirms the student did the task.</p>
-          </div>
-          <Toggle
-            checked={value.supervisorSignOff}
-            label="Supervisor sign-off required"
-            onChange={(supervisorSignOff) => onChange({ ...value, supervisorSignOff })}
-          />
-        </div>
-      </div>
-      <div className={card}>
-        <h3 className="text-sm font-medium text-ink">Evidence the student uploads</h3>
-        <p className="mb-3 mt-0.5 text-xs text-ink/50">e.g. completed log sheet, signed observation form, photos of their work.</p>
-        <Checklist
-          items={value.evidence}
-          onChange={(evidence) => onChange({ ...value, evidence })}
-          placeholder="e.g. Signed shift log for each shift"
-          addLabel="Add evidence"
-        />
-      </div>
+      <FileList
+        files={files}
+        onChange={(next) => onChange(next.slice(0, TASK_FILES_MAX))}
+        emptyText="No task document yet."
+        uploadLabel="Upload task document"
+        inputLabel={`Upload ${title} document`}
+      />
     </section>
   );
 }

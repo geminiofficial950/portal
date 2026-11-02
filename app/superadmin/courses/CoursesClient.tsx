@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useState, useTransition } from "react";
+import toast from "react-hot-toast";
 import { ArrowRightIcon, BoxIcon, ClockIcon } from "../../dashboard/_components/icons";
+import { setPlacementHoursAction } from "./actions";
+import { PLACEMENT_HOURS_MAX } from "@/lib/course-status";
 import type { CourseDTO, Unit } from "@/lib/courses";
 import type { AssessmentSummary } from "@/lib/assessment-meta";
 import type { UnitContentSummary } from "@/lib/unit-content";
@@ -68,6 +72,10 @@ export default function CoursesClient({
             </p>
             <h2 className="mt-1 text-base font-medium leading-snug text-ink">{c.name}</h2>
             <p className="mt-1 flex-1 text-xs text-ink/50">{c.category}</p>
+            <PlacementHours
+              course={c}
+              onSaved={(hours) => setCourses((list) => list.map((x) => (x.code === c.code ? { ...x, placementHours: hours } : x)))}
+            />
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/5 pt-4">
               <div className="flex items-center gap-4 text-xs text-ink/60">
@@ -80,6 +88,12 @@ export default function CoursesClient({
                   {c.duration}
                 </span>
               </div>
+              <Link
+                href={`/superadmin/courses/${encodeURIComponent(c.code)}/placement`}
+                className="ml-auto rounded-full bg-white px-4 py-2 text-[11px] font-medium text-plum transition hover:bg-plum hover:text-white"
+              >
+                Placement
+              </Link>
               <button
                 onClick={() => {
                   setSelected(c.code);
@@ -104,5 +118,60 @@ export default function CoursesClient({
         />
       )}
     </div>
+  );
+}
+
+// Work placement hours for a course (shown to its students on the Course page)
+function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hours: number | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(course.placementHours?.toString() ?? "");
+  const [saving, startSaving] = useTransition();
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    const hours = value.trim() === "" ? null : Number(value);
+    startSaving(async () => {
+      const res = await setPlacementHoursAction(course.code, hours);
+      if (!res.ok) return void toast.error(res.error);
+      onSaved(res.hours);
+      setEditing(false);
+      toast.success(`${course.code}: work placement ${res.hours === null ? "cleared" : `set to ${res.hours} hours`}`);
+    });
+  };
+
+  if (!editing) {
+    return (
+      <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink/70">
+        <span className="font-medium text-ink">Work placement:</span>
+        {course.placementHours === null ? "not set" : `${course.placementHours} hours`}
+        <button onClick={() => setEditing(true)} className="font-medium text-plum hover:underline">
+          {course.placementHours === null ? "Set hours" : "Change"}
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={save} className="mt-3 flex flex-wrap items-center gap-2">
+      <input
+        type="number"
+        min={0}
+        max={PLACEMENT_HOURS_MAX}
+        step={1}
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Hours"
+        aria-label={`Work placement hours for ${course.code}`}
+        className="w-24 rounded-lg bg-white px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
+      />
+      <span className="text-xs text-ink/60">hours</span>
+      <button type="submit" disabled={saving} className="rounded-full bg-plum px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-60">
+        {saving ? "Saving…" : "Save"}
+      </button>
+      <button type="button" onClick={() => setEditing(false)} className="rounded-full px-2 py-1.5 text-[11px] text-ink/60 hover:bg-white/60">
+        Cancel
+      </button>
+    </form>
   );
 }

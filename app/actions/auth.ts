@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { isSuperAdmin } from "@/lib/auth";
-import { createSession, deleteSession } from "@/lib/session";
+import { verifyAdminLogin } from "@/lib/admins";
+import { isSuperAdmin, SUPER_ADMIN_ID } from "@/lib/auth";
+import { createSession, deleteSession, getSession } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
+import { logStudent } from "@/lib/student-logs";
 import { verifyStudentLogin } from "@/lib/students";
 import { verifyTrainerLogin } from "@/lib/trainers";
 
@@ -16,7 +18,23 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (!username || !password) return { error: "Enter your ID and password.", username };
 
   if (isSuperAdmin(username, password)) {
-    await createSession({ sub: "superadmin", role: "admin", name: "Super Admin" });
+    await createSession({ sub: SUPER_ADMIN_ID, role: "admin", name: "Super Admin" });
+    redirect("/superadmin");
+  }
+
+  // Admin accounts (A001… or their email) — not blocked by maintenance mode
+  let adminLogin;
+  try {
+    adminLogin = await verifyAdminLogin(username, password);
+  } catch (err) {
+    console.error("Login failed:", err);
+    return { error: "Can’t reach the server right now. Please try again.", username };
+  }
+  if (adminLogin) {
+    if (!adminLogin.ok) {
+      return { error: adminLogin.reason === "inactive" ? "Your admin access is switched off. Please contact Super Admin." : "Wrong ID or password.", username };
+    }
+    await createSession({ sub: adminLogin.admin.adminId, role: "admin", name: adminLogin.admin.name });
     redirect("/superadmin");
   }
 
@@ -55,10 +73,13 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   await createSession({ sub: result.student.studentId, role: "student", name: result.student.name });
+  await logStudent({ studentId: result.student.studentId, studentName: result.student.name, action: "Logged in" });
   redirect("/dashboard");
 }
 
 export async function logout() {
+  const session = await getSession();
+  if (session?.role === "student") await logStudent({ studentId: session.sub, studentName: session.name, action: "Logged out" });
   await deleteSession();
   redirect("/");
 }

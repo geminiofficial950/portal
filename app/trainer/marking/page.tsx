@@ -15,7 +15,7 @@ export default async function MarkingPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Assessment marking</h1>
-          <p className="mt-1 text-sm text-ink/55">Open a course, then a unit, to review the theory, role play and workplace work students handed in.</p>
+          <p className="mt-1 text-sm text-ink">Open a course, then a unit, to review the Theory Task and Workplacement Task work students handed in.</p>
         </div>
         <div className="min-w-48 rounded-[1.5rem] bg-lilac px-5 py-4">
           <p className="text-2xl font-medium text-ink">{total}</p>

@@ -5,13 +5,14 @@ import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import LocalTime from "../assessment/_components/LocalTime";
-import { clearUnitResultAction, setStudentDueAction, setUnitResultAction } from "../../actions/unit-results";
+import { clearUnitResultAction, setStudentDueAction, setUnitHiddenAction, setUnitResultAction } from "../../actions/unit-results";
 import { ASSESSMENT_PARTS, isPastDue } from "@/lib/assessment-meta";
+import { toLocalInput } from "@/lib/format";
 import type { StudentProgressDTO, UnitProgress } from "@/lib/progress";
-import { statusStyle } from "@/lib/submission-meta";
-import { resultStyle, UNIT_RESULTS, type UnitResultValue } from "@/lib/unit-meta";
+import { statusLabel, statusStyle } from "@/lib/submission-meta";
+import { RESULT_KINDS, toneStyle, type ResultOption } from "@/lib/result-meta";
 
-// A student's units with each part's status and the final Pass / Fail / Withdrawn outcome.
+// A student's units with each part's status and the final result (Pass / Fail / Withdrawn or whatever options are set up).
 // Used by Super Admin (can also remove a result) and trainers.
 export default function StudentProgress({
   initial,
@@ -19,6 +20,7 @@ export default function StudentProgress({
   canClear,
   showPhotos = false,
   canChangeDue = false,
+  canHide = false,
   workHrefBase,
 }: {
   initial: StudentProgressDTO;
@@ -26,6 +28,7 @@ export default function StudentProgress({
   canClear: boolean;
   showPhotos?: boolean;
   canChangeDue?: boolean; // Super Admin: give this student their own due date per unit
+  canHide?: boolean; // Super Admin: hide a unit from this student
   workHrefBase?: string; // Super Admin: links each unit to everything the student handed in
 }) {
   const [data, setData] = useState(initial);
@@ -33,7 +36,7 @@ export default function StudentProgress({
   const setUnit = (code: string, patch: Partial<UnitProgress>) =>
     setData((d) => ({ ...d, units: d.units.map((u) => (u.code === code ? { ...u, ...patch } : u)) }));
 
-  const passed = data.units.filter((u) => u.outcome?.result === "Pass").length;
+  const passed = data.units.filter((u) => u.outcome?.kind === "pass").length;
 
   return (
     <div className="space-y-6">
@@ -68,13 +71,16 @@ export default function StudentProgress({
             key={u.code}
             n={i + 1}
             studentId={data.student.studentId}
+            courseCode={data.course.code}
             unit={u}
             canGrade={canGrade}
             canClear={canClear}
             canChangeDue={canChangeDue}
+            canHide={canHide}
+            options={data.resultOptions}
             onChange={(patch) => setUnit(u.code, patch)}
             onViewPhoto={showPhotos ? setViewing : undefined}
-            workHref={workHrefBase ? `${workHrefBase}/${encodeURIComponent(u.code)}` : undefined}
+            workHref={workHrefBase ? `${workHrefBase}/${encodeURIComponent(u.code)}?course=${encodeURIComponent(data.course.code)}` : undefined}
           />
         ))}
       </ol>
@@ -82,14 +88,6 @@ export default function StudentProgress({
     </div>
   );
 }
-
-// ISO → value for <input type="datetime-local"> in the viewer's time zone
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 // Full-size submit photo (Super Admin)
 function PhotoViewer({ fileId, label, onClose }: { fileId: string; label: string; onClose: () => void }) {
@@ -113,34 +111,52 @@ function PhotoViewer({ fileId, label, onClose }: { fileId: string; label: string
 function UnitRow({
   n,
   studentId,
+  courseCode,
   unit,
   canGrade,
   canClear,
   canChangeDue,
+  canHide,
+  options,
   onChange,
   onViewPhoto,
   workHref,
 }: {
   n: number;
   studentId: string;
+  courseCode: string;
   unit: UnitProgress;
   canGrade: boolean;
   canClear: boolean;
   canChangeDue: boolean;
+  canHide: boolean;
+  options: ResultOption[];
   onChange: (patch: Partial<UnitProgress>) => void;
   onViewPhoto?: (photo: { fileId: string; label: string }) => void;
   workHref?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [result, setResult] = useState<UnitResultValue>(unit.outcome?.result ?? "Pass");
+  const [result, setResult] = useState(unit.outcome?.result ?? options[0]?.id ?? "");
+  const picked = options.find((o) => o.id === result);
   const [feedback, setFeedback] = useState(unit.outcome?.feedback ?? "");
   const [saving, startSaving] = useTransition();
   const [dueOpen, setDueOpen] = useState(false);
+
+  const toggleHidden = () => {
+    const hide = !unit.hidden;
+    if (hide && !window.confirm(`Hide ${unit.code} from this student? They won’t see it or be able to work on it. Their work so far is kept.`)) return;
+    startSaving(async () => {
+      const res = await setUnitHiddenAction(studentId, courseCode, unit.code, hide);
+      if (!res.ok) return void toast.error(res.error);
+      onChange({ hidden: hide });
+      toast.success(hide ? `${unit.code} hidden from the student` : `${unit.code} shown to the student again`);
+    });
+  };
   const [due, setDue] = useState(toLocalInput(unit.dueAt));
 
   const saveDue = (value: string | null) =>
     startSaving(async () => {
-      const res = await setStudentDueAction(studentId, unit.code, value);
+      const res = await setStudentDueAction(studentId, courseCode, unit.code, value);
       if (!res.ok) return void toast.error(res.error);
       onChange({ dueAt: res.dueAt, extended: res.extended });
       setDue(toLocalInput(res.dueAt));
@@ -150,17 +166,17 @@ function UnitRow({
 
   const save = () =>
     startSaving(async () => {
-      const res = await setUnitResultAction(studentId, unit.code, result, feedback);
+      const res = await setUnitResultAction(studentId, courseCode, unit.code, result, feedback);
       if (!res.ok) return void toast.error(res.error);
       onChange({ outcome: res.outcome });
       setOpen(false);
-      toast.success(`${unit.code}: ${res.outcome.result}`);
+      toast.success(`${unit.code}: ${res.outcome.label}`);
     });
 
   const clear = () => {
     if (!window.confirm(`Remove the final result for ${unit.code}? The student can work on the unit again.`)) return;
     startSaving(async () => {
-      const res = await clearUnitResultAction(studentId, unit.code);
+      const res = await clearUnitResultAction(studentId, courseCode, unit.code);
       if (!res.ok) return void toast.error(res.error);
       onChange({ outcome: null });
       toast.success("Result removed — unit re-opened");
@@ -168,12 +184,19 @@ function UnitRow({
   };
 
   return (
-    <li className="rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)]">
+    <li
+      className={`rounded-[1.5rem] border p-5 ${
+        unit.hidden ? "border-dashed border-ink/30 bg-lilac/50" : "border-ink/5 bg-white shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)]"
+      }`}
+    >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="flex min-w-0 items-start gap-4">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lilac text-sm font-medium text-plum">{n}</span>
           <div className="min-w-0">
-            <p className="text-[11px] font-medium text-plum">{unit.code}</p>
+            <p className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-plum">
+              {unit.code}
+              {unit.hidden && <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-medium text-white">Hidden from student</span>}
+            </p>
             <p className="font-medium leading-snug text-ink">{unit.title}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {ASSESSMENT_PARTS.map((p) => {
@@ -184,7 +207,7 @@ function UnitRow({
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${s ? statusStyle[s] : "bg-lilac/60 text-ink/30 line-through"}`}
                   >
                     {p.label}
-                    {s && s !== "Not started" ? ` · ${s}` : ""}
+                    {s && s !== "Not started" ? ` · ${statusLabel[s]}` : ""}
                   </span>
                 );
               })}
@@ -211,7 +234,7 @@ function UnitRow({
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {unit.outcome ? (
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${resultStyle[unit.outcome.result]}`}>Final: {unit.outcome.result}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneStyle[unit.outcome.tone]}`}>Final: {unit.outcome.label}</span>
           ) : (
             <span className="text-xs text-ink/40">No final result</span>
           )}
@@ -229,6 +252,17 @@ function UnitRow({
               className="rounded-full bg-plum px-4 py-2 text-xs font-medium text-white transition hover:bg-plum-light"
             >
               {unit.outcome ? "Change result" : "Give result"}
+            </button>
+          )}
+          {canHide && (
+            <button
+              onClick={toggleHidden}
+              disabled={saving}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition disabled:opacity-60 ${
+                unit.hidden ? "bg-ink text-white hover:bg-ink/80" : "border border-ink/20 bg-white text-ink hover:bg-lilac"
+              }`}
+            >
+              {unit.hidden ? "Show to student" : "Hide from student"}
             </button>
           )}
           {canClear && unit.outcome && (
@@ -321,29 +355,35 @@ function UnitRow({
       {open && (
         <div className="mt-4 space-y-3 rounded-2xl bg-lilac/60 p-4">
           <div role="radiogroup" aria-label={`Final result for ${unit.code}`} className="flex flex-wrap gap-2">
-            {UNIT_RESULTS.map((r) => (
+            {options.map((o) => (
               <button
-                key={r}
+                key={o.id}
                 role="radio"
-                aria-checked={result === r}
-                onClick={() => setResult(r)}
-                className={`rounded-full px-5 py-2 text-sm font-medium transition ${result === r ? resultStyle[r] + " ring-2 ring-current" : "bg-white text-ink/60 hover:bg-white/70"}`}
+                aria-checked={result === o.id}
+                onClick={() => setResult(o.id)}
+                className={`rounded-full px-5 py-2 text-sm font-medium transition ${result === o.id ? toneStyle[o.tone] + " ring-2 ring-current" : "bg-white text-ink hover:bg-white/70"}`}
               >
-                {r}
+                {o.label}
               </button>
             ))}
+            {canClear && (
+              <Link href="/superadmin/settings#result-options" className="self-center px-2 text-xs font-medium text-plum hover:underline">
+                Edit options
+              </Link>
+            )}
           </div>
           <textarea
             rows={3}
             value={feedback}
             maxLength={4000}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder={result === "Fail" ? "Why the unit is failed (required)" : "Overall feedback for the student"}
+            placeholder={picked?.kind === "fail" ? `Why the result is ${picked.label} (required)` : "Overall feedback for the student"}
             aria-label={`Feedback for ${unit.code}`}
             className="w-full resize-y rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/35 focus:ring-plum/40"
           />
-          <p className="text-[11px] text-ink/50">
-            Pass needs every part that’s set up to be accepted. The student can’t change this unit once a final result is given.
+          <p className="text-xs text-ink">
+            {picked ? `${picked.label}: ${RESULT_KINDS.find((k) => k.key === picked.kind)?.hint}. ` : ""}
+            The student can’t change this unit once a final result is given.
           </p>
           <div className="flex gap-2">
             <button

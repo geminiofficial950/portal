@@ -1,10 +1,27 @@
 // Shared by server code and client components (no server-only imports here).
 import type { AssessmentPart } from "./assessment-meta";
 
-// Draft → Submitted → Accepted / Rejected. Rejected work can be edited and submitted again.
-// The quiz skips "Submitted": it is marked the moment the student submits.
-export const SUBMISSION_STATUSES = ["Draft", "Submitted", "Accepted", "Rejected"] as const;
+// Draft → Submitted → a decision: Accepted ("Satisfactory"), Rejected ("Not Yet Satisfactory") or
+// MoreDocs ("Request More Documents"). After the last two the student can upload again and resubmit.
+// Staff can change the decision later. The quiz skips "Submitted": it is marked the moment the student submits.
+export const SUBMISSION_STATUSES = ["Draft", "Submitted", "Accepted", "Rejected", "MoreDocs"] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
+
+// What staff can set for Quiz, Theory Task and Workplacement Task, and what everyone sees
+export const DECISIONS = ["Accepted", "Rejected", "MoreDocs"] as const;
+export type Decision = (typeof DECISIONS)[number];
+
+export const statusLabel: Record<SubmissionStatus | "Not started", string> = {
+  "Not started": "Not started",
+  Draft: "Draft",
+  Submitted: "Submitted",
+  Accepted: "Satisfactory",
+  Rejected: "Not Yet Satisfactory",
+  MoreDocs: "Request More Documents",
+};
+
+// The student has to upload again and resubmit
+export const needsRework = (s: SubmissionStatus | undefined) => s === "Rejected" || s === "MoreDocs";
 
 export type FileRef = { id: string; name: string; size: number };
 
@@ -15,11 +32,13 @@ export type SubmissionContent = {
   html?: string; // written work for role play / workplace task
   evidence?: { evidenceId: string; files: FileRef[] }[]; // workplace: files uploaded for each evidence item
   supervisor?: string; // workplace supervisor's name
+  // The student ticked the declaration when submitting (Theory / Workplacement Task); the text they agreed to is kept with it
+  declaration?: { agreedAt: string; intro?: string; points?: string[]; agree?: string };
 };
 
 export type PastAttempt = {
   attempt: number;
-  status: "Accepted" | "Rejected";
+  status: Decision;
   feedback: string;
   decidedBy: string;
   decidedAt: string;
@@ -49,9 +68,9 @@ export type SubmissionDTO = {
 
 export const FILE_RULES = {
   maxBytes: 10 * 1024 * 1024,
-  maxFiles: 5,
-  accept: ".doc,.docx,.pdf,.jpg,.jpeg,.png",
-  label: "Word, PDF, JPG or PNG · up to 10 MB each",
+  maxFiles: 10,
+  accept: ".doc,.docx,.ppt,.pptx,.pdf,.jpg,.jpeg,.png",
+  label: "Word, PowerPoint, PDF, JPG or PNG · up to 10 MB each",
 } as const;
 
 export const formatBytes = (n: number) =>
@@ -71,4 +90,5 @@ export const statusStyle: Record<SubmissionStatus | "Not started", string> = {
   Submitted: "bg-amber-100 text-amber-700",
   Accepted: "bg-emerald-100 text-emerald-700",
   Rejected: "bg-rose-100 text-rose-700",
+  MoreDocs: "bg-orange-100 text-orange-800",
 };

@@ -69,11 +69,11 @@ export default async function SuperAdminOverview() {
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80 text-plum">
                 <Icon className="h-5 w-5" />
               </span>
-              <ArrowRightIcon className="h-4 w-4 text-ink/30 transition group-hover:translate-x-0.5 group-hover:text-plum" />
+              <ArrowRightIcon className="h-4 w-4 text-ink/80 transition group-hover:translate-x-0.5 group-hover:text-plum" />
             </div>
-            <p className="mt-4 text-xs text-ink/50">{label}</p>
+            <p className="mt-4 text-sm font-medium text-ink">{label}</p>
             <p className="mt-1 text-2xl font-medium text-ink">{value}</p>
-            <p className="mt-1 text-[11px] text-ink/45">{hint}</p>
+            <p className="mt-1 text-xs font-medium text-ink/85">{hint}</p>
           </Link>
         ))}
       </div>

@@ -8,7 +8,7 @@ const noop = () => () => {};
 const useNow = () => useSyncExternalStore(noop, () => Math.floor(Date.now() / 60000), () => null);
 
 export const formatDue = (iso: string) =>
-  new Date(iso).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }); // date only, no time
 
 export default function DueLabel({ dueAt }: { dueAt: string | null }) {
   const minute = useNow();

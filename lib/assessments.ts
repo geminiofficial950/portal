@@ -57,3 +57,9 @@ export async function listAssessmentSummaries(): Promise<Record<string, Assessme
   const docs = await (await collection()).find().toArray();
   return Object.fromEntries(docs.map((d) => [`${d.courseCode}/${d.unitCode}`, summarise(withDefaults(d))]));
 }
+
+// The unit whose Theory Task or Workplacement Task uses this file, if any
+export async function findAssessmentFile(fileId: string) {
+  const doc = await (await collection()).findOne({ $or: [{ "theory.files.id": fileId }, { "workplace.files.id": fileId }] });
+  return doc ? { courseCode: doc.courseCode, unitCode: doc.unitCode } : null;
+}

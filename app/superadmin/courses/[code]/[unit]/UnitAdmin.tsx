@@ -8,16 +8,18 @@ import FileList from "../../../../dashboard/_components/FileList";
 import ResourceList from "../../../../dashboard/_components/ResourceList";
 import RichTextEditor from "../../../../dashboard/_components/RichTextEditor";
 import AssessmentEditor from "./AssessmentEditor";
-import { addResourceAction, removeResourceAction, saveOverviewAction } from "./content-actions";
+import UploadButton from "../../../../dashboard/_components/UploadButton";
+import { addResourceAction, removeResourceAction, saveOverviewAction, setSlotDocumentAction } from "./content-actions";
 import type { UnitAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
 import type { FileRef } from "@/lib/submission-meta";
-import type { Resource, UnitContent } from "@/lib/unit-meta";
+import { formatBytes } from "@/lib/submission-meta";
+import { RESOURCE_SLOTS, type Resource, type ResourceSlot, type UnitContent } from "@/lib/unit-meta";
 
 const SECTIONS = [
   { key: "overview", label: "1. Main unit", hint: "What the unit is about" },
   { key: "resources", label: "2. Resources", hint: "Things to read first" },
-  { key: "assessment", label: "3. Assessment", hint: "Quiz, theory, role play, workplace" },
+  { key: "assessment", label: "3. Assessment", hint: "Quiz and Activities, Theory Task, Workplacement Task" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 
@@ -28,11 +30,13 @@ export default function UnitAdmin({
   unit,
   assessment,
   content,
+  canEditDue,
 }: {
   course: { code: string; name: string };
   unit: Unit;
   assessment: UnitAssessment;
   content: UnitContent;
+  canEditDue: boolean; // Super Admin only; Admins see the date but can't change it
 }) {
   const [section, setSection] = useState<Section>("overview");
   const [assessmentDirty, setAssessmentDirty] = useState(false);
@@ -86,7 +90,7 @@ export default function UnitAdmin({
       {section === "resources" && <ResourcesManager courseCode={course.code} unitCode={unit.code} initial={content.resources} />}
       {/* Kept mounted while switching so unsaved assessment edits aren't lost */}
       <div hidden={section !== "assessment"}>
-        <AssessmentEditor course={course} unit={unit} initialAssessment={assessment} onDirtyChange={onDirtyChange} />
+        <AssessmentEditor course={course} unit={unit} initialAssessment={assessment} onDirtyChange={onDirtyChange} canEditDue={canEditDue} />
       </div>
     </div>
   );
@@ -137,7 +141,27 @@ const KINDS = [
 ] as const;
 
 function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: string; unitCode: string; initial: Resource[] }) {
-  const [list, setList] = useState(initial);
+  // The three main documents live in slots; everything else is an extra resource
+  const [slots, setSlots] = useState(() =>
+    Object.fromEntries(initial.flatMap((r) => (r.kind === "file" && r.slot ? [[r.slot, r]] : []))) as Partial<Record<ResourceSlot, Resource>>,
+  );
+  const [list, setList] = useState(initial.filter((r) => !(r.kind === "file" && r.slot)));
+
+  const uploadSlot = (slot: ResourceSlot) => async (file: { id: string }) => {
+    const res = await setSlotDocumentAction(courseCode, unitCode, slot, file.id);
+    if (!res.ok) return void toast.error(res.error);
+    setSlots((s) => ({ ...s, [slot]: res.resource }));
+    toast.success(`${res.resource.title} uploaded`);
+  };
+
+  const removeSlot = async (slot: ResourceSlot) => {
+    const r = slots[slot];
+    if (!r || !window.confirm(`Remove the ${r.title}? Students won’t see it any more.`)) return;
+    const res = await removeResourceAction(courseCode, unitCode, r.id);
+    if (!res.ok) return void toast.error(res.error);
+    setSlots((s) => ({ ...s, [slot]: undefined }));
+    toast.success(`${r.title} removed`);
+  };
   const [kind, setKind] = useState<(typeof KINDS)[number]["key"]>("file");
   const [form, setForm] = useState({ title: "", description: "", url: "", body: "" });
   const [files, setFiles] = useState<FileRef[]>([]);
@@ -179,10 +203,42 @@ function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: strin
 
   return (
     <section className="space-y-4">
+      <div className={`${card} space-y-4`}>
+        <div>
+          <h2 className="text-lg font-medium text-ink">Resources documents</h2>
+          <p className="mt-0.5 text-sm text-ink">Students see these three under “Resources” in the unit. Word, PowerPoint, PDF, JPG or PNG · up to 10 MB.</p>
+        </div>
+        <ul className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
+          {RESOURCE_SLOTS.map((slot) => {
+            const r = slots[slot.key];
+            return (
+              <li key={slot.key} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-medium text-ink">{slot.label}</span>
+                  {r?.kind === "file" ? (
+                    <a href={`/api/files/${r.file.id}`} className="block truncate text-sm text-plum underline">
+                      {r.file.name} · {formatBytes(r.file.size)}
+                    </a>
+                  ) : (
+                    <span className="block text-sm text-amber-800">Not uploaded yet</span>
+                  )}
+                </span>
+                <UploadButton label={r ? "Replace" : "Upload"} ariaLabel={`Upload ${slot.label}`} onUploaded={uploadSlot(slot.key)} />
+                {r && (
+                  <button onClick={() => removeSlot(slot.key)} className="rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink hover:bg-rose-50 hover:text-rose-700">
+                    Remove
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       <form onSubmit={add} className={`${card} space-y-4`}>
         <div>
-          <h2 className="text-lg font-medium text-ink">Add a resource</h2>
-          <p className="mt-0.5 text-sm text-ink/55">Reading material students see before they start the assessment.</p>
+          <h2 className="text-lg font-medium text-ink">More resources (optional)</h2>
+          <p className="mt-0.5 text-sm text-ink">Extra links, notes or files. Students see them under Resources, after the three documents.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {KINDS.map((k) => (

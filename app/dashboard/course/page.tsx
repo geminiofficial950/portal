@@ -1,87 +1,170 @@
 import Link from "next/link";
-import { ArrowRightIcon, BookIcon, BoxIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
-import { ASSESSMENT_PARTS, summarise } from "@/lib/assessment-meta";
-import { listCourseAssessments } from "@/lib/assessments";
+import { ArrowRightIcon, BookIcon, BoxIcon, CalendarIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
+import CourseIllustration from "./CourseIllustration";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
+import { courseStatusStyle } from "@/lib/course-status";
+import { listPlacementDocs, listRequests, listSignedDocs } from "@/lib/documents";
+import { listHiddenUnits } from "@/lib/hidden-units";
 import { getStudent } from "@/lib/students";
-import { listStudentSubmissions } from "@/lib/submissions";
-import { countResources } from "@/lib/unit-content";
-import { listStudentResults } from "@/lib/unit-results";
+import StudentDocuments from "./StudentDocuments";
 
-// The student's course at a glance. Units themselves are opened from the Assessment page.
+// Every course the student is enrolled in, at a glance, then placement and requested documents.
+// "Go to my course" opens the course details page (units + learning content).
 export default async function CoursePage() {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
-  const course = student ? await getCourse(student.course) : null;
+  const courses = student
+    ? (
+        await Promise.all(
+          student.courses.map(async (c) => {
+            const [course, hidden] = await Promise.all([getCourse(c.code), listHiddenUnits(student.studentId, c.code)]);
+            return course ? [{ course, status: c.status, enrolled: c.enrolled, visibleUnits: course.units.filter((u) => !hidden.has(u.code)).length }] : [];
+          }),
+        )
+      ).flat()
+    : [];
 
-  if (!student || !course) {
+  if (!student || courses.length === 0) {
     return (
-      <div className="animate-fade-up rounded-[1.75rem] bg-lilac/70 px-6 py-12 text-center text-sm text-ink/60">
+      <div className="animate-fade-up rounded-[1.75rem] bg-lilac/70 px-6 py-12 text-center text-sm text-ink">
         You’re not enrolled in a course yet. Please contact the college.
       </div>
     );
   }
 
-  const [resources, assessments, submissions, results] = await Promise.all([
-    countResources(course.code),
-    listCourseAssessments(course.code),
-    listStudentSubmissions(student.studentId, course.code),
-    listStudentResults(student.studentId, course.code),
+  const [placementDocs, signed, requests] = await Promise.all([
+    listPlacementDocs(courses.map((c) => c.course.code)),
+    listSignedDocs(student.studentId),
+    listRequests(student.studentId),
   ]);
 
-  let totalParts = 0;
-  let totalAccepted = 0;
-  for (const u of course.units) {
-    const set = assessments[u.code] ? summarise(assessments[u.code]) : null;
-    for (const p of ASSESSMENT_PARTS.filter((p) => set?.[p.key])) {
-      totalParts++;
-      if (submissions.some((s) => s.unitCode === u.code && s.part === p.key && s.status === "Accepted")) totalAccepted++;
-    }
-  }
-  const passed = results.filter((r) => r.result === "Pass").length;
-  const totalResources = Object.values(resources).reduce((n, c) => n + c, 0);
+  const totalUnits = courses.reduce((n, c) => n + c.visibleUnits, 0);
 
   return (
-    <div className="animate-fade-up space-y-8">
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-plum">
-          {course.code} · {course.release} · {course.category}
-        </p>
-        <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">{course.name}</h1>
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-ink/55">
-          <ClockIcon className="h-4 w-4" />
-          {course.duration} · {course.units.length} units
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Units", value: course.units.length, icon: BoxIcon, tone: "bg-lilac" },
-          { label: "Units passed", value: `${passed} / ${course.units.length}`, icon: ClipboardIcon, tone: "bg-emerald-50" },
-          { label: "Resources to read", value: totalResources, icon: BookIcon, tone: "bg-[#ffe8d6]" },
-          { label: "Assessment parts accepted", value: `${totalAccepted} / ${totalParts}`, icon: ClipboardIcon, tone: "bg-[#e8f3ff]" },
-        ].map(({ label, value, icon: Icon, tone }) => (
-          <div key={label} className={`rounded-[1.5rem] p-5 ${tone}`}>
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/80 text-plum">
-              <Icon className="h-4 w-4" />
-            </span>
-            <p className="mt-3 text-2xl font-medium text-ink">{value}</p>
-            <p className="mt-0.5 text-xs text-ink/50">{label}</p>
+    <div className="animate-fade-up space-y-10">
+      {/* Overview */}
+      <section aria-labelledby="overview-heading" className="space-y-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Overview</p>
+          <h1 id="overview-heading" className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">
+            My learning
+          </h1>
+          <p className="mt-1 text-base text-ink">A quick look at what you’re studying.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-5 rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.2)] sm:p-6">
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-lilac text-plum">
+            <BookIcon className="h-8 w-8" />
+          </span>
+          <div className="min-w-40 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Current learning</p>
+            <p className="mt-1 text-3xl font-semibold text-ink">{courses.length}</p>
+            <p className="text-base text-ink">
+              Enrolled {courses.length === 1 ? "course" : "courses"} · {totalUnits} units
+            </p>
           </div>
-        ))}
-      </div>
+          <a
+            href="#my-courses"
+            className="w-full rounded-xl border border-plum/30 bg-lilac px-5 py-3 text-center text-sm font-semibold text-plum transition hover:bg-plum hover:text-white sm:w-auto"
+          >
+            View my courses
+          </a>
+        </div>
+      </section>
 
-      <Link
-        href="/dashboard/assessment"
-        className="group flex items-center justify-between gap-4 rounded-[1.5rem] bg-plum p-5 text-white shadow-lg shadow-plum/20 transition hover:bg-plum-light sm:p-6"
-      >
-        <span>
-          <span className="block text-base font-medium">Go to my units</span>
-          <span className="mt-0.5 block text-sm text-white/70">Read each unit, open its resources and complete the assessment.</span>
-        </span>
-        <ArrowRightIcon className="h-5 w-5 shrink-0 transition group-hover:translate-x-0.5" />
-      </Link>
+      {/* One card per course */}
+      <section id="my-courses" aria-labelledby="courses-heading" className="scroll-mt-6 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="courses-heading" className="text-2xl font-semibold text-ink sm:text-3xl">
+              My courses
+            </h2>
+            <p className="mt-1 text-base text-ink">Continue learning from your enrolled courses.</p>
+          </div>
+          <span className="rounded-full border border-ink/15 bg-white px-4 py-2 text-sm font-semibold text-ink">
+            {courses.length} {courses.length === 1 ? "course" : "courses"}
+          </span>
+        </div>
+
+        <ul className="space-y-5">
+          {courses.map(({ course, status, enrolled, visibleUnits }) => (
+            <li key={course.code}>
+              <article
+                aria-label={course.name}
+                className="grid gap-6 rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.2)] sm:p-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+              >
+                <div className="relative overflow-hidden rounded-2xl border border-ink/10">
+                  <CourseIllustration className="block h-48 w-full sm:h-56 lg:h-full lg:min-h-56" />
+                  <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-plum shadow-sm">
+                    Course
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 flex-col gap-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Your course</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl font-semibold leading-snug text-ink sm:text-2xl">{course.name}</h3>
+                      <span className={`rounded-full px-3 py-1 text-sm font-semibold ${courseStatusStyle[status]}`}>{status}</span>
+                    </div>
+                    <p className="mt-2 flex items-center gap-2 text-base text-ink">
+                      <span className="text-lg font-semibold text-plum">#</span>
+                      <span className="font-mono">{course.code}</span>
+                      <span aria-hidden>·</span>
+                      {course.category}
+                    </p>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                    {[
+                      { label: "Units", value: visibleUnits, icon: BoxIcon },
+                      { label: "Duration", value: course.duration, icon: ClockIcon },
+                      {
+                        label: "Work placement",
+                        value: course.placementHours === null ? "To be confirmed" : `${course.placementHours} hours`,
+                        icon: ClipboardIcon,
+                      },
+                      { label: "Enrolled date", value: enrolled, icon: CalendarIcon },
+                    ].map(({ label, value, icon: Icon }) => (
+                      <div key={label} className="flex items-center gap-3">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0">
+                          <dt className="text-sm text-ink">{label}</dt>
+                          <dd className="text-base font-semibold text-ink">{value}</dd>
+                        </span>
+                      </div>
+                    ))}
+                  </dl>
+
+                  <Link
+                    href={`/dashboard/course/${encodeURIComponent(course.code)}`}
+                    className="group mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-plum px-6 py-4 text-base font-semibold text-white shadow-lg shadow-plum/25 transition hover:bg-plum-light sm:w-fit"
+                  >
+                    <BookIcon className="h-5 w-5" />
+                    Go to my course
+                    <ArrowRightIcon className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+              </article>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div>
+        <StudentDocuments
+          placement={courses.map(({ course }) => ({
+            code: course.code,
+            name: course.name,
+            text: course.placementText,
+            docs: placementDocs.filter((d) => d.courseCode === course.code),
+          }))}
+          initialSigned={signed}
+          initialRequests={requests}
+        />
+      </div>
     </div>
   );
 }

@@ -13,18 +13,25 @@ type CourseDoc = {
   category: string;
   duration: string;
   units: Unit[];
+  placementHours?: number | null; // work placement hours, set by Super Admin
+  placementText?: string; // placement information for students, set by Super Admin
   createdAt: Date;
 };
 
-export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt">;
+export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementText"> & {
+  placementHours: number | null;
+  placementText: string;
+};
 
-const toDTO = ({ code, name, release, category, duration, units }: CourseDoc): CourseDTO => ({
+const toDTO = ({ code, name, release, category, duration, units, placementHours, placementText }: CourseDoc): CourseDTO => ({
   code,
   name,
   release,
   category,
   duration,
   units,
+  placementHours: placementHours ?? null,
+  placementText: placementText ?? "",
 });
 
 let ready: Promise<unknown> | undefined;
@@ -63,6 +70,16 @@ export async function getCourse(code: string) {
 
 export async function countCourses() {
   return (await collection()).countDocuments();
+}
+
+export async function setPlacementHours(code: string, hours: number | null) {
+  const res = await (await collection()).updateOne({ code }, { $set: { placementHours: hours } });
+  return res.matchedCount === 1;
+}
+
+export async function setPlacementText(code: string, text: string) {
+  const res = await (await collection()).updateOne({ code }, { $set: { placementText: text } });
+  return res.matchedCount === 1;
 }
 
 export type UnitChange = "ok" | "not-found" | "duplicate";

@@ -12,7 +12,7 @@ export default async function TrainerStudentsPage() {
     <div className="animate-fade-up space-y-8">
       <div>
         <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Students</h1>
-        <p className="mt-1 text-sm text-ink/55">Open a student to see every unit and give the final result: Pass, Fail or Withdrawn.</p>
+        <p className="mt-1 text-sm text-ink/55">Open a student to see every unit and give each unit its final result.</p>
       </div>
 
       <ul className="space-y-3">
@@ -26,7 +26,7 @@ export default async function TrainerStudentsPage() {
               <span className="min-w-0 flex-1">
                 <span className="block font-medium text-ink">{s.name}</span>
                 <span className="block truncate text-[11px] text-ink/45">
-                  {s.studentId} · {s.courseCode} · {s.email}
+                  {s.studentId} · {s.courseCodes.join(", ")} · {s.email}
                 </span>
               </span>
               <span className="hidden text-right sm:block">

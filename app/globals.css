@@ -4,7 +4,16 @@
 :root {
   --background: #1b2a5e;
   --foreground: #ffffff;
+  --ink: #1d1b33;
+  --lilac: #f6f4fc;
+  --plum: #5b3f99;
+  --plum-light: #7a62b3;
+  --peach: #fdc580;
+  --panel: #fcf9f1; /* light mode: soft warm cream instead of white */
+  --panel-muted: #faf9fd;
+  --card-border: rgba(29, 27, 51, 0.1);
 }
+
 
 @theme inline {
   --color-background: var(--background);
@@ -14,11 +23,12 @@
   --color-royal: #0a0fc8;
   --color-gold: #f6b93b;
   --color-gold-soft: #f9cb6b;
-  --color-plum: #5b3f99;
-  --color-plum-light: #7a62b3;
-  --color-peach: #fdc580;
-  --color-lilac: #f6f4fc;
-  --color-ink: #1d1b33;
+  --color-plum: var(--plum);
+  --color-plum-light: var(--plum-light);
+  --color-peach: var(--peach);
+  --color-lilac: var(--lilac);
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
   --font-sans: var(--font-poppins);
   --font-dm: var(--font-dm-sans);
   --animate-fade-up: fade-up 0.6s ease-out both;
@@ -151,6 +161,124 @@ textarea,
 }
 .rich-text[contenteditable="true"]:empty::before {
   content: attr(data-placeholder);
-  color: rgba(29, 27, 51, 0.35);
+  color: color-mix(in srgb, var(--ink) 35%, transparent);
   pointer-events: none;
+}
+
+/* ---------- Dark mode (portal only; login page and certificates stay light) ----------
+   Made for readers 30+: no pure black, off-white text, nothing faded below ~85%,
+   purple buttons dark enough for white text, status colours as soft tints with bright text. */
+html[data-theme="dark"] #portal-root {
+  --ink: #f1eefa;
+  --lilac: #2b2540;
+  --plum: #6a4fd3; /* buttons / selected: white text stays readable */
+  --plum-light: #8169e0;
+  --peach: #f4bd73;
+  --panel: #1c1828;
+  --panel-muted: #231e33;
+  --card-border: rgba(241, 238, 250, 0.16);
+  --plum-text: #cdbfff; /* purple text and links on dark */
+  background-color: #110e1a;
+  color: var(--ink);
+  color-scheme: dark;
+}
+html[data-theme="dark"] body {
+  background: #110e1a;
+}
+
+/* Frame and sidebar: deep and calm instead of bright purple */
+html[data-theme="dark"] #portal-root .portal-sidebar {
+  background-color: #191428;
+}
+html[data-theme="dark"] #portal-root .portal-sidebar [class~="bg-plum-light/70"] {
+  background-color: #2b2540;
+}
+
+/* Light mode: white surfaces in the portal use the cream panel colour */
+html:not([data-theme="dark"]) #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]) {
+  background-color: var(--panel) !important;
+}
+
+/* Panels and light surfaces */
+html[data-theme="dark"] #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]) {
+  background-color: var(--panel) !important;
+}
+html[data-theme="dark"] #portal-root [class~="bg-[#faf9fd]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#fff0e8]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#ffe8d6]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#e8f3ff]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#f2f3f6]"],
+html[data-theme="dark"] #portal-root [class~="bg-slate-50"] {
+  background-color: var(--panel-muted) !important;
+}
+
+/* Text: purple text gets a light purple; faded ink is lifted so it stays easy to read */
+html[data-theme="dark"] #portal-root [class*="text-plum"] {
+  color: var(--plum-text) !important;
+}
+html[data-theme="dark"] #portal-root [class*="text-ink/"] {
+  color: color-mix(in srgb, var(--ink) 85%, transparent) !important;
+}
+html[data-theme="dark"] #portal-root ::placeholder {
+  color: color-mix(in srgb, var(--ink) 60%, transparent) !important;
+}
+html[data-theme="dark"] #portal-root [class*="text-slate-"] {
+  color: #d6d3e6 !important;
+}
+/* Hovering into a purple button turns the text white again */
+html[data-theme="dark"] #portal-root [class*="hover:bg-plum"]:hover,
+html[data-theme="dark"] #portal-root [class*="bg-plum "],
+html[data-theme="dark"] #portal-root [class$="bg-plum"],
+html[data-theme="dark"] #portal-root [class*="bg-plum text-white"] {
+  color: #ffffff !important;
+}
+html[data-theme="dark"] #portal-root [class~="bg-plum"] * {
+  color: inherit;
+}
+
+/* Dark chips/buttons (bg-ink) flip to light with dark text */
+html[data-theme="dark"] #portal-root [class~="bg-ink"] {
+  background-color: #e9e4f7 !important;
+  color: #1c1828 !important;
+}
+html[data-theme="dark"] #portal-root [class~="bg-ink"] [class~="text-white"] {
+  color: #1c1828 !important;
+}
+
+/* Status colours: soft tinted surfaces + bright text */
+html[data-theme="dark"] #portal-root [class~="bg-emerald-50"] { background-color: rgba(16, 185, 129, 0.14) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-rose-50"] { background-color: rgba(244, 63, 94, 0.14) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-amber-50"] { background-color: rgba(245, 158, 11, 0.14) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-orange-50"] { background-color: rgba(249, 115, 22, 0.14) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-sky-50"] { background-color: rgba(14, 165, 233, 0.14) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-emerald-100"] { background-color: rgba(16, 185, 129, 0.24) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-rose-100"] { background-color: rgba(244, 63, 94, 0.24) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-amber-100"] { background-color: rgba(245, 158, 11, 0.24) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-orange-100"] { background-color: rgba(249, 115, 22, 0.24) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-sky-100"] { background-color: rgba(14, 165, 233, 0.24) !important; }
+html[data-theme="dark"] #portal-root [class~="bg-slate-200"] { background-color: #3a3450 !important; }
+html[data-theme="dark"] #portal-root [class*="text-emerald-"]:not([class*="text-emerald-100"]) { color: #7ee8bd !important; }
+html[data-theme="dark"] #portal-root [class*="text-rose-"] { color: #ffadb9 !important; }
+html[data-theme="dark"] #portal-root [class*="text-amber-"] { color: #fcd77a !important; }
+html[data-theme="dark"] #portal-root [class*="text-orange-"] { color: #fdc08a !important; }
+html[data-theme="dark"] #portal-root [class*="text-sky-"] { color: #93dcfb !important; }
+
+/* Borders and shadows */
+html[data-theme="dark"] #portal-root [class*="border-ink/"] {
+  border-color: var(--card-border) !important;
+}
+html[data-theme="dark"] #portal-root [class~="shadow-sm"],
+html[data-theme="dark"] #portal-root [class~="shadow-md"],
+html[data-theme="dark"] #portal-root [class~="shadow-lg"],
+html[data-theme="dark"] #portal-root [class*="shadow-[0_"] {
+  box-shadow: 0 12px 40px -16px rgba(0, 0, 0, 0.6) !important;
+}
+
+html[data-theme="dark"] #portal-root .soft-scroll::-webkit-scrollbar-track {
+  background: rgba(205, 191, 255, 0.08);
+}
+html[data-theme="dark"] #portal-root .soft-scroll::-webkit-scrollbar-thumb {
+  background: rgba(205, 191, 255, 0.4);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }

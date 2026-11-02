@@ -20,8 +20,21 @@ describe("forStudent — what reaches the student's browser", () => {
 describe("summarise", () => {
   it("marks which parts have content", () => {
     const a = emptyAssessment();
+    a.workplace.files = [{ id: "6ae591d80e5ad0fc166bedee", name: "Task.pdf", size: 10 }];
+    expect(summarise(a)).toEqual({ quiz: false, theory: false, rolePlay: false, workplace: true, quizCount: 0, theoryCount: 0, workplaceCount: 1 });
+  });
+
+  it("only counts Theory / Workplacement Task when a task document is uploaded", () => {
+    const a = emptyAssessment();
+    a.theory.questions = [{ id: "t1", text: "Old typed question", guidance: "", wordLimit: null }];
+    a.workplace.task = "Old typed task";
+    expect(summarise(a)).toMatchObject({ theory: false, workplace: false });
+  });
+
+  it("never counts the retired role play part", () => {
+    const a = emptyAssessment();
     a.rolePlay.scenario = "Scenario";
-    expect(summarise(a)).toEqual({ quiz: false, theory: false, rolePlay: true, workplace: false, quizCount: 0, theoryCount: 0 });
+    expect(summarise(a).rolePlay).toBe(false);
   });
 });
 

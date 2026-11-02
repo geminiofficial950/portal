@@ -7,16 +7,17 @@ import { getAssessment } from "@/lib/assessments";
 import { requireAdmin } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import type { SubmissionDTO } from "@/lib/submission-meta";
-import { getStudent } from "@/lib/students";
+import { getStudent, pickCourse } from "@/lib/students";
 import { listStudentSubmissions } from "@/lib/submissions";
 import { getUnitResult } from "@/lib/unit-results";
 
 // Super Admin: everything a student handed in for one unit
 export default async function AdminStudentUnitPage(props: PageProps<"/superadmin/students/[id]/[unit]">) {
-  await requireAdmin();
-  const { id, unit: unitParam } = await props.params;
+  const admin = await requireAdmin();
+  const [{ id, unit: unitParam }, { course: courseParam }] = await Promise.all([props.params, props.searchParams]);
   const student = await getStudent(decodeURIComponent(id));
-  const course = student ? await getCourse(student.course) : null;
+  const picked = student ? pickCourse(student, typeof courseParam === "string" ? courseParam : null) : null;
+  const course = picked ? await getCourse(picked.code) : null;
   const unit = course?.units.find((u) => u.code === decodeURIComponent(unitParam));
   if (!student || !course || !unit) notFound();
 
@@ -31,7 +32,7 @@ export default async function AdminStudentUnitPage(props: PageProps<"/superadmin
 
   return (
     <div className="animate-fade-up space-y-6">
-      <Link href={`/superadmin/students/${student.studentId}`} className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum">
+      <Link href={`/superadmin/students/${student.studentId}?course=${encodeURIComponent(course.code)}`} className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum">
         <BackIcon className="h-4 w-4" />
         {student.name}’s progress
       </Link>
@@ -43,6 +44,7 @@ export default async function AdminStudentUnitPage(props: PageProps<"/superadmin
         submissions={byPart}
         outcome={outcome}
         reviewBase="/superadmin/marking"
+        canEditDate={admin.isSuper}
       />
     </div>
   );

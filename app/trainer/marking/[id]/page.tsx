@@ -11,7 +11,7 @@ export default async function ReviewPage(props: PageProps<"/trainer/marking/[id]
   await requireTrainer();
   const { id } = await props.params;
   const submission = await getSubmission(id);
-  if (!submission || submission.part === "quiz" || submission.status === "Draft") notFound();
+  if (!submission || submission.status === "Draft") notFound();
 
   const [assessment, settings] = await Promise.all([
     getAssessment(submission.courseCode, submission.unitCode),
