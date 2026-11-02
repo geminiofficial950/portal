@@ -27,14 +27,14 @@ export default function TrainerLayout({ children }: LayoutProps<"/trainer">) {
   return (
     <div
       id="portal-root"
-      className={`${dmSans.variable} flex min-h-dvh flex-1 bg-plum font-dm text-ink lg:p-4 lg:pl-0`}
+      className={`${dmSans.variable} flex min-h-dvh flex-1 bg-plum font-dm text-ink lg:p-2 lg:pl-0`}
     >
       <Sidebar variant="trainer" />
-      <div className="flex min-w-0 flex-1 flex-col bg-white lg:rounded-[2rem]">
+      <div className="flex min-w-0 flex-1 flex-col bg-panel lg:rounded-[2rem]">
         <Suspense fallback={<Header variant="trainer" />}>
           <TrainerHeader />
         </Suspense>
-        <main className="flex-1 px-4 pb-8 sm:px-8 lg:px-10">
+        <main className="flex-1 px-4 pb-6 sm:px-4 lg:px-4">
           <Suspense>{children}</Suspense>
         </main>
       </div>

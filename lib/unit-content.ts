@@ -38,6 +38,22 @@ export async function listUnitContentSummaries(courseCode?: string): Promise<Rec
   );
 }
 
+export type UnitOutline = { hasOverview: boolean; resources: { id: string; title: string; kind: Resource["kind"] }[] };
+
+// Per unit of a course: whether it has an overview and its resources (titles only), for the unit sidebar
+export async function listCourseOutline(courseCode: string): Promise<Record<string, UnitOutline>> {
+  const docs = await (await collection()).find({ courseCode }).toArray();
+  return Object.fromEntries(
+    docs.map((d) => [
+      d.unitCode,
+      {
+        hasOverview: !!(d.overview ?? "").replace(/<[^>]*>|&nbsp;|s/g, ""),
+        resources: (d.resources ?? []).map((r) => ({ id: r.id, title: r.title, kind: r.kind })),
+      },
+    ]),
+  );
+}
+
 // Resource counts per unit of a course (for the students' unit list)
 export async function countResources(courseCode: string): Promise<Record<string, number>> {
   const all = await listUnitContentSummaries(courseCode);
@@ -58,6 +74,16 @@ export async function addResource(courseCode: string, unitCode: string, resource
     { $push: { resources: resource }, $set: { updatedAt: new Date() }, $setOnInsert: { overview: "" } },
     { upsert: true },
   );
+}
+
+// Puts a document in one of the three Resources slots; returns the resource it replaced, if any
+export async function setSlotResource(courseCode: string, unitCode: string, resource: Extract<Resource, { kind: "file" }> & { slot: string }) {
+  const col = await collection();
+  const doc = await col.findOne({ courseCode, unitCode });
+  const previous = doc?.resources?.find((r) => r.kind === "file" && r.slot === resource.slot) ?? null;
+  if (previous) await col.updateOne({ courseCode, unitCode }, { $pull: { resources: { id: previous.id } } });
+  await addResource(courseCode, unitCode, resource);
+  return previous;
 }
 
 export async function removeResource(courseCode: string, unitCode: string, resourceId: string) {

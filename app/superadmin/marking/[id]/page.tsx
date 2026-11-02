@@ -6,12 +6,12 @@ import { getAssessment } from "@/lib/assessments";
 import { requireAdmin } from "@/lib/auth";
 import { getSubmission } from "@/lib/submissions";
 
-// Super Admin can review and mark any submitted theory / role play / workplace work
+// Super Admin can review and mark any submitted Theory Task / Workplacement Task work
 export default async function AdminReviewPage(props: PageProps<"/superadmin/marking/[id]">) {
   await requireAdmin();
   const { id } = await props.params;
   const submission = await getSubmission(id);
-  if (!submission || submission.part === "quiz" || submission.status === "Draft") notFound();
+  if (!submission || submission.status === "Draft") notFound();
   const assessment = await getAssessment(submission.courseCode, submission.unitCode);
 
   return (

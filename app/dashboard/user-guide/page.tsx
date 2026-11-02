@@ -67,14 +67,14 @@ const guides: Guide[] = [
     howDoI: "How do I upload my work?",
     summary: "File types, size limits, and how to know your upload actually went through.",
     readTime: "4 min",
-    href: "/dashboard/assessment",
-    cta: "Open Assessments",
+    href: "/dashboard/course",
+    cta: "Open my course",
     icon: "clipboard",
     tip: "Name your file with your student ID and unit code — trainers find it faster.",
     steps: [
       {
         title: "Open the assessment",
-        detail: "From Assessments, pick the task and tap Open Assessment.",
+        detail: "From Course, tap Go to my course, then pick the unit and the task in the list on the right.",
       },
       {
         title: "Read the instructions",

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { requireStudent } from "@/lib/auth";
+import { logStudent } from "@/lib/student-logs";
 import { TICKET_TOPICS, type TicketDTO } from "@/lib/ticket-meta";
 import { addTicketMessage, createTicket } from "@/lib/tickets";
 
@@ -24,6 +25,7 @@ export async function createTicketAction(input: { topicId: string; subject: stri
     text: details.slice(0, 4000),
   });
   await logActivity(session.name, `raised ticket ${ticket.ticketId}`, "ticket");
+  await logStudent({ studentId: session.sub, studentName: session.name, action: "Raised ticket", detail: `${ticket.ticketId} · ${subject}` });
   revalidatePath("/dashboard/tickets");
   revalidatePath("/superadmin", "layout");
   return { ok: true, ticket };

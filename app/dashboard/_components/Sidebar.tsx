@@ -17,17 +17,20 @@ import {
   SettingsIcon,
   TicketIcon,
   UserPlusIcon,
+  ShieldIcon,
   UsersIcon,
 } from "./icons";
 
 export type PortalVariant = "student" | "trainer" | "admin";
+
+// A unit page (/dashboard/assessment/…) is part of the student's Course
+const ALSO_ACTIVE: Record<string, string[]> = { "/dashboard/course": ["/dashboard/assessment"] };
 
 const variants = {
   student: {
     home: "/dashboard",
     nav: [
       { label: "Dashboard", href: "/dashboard", icon: HomeIcon },
-      { label: "Assessment", href: "/dashboard/assessment", icon: ClipboardIcon },
       { label: "Course", href: "/dashboard/course", icon: BoxIcon },
       { label: "Tickets", href: "/dashboard/tickets", icon: TicketIcon },
       { label: "User Guide", href: "/dashboard/user-guide", icon: BookIcon },
@@ -60,6 +63,7 @@ const variants = {
       { label: "Overview", href: "/superadmin", icon: HomeIcon },
       { label: "Students", href: "/superadmin/students", icon: UsersIcon },
       { label: "Trainers", href: "/superadmin/trainers", icon: UserPlusIcon },
+      { label: "Admins", href: "/superadmin/admins", icon: ShieldIcon, superOnly: true },
       { label: "Courses", href: "/superadmin/courses", icon: BoxIcon },
       { label: "Tickets", href: "/superadmin/tickets", icon: TicketIcon },
       { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon },
@@ -106,13 +110,15 @@ function NavLinks({ nav, home, onNavigate, pathname = null }: NavLinksProps & { 
   return (
     <ul className="space-y-2">
       {nav.map(({ label, href, icon: Icon }) => {
-        const active = pathname !== null && (href === home ? pathname === home : pathname.startsWith(href));
+        const active =
+          pathname !== null &&
+          (href === home ? pathname === home : pathname.startsWith(href) || (ALSO_ACTIVE[href] ?? []).some((p) => pathname.startsWith(p)));
         return (
           <li key={label}>
             <Link
               href={href}
               onClick={onNavigate}
-              className={`relative -ml-6 flex items-center gap-4 py-2.5 pl-6 text-sm transition ${
+              className={`relative -ml-4 flex items-center gap-4 py-2.5 pl-4 text-sm transition ${
                 active ? "text-peach" : "text-white/85 hover:text-white"
               }`}
             >
@@ -129,8 +135,15 @@ function NavLinks({ nav, home, onNavigate, pathname = null }: NavLinksProps & { 
   );
 }
 
-export default function Sidebar({ variant = "student" }: { variant?: PortalVariant }) {
-  const { home, nav, help } = variants[variant];
+// superAdmin: the .env Super Admin (vs an Admin account) — only they get "Admins"
+export default function Sidebar({ variant = "student", superAdmin = false }: { variant?: PortalVariant; superAdmin?: boolean }) {
+  const base = variants[variant];
+  const { home } = base;
+  const nav = base.nav.filter((item) => superAdmin || !("superOnly" in item));
+  const help =
+    variant === "admin" && !superAdmin
+      ? { ...base.help, title: "Admin", text: "You can manage students, trainers, courses and settings. Only Super Admin can change dates." }
+      : base.help;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -142,7 +155,7 @@ export default function Sidebar({ variant = "student" }: { variant?: PortalVaria
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-plum px-4 lg:hidden">
+      <div className="portal-sidebar fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-plum px-4 lg:hidden">
         <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} className="h-10 w-auto" />
         <button
           onClick={() => setOpen(true)}
@@ -159,7 +172,7 @@ export default function Sidebar({ variant = "student" }: { variant?: PortalVaria
       />
 
       <aside
-        className={`no-scrollbar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col overflow-y-auto bg-plum px-6 py-8 transition-transform duration-300 lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100dvh-2rem)] lg:translate-x-0 lg:py-4 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`portal-sidebar no-scrollbar fixed inset-y-0 left-0 z-50 flex w-56 shrink-0 flex-col overflow-y-auto bg-plum px-4 py-8 transition-transform duration-300 lg:sticky lg:top-2 lg:z-auto lg:h-[calc(100dvh-1rem)] lg:translate-x-0 lg:py-4 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center justify-between">
           <Image

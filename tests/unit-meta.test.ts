@@ -1,41 +1,54 @@
 import { describe, expect, it } from "vitest";
 import type { AssessmentSummary } from "@/lib/assessment-meta";
+import { DEFAULT_RESULT_OPTIONS, type ResultOption } from "@/lib/result-meta";
 import { canEditWork, checkUnitResult, cleanUrl, validateResource } from "@/lib/unit-meta";
 
-const allParts: AssessmentSummary = { quiz: true, theory: true, rolePlay: true, workplace: true, quizCount: 2, theoryCount: 1 };
+const opt = (id: string) => DEFAULT_RESULT_OPTIONS.find((o) => o.id === id);
+
+const allParts: AssessmentSummary = { quiz: true, theory: true, rolePlay: true, workplace: true, quizCount: 2, theoryCount: 1, workplaceCount: 1 };
 const allAccepted = { quiz: "Accepted", theory: "Accepted", rolePlay: "Accepted", workplace: "Accepted" } as const;
 
-describe("checkUnitResult — final Pass / Fail / Withdrawn", () => {
+describe("checkUnitResult — final result options", () => {
   it("allows Pass when every part is accepted", () => {
-    expect(checkUnitResult("Pass", "", allParts, allAccepted)).toBeNull();
+    expect(checkUnitResult(opt("Pass"), "", allParts, allAccepted)).toBeNull();
   });
 
   it("blocks Pass and lists the parts not accepted yet", () => {
-    expect(checkUnitResult("Pass", "", allParts, { ...allAccepted, theory: "Rejected", workplace: "Submitted" })).toBe(
-      "Can’t pass yet — not accepted: Theory, Workplace task.",
+    expect(checkUnitResult(opt("Pass"), "", allParts, { ...allAccepted, theory: "Rejected", workplace: "Submitted" })).toBe(
+      "Can’t pass yet — not accepted: Theory Task, Workplacement Task.",
     );
   });
 
   it("only counts parts the college set up", () => {
     const quizOnly: AssessmentSummary = { ...allParts, theory: false, rolePlay: false, workplace: false };
-    expect(checkUnitResult("Pass", "", quizOnly, { quiz: "Accepted" })).toBeNull();
+    expect(checkUnitResult(opt("Pass"), "", quizOnly, { quiz: "Accepted" })).toBeNull();
   });
 
   it("can't pass a unit with no assessment", () => {
-    expect(checkUnitResult("Pass", "", null, {})).toBe("This unit has no assessment set up yet, so it can’t be passed.");
+    expect(checkUnitResult(opt("Pass"), "", null, {})).toBe("This unit has no assessment set up yet, so it can’t be passed.");
   });
 
   it("Fail needs feedback", () => {
-    expect(checkUnitResult("Fail", "  ", allParts, {})).toBe("Add feedback explaining why the unit is failed.");
-    expect(checkUnitResult("Fail", "Did not attend", allParts, {})).toBeNull();
+    expect(checkUnitResult(opt("Fail"), "  ", allParts, {})).toBe("Add feedback explaining why the result is Fail.");
+    expect(checkUnitResult(opt("Fail"), "Did not attend", allParts, {})).toBeNull();
   });
 
   it("Withdrawn is allowed any time", () => {
-    expect(checkUnitResult("Withdrawn", "", allParts, {})).toBeNull();
+    expect(checkUnitResult(opt("Withdrawn"), "", allParts, {})).toBeNull();
   });
 
   it("rejects unknown results", () => {
-    expect(checkUnitResult("Merit" as never, "", allParts, allAccepted)).toBe("Choose Pass, Fail or Withdrawn.");
+    expect(checkUnitResult(opt("Merit"), "", allParts, allAccepted)).toBe("Choose a final result.");
+  });
+
+  it("follows the kind of an added result, not its name", () => {
+    const competent: ResultOption = { id: "R1", label: "Competent", kind: "pass", tone: "green" };
+    const nyc: ResultOption = { id: "R2", label: "Not Yet Competent", kind: "fail", tone: "red" };
+    const credit: ResultOption = { id: "R3", label: "Credit Transfer", kind: "other", tone: "blue" };
+    expect(checkUnitResult(competent, "", allParts, { quiz: "Accepted" })).toMatch(/^Can’t pass yet/);
+    expect(checkUnitResult(competent, "", allParts, allAccepted)).toBeNull();
+    expect(checkUnitResult(nyc, "", allParts, {})).toBe("Add feedback explaining why the result is Not Yet Competent.");
+    expect(checkUnitResult(credit, "", null, {})).toBeNull();
   });
 });
 
@@ -97,5 +110,25 @@ describe("validateResource", () => {
 
   it("rejects an unknown kind", () => {
     expect(validateResource({ kind: "video", title: "x" } as never)).toEqual({ ok: false, error: "Pick file, link or notes." });
+  });
+});
+
+describe("part statuses — Satisfactory / Not Yet Satisfactory / Request More Documents", () => {
+  it("shows the college's names", async () => {
+    const { statusLabel } = await import("@/lib/submission-meta");
+    expect([statusLabel.Accepted, statusLabel.Rejected, statusLabel.MoreDocs]).toEqual([
+      "Satisfactory",
+      "Not Yet Satisfactory",
+      "Request More Documents",
+    ]);
+  });
+
+  it("lets the student upload again after Not Yet Satisfactory or Request More Documents", async () => {
+    const { needsRework } = await import("@/lib/submission-meta");
+    expect(needsRework("Rejected")).toBe(true);
+    expect(needsRework("MoreDocs")).toBe(true);
+    expect(needsRework("Accepted")).toBe(false);
+    expect(canEditWork("MoreDocs", false, false)).toBe(true);
+    expect(canEditWork("Accepted", false, false)).toBe(false);
   });
 });

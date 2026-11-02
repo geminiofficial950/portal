@@ -28,3 +28,21 @@ export const initials = (name: string) =>
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+// ISO → value for <input type="datetime-local"> in the viewer's own time zone (use in the browser)
+export const toLocalInput = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// "29-Oct-2026 14:08:29" in the college's time zone, for declaration certificates
+export function formatStamp(d: Date) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-AU", { timeZone: TZ, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+      .formatToParts(d)
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+}

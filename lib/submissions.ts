@@ -85,7 +85,7 @@ export async function getWork(key: WorkKey) {
 export class LockedError extends Error {}
 
 /**
- * Save a student's work as Draft, Submitted, or (quiz only) straight to Accepted/Rejected.
+ * Save a student's work as Draft or Submitted (staff set Accepted / Rejected / MoreDocs later).
  * Only allowed when nothing exists yet, or the current copy is a Draft or was Rejected.
  * Re-working a rejected copy moves its decision into history and starts a new attempt.
  */
@@ -104,22 +104,22 @@ export async function saveWork(
   const col = await collection();
   const now = new Date();
   const existing = await col.findOne(key);
-  if (existing && existing.status !== "Draft" && existing.status !== "Rejected") {
-    throw new LockedError(existing.status === "Accepted" ? "This part is already accepted." : "This part is waiting for the trainer.");
+  const reworking = existing?.status === "Rejected" || existing?.status === "MoreDocs";
+  if (existing && existing.status !== "Draft" && !reworking) {
+    throw new LockedError(existing.status === "Accepted" ? "This part is already marked Satisfactory." : "This part is waiting for the trainer.");
   }
 
-  const reworking = existing?.status === "Rejected";
   const history = existing?.history ?? [];
   if (reworking && existing.decidedAt) {
     history.push({
       attempt: existing.attempt,
-      status: "Rejected",
+      status: existing.status as "Rejected" | "MoreDocs",
       feedback: existing.feedback,
       decidedBy: existing.decidedBy ?? "",
       decidedAt: existing.decidedAt,
     });
   }
-  const decided = work.status === "Accepted" || work.status === "Rejected";
+  const decided = work.status === "Accepted" || work.status === "Rejected" || work.status === "MoreDocs";
 
   const doc: SubmissionDoc = {
     submissionId: existing?.submissionId ?? randomUUID(),
@@ -155,10 +155,10 @@ export async function saveWork(
   return { saved: toDTO(doc), previousFiles, previousPhoto: existing?.photo ?? null };
 }
 
-// Trainer course/unit view: handed-in theory / role play / workplace work (no drafts, no quizzes)
+// Trainer course/unit view: handed-in quiz / theory / workplace work (no drafts)
 export async function listCourseWork(courseCode: string, unitCode?: string) {
   const docs = await (await collection())
-    .find({ courseCode, ...(unitCode && { unitCode }), status: { $ne: "Draft" }, part: { $ne: "quiz" } })
+    .find({ courseCode, ...(unitCode && { unitCode }), status: { $ne: "Draft" }, part: { $in: ["quiz", "theory", "workplace"] } })
     .sort({ submittedAt: 1 })
     .toArray();
   return docs.map(toDTO);
@@ -168,7 +168,7 @@ export async function listCourseWork(courseCode: string, unitCode?: string) {
 export async function countToMarkByCourse() {
   const rows = await (await collection())
     .aggregate<{ _id: string; n: number }>([
-      { $match: { status: "Submitted", part: { $ne: "quiz" } } },
+      { $match: { status: "Submitted", part: { $in: ["quiz", "theory", "workplace"] } } },
       { $group: { _id: "$courseCode", n: { $sum: 1 } } },
     ])
     .toArray();
@@ -176,15 +176,26 @@ export async function countToMarkByCourse() {
 }
 
 export async function countForMarking() {
-  return (await collection()).countDocuments({ status: "Submitted", part: { $ne: "quiz" } });
+  return (await collection()).countDocuments({ status: "Submitted", part: { $in: ["quiz", "theory", "workplace"] } });
 }
 
+// Super Admin corrects when a piece of work was submitted (only work that has been submitted)
+export async function setSubmittedAt(submissionId: string, submittedAt: Date) {
+  const doc = await (await collection()).findOneAndUpdate(
+    { submissionId, submittedAt: { $ne: null } },
+    { $set: { submittedAt, updatedAt: new Date() } },
+    { returnDocument: "after" },
+  );
+  return doc ? toDTO(doc) : null;
+}
+
+// Sets (or changes) the status of handed-in work — any part, including the quiz
 export async function decide(
   submissionId: string,
-  decision: { status: "Accepted" | "Rejected"; feedback: string; criteriaMet: string[]; decidedBy: string },
+  decision: { status: "Accepted" | "Rejected" | "MoreDocs"; feedback: string; criteriaMet: string[]; decidedBy: string },
 ) {
   const doc = await (await collection()).findOneAndUpdate(
-    { submissionId, status: "Submitted", part: { $ne: "quiz" } },
+    { submissionId, status: { $ne: "Draft" } },
     { $set: { ...decision, decidedAt: new Date(), updatedAt: new Date() } },
     { returnDocument: "after" },
   );
@@ -193,6 +204,6 @@ export async function decide(
 
 // Every file id referenced by a submission (so a file is only served to people allowed to see it)
 export async function findSubmissionWithFile(fileId: string) {
-  const doc = await (await collection()).findOne({ $or: [{ "files.id": fileId }, { "content.theory.files.id": fileId }, { "content.evidence.files.id": fileId }] });
+  const doc = await (await collection()).findOne({ $or: [{ "files.id": fileId }, { "content.theory.files.id": fileId }, { "content.evidence.files.id": fileId }, { "photo.id": fileId }] });
   return doc ? toDTO(doc) : null;
 }

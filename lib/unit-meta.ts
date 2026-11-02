@@ -1,12 +1,22 @@
 // Shared by server code and client components (no server-only imports here).
-// Unit = overview + resources to read + the 4-part assessment + a final outcome per student.
+// Unit = overview + resources (Learner Guide, PowerPoint, Supporting Document) + the assessment + a final outcome per student.
 import { ASSESSMENT_PARTS, type AssessmentPart, type AssessmentSummary } from "./assessment-meta";
+import type { ResultKind, ResultOption, ResultTone } from "./result-meta";
 import type { FileRef, SubmissionStatus } from "./submission-meta";
 
 // ---------- Resources ----------
 
+// Every unit's Resources hold these three documents (plus any extra resources)
+export const RESOURCE_SLOTS = [
+  { key: "learnerGuide", label: "Learner Guide" },
+  { key: "presentation", label: "PowerPoint Presentation" },
+  { key: "supporting", label: "Supporting Document" },
+] as const;
+export type ResourceSlot = (typeof RESOURCE_SLOTS)[number]["key"];
+export const isResourceSlot = (v: unknown): v is ResourceSlot => RESOURCE_SLOTS.some((s) => s.key === v);
+
 export type Resource =
-  | { id: string; kind: "file"; title: string; description: string; file: FileRef }
+  | { id: string; kind: "file"; title: string; description: string; file: FileRef; slot?: ResourceSlot }
   | { id: string; kind: "link"; title: string; description: string; url: string }
   | { id: string; kind: "note"; title: string; description: string; body: string };
 
@@ -30,38 +40,33 @@ export function cleanUrl(raw: unknown): string | null {
 
 // ---------- Final unit outcome ----------
 
-export const UNIT_RESULTS = ["Pass", "Fail", "Withdrawn"] as const;
-export type UnitResultValue = (typeof UNIT_RESULTS)[number];
-
+// The result options themselves are editable (lib/result-meta.ts); `result` is the option id
 export type UnitResultDTO = {
   studentId: string;
   courseCode: string;
   unitCode: string;
-  result: UnitResultValue;
+  result: string;
+  label: string;
+  kind: ResultKind;
+  tone: ResultTone;
   feedback: string;
   decidedBy: string;
   decidedAt: string;
 };
 
-export const resultStyle: Record<UnitResultValue, string> = {
-  Pass: "bg-emerald-100 text-emerald-700",
-  Fail: "bg-rose-100 text-rose-700",
-  Withdrawn: "bg-ink/10 text-ink/60",
-};
-
 /**
- * Can this final result be given? Pass needs every part the college set up to be Accepted;
- * Fail needs feedback so the student knows why; Withdrawn can be given any time.
+ * Can this final result be given? A "pass" result needs every part the college set up to be Accepted;
+ * a "fail" result needs feedback so the student knows why; any other result can be given any time.
  */
 export function checkUnitResult(
-  result: UnitResultValue,
+  option: ResultOption | undefined,
   feedback: string,
   setUp: AssessmentSummary | null,
   statuses: Partial<Record<AssessmentPart, SubmissionStatus>>,
 ): string | null {
-  if (!UNIT_RESULTS.includes(result)) return "Choose Pass, Fail or Withdrawn.";
-  if (result === "Fail" && !feedback.trim()) return "Add feedback explaining why the unit is failed.";
-  if (result === "Pass") {
+  if (!option) return "Choose a final result.";
+  if (option.kind === "fail" && !feedback.trim()) return `Add feedback explaining why the result is ${option.label}.`;
+  if (option.kind === "pass") {
     const parts = ASSESSMENT_PARTS.filter((p) => setUp?.[p.key]);
     if (!parts.length) return "This unit has no assessment set up yet, so it can’t be passed.";
     const missing = parts.filter((p) => statuses[p.key] !== "Accepted").map((p) => p.label);
@@ -73,7 +78,7 @@ export function checkUnitResult(
 /** A student can change their work only before the deadline, before a final result, and while it's a draft or rejected. */
 export function canEditWork(status: SubmissionStatus | undefined, pastDue: boolean, hasFinalResult: boolean) {
   if (pastDue || hasFinalResult) return false;
-  return !status || status === "Draft" || status === "Rejected";
+  return !status || status === "Draft" || status === "Rejected" || status === "MoreDocs";
 }
 
 export type ResourceInput =

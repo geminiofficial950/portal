@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import toast from "react-hot-toast";
+import { setSubmittedAtAction } from "../../actions/submissions";
 import { createPortal } from "react-dom";
 import FileList from "./FileList";
 import LocalTime from "../assessment/_components/LocalTime";
 import { CheckIcon } from "./icons";
 import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
-import { statusStyle, type SubmissionDTO } from "@/lib/submission-meta";
-import { resultStyle, type UnitResultDTO } from "@/lib/unit-meta";
+import { toLocalInput } from "@/lib/format";
+import { needsRework, statusLabel, statusStyle, type SubmissionDTO } from "@/lib/submission-meta";
+import { toneStyle } from "@/lib/result-meta";
+import type { UnitResultDTO } from "@/lib/unit-meta";
 
 const card = "rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6";
 
@@ -22,7 +27,7 @@ const Html = ({ html, empty = "Nothing typed." }: { html?: string; empty?: strin
   );
 
 // Everything a student handed in for one unit, one assessment part per tab.
-// Used by Super Admin (with submit photos) and trainers; `reviewBase` is where "Review & mark" goes.
+// Used by Super Admin (with submit photos and `canEditDate`) and trainers; `reviewBase` is where "Review & mark" goes.
 export default function UnitWorkReview({
   student,
   course,
@@ -31,6 +36,7 @@ export default function UnitWorkReview({
   submissions,
   outcome,
   reviewBase,
+  canEditDate = false,
 }: {
   student: { studentId: string; name: string };
   course: { code: string; name: string };
@@ -39,6 +45,7 @@ export default function UnitWorkReview({
   submissions: Partial<Record<AssessmentPart, SubmissionDTO>>;
   outcome: UnitResultDTO | null;
   reviewBase: string;
+  canEditDate?: boolean; // Super Admin: change the date work counts as submitted
 }) {
   const set = summarise(assessment);
   const parts = ASSESSMENT_PARTS.filter((p) => set[p.key]);
@@ -60,7 +67,7 @@ export default function UnitWorkReview({
         {outcome && (
           <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink/70">
             Final result
-            <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${resultStyle[outcome.result]}`}>{outcome.result}</span>
+            <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${toneStyle[outcome.tone]}`}>{outcome.label}</span>
             {outcome.feedback && <span className="text-ink/50">— {outcome.feedback}</span>}
           </p>
         )}
@@ -93,7 +100,7 @@ export default function UnitWorkReview({
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{p.label}</span>
                   <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${statusStyle[status]}`}>
-                    {status === "Submitted" ? "To mark" : status}
+                    {status === "Submitted" ? "To mark" : statusLabel[status]}
                   </span>
                 </span>
               </button>
@@ -110,11 +117,12 @@ export default function UnitWorkReview({
               <div>
                 <h2 className="text-lg font-medium text-ink">{p.label}</h2>
                 {s ? (
-                  <p className="mt-0.5 text-xs text-ink/50">
+                  <p className="mt-0.5 text-xs text-ink">
                     Attempt {s.attempt}
                     {s.submittedAt ? (
                       <>
                         {" "}· submitted <LocalTime iso={s.submittedAt} />
+                        {canEditDate && <SubmittedDateEditor submissionId={s.submissionId} submittedAt={s.submittedAt} />}
                       </>
                     ) : (
                       " · draft, not submitted"
@@ -136,16 +144,16 @@ export default function UnitWorkReview({
                     Submit photo
                   </button>
                 )}
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusStyle[s?.status ?? "Not started"]}`}>{s?.status ?? "Not started"}</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusStyle[s?.status ?? "Not started"]}`}>{statusLabel[s?.status ?? "Not started"]}</span>
               </div>
             </div>
 
             {s && <PartContent part={p.key} s={s} assessment={assessment} />}
 
-            {s && (s.status === "Accepted" || s.status === "Rejected") && (
-              <div className={`rounded-xl px-4 py-3 text-sm ${s.status === "Accepted" ? "bg-emerald-50 text-emerald-900" : "bg-rose-50 text-rose-900"}`}>
+            {s && (s.status === "Accepted" || needsRework(s.status)) && (
+              <div className={`rounded-xl px-4 py-3 text-sm ${s.status === "Accepted" ? "bg-emerald-50 text-emerald-900" : s.status === "MoreDocs" ? "bg-orange-50 text-orange-900" : "bg-rose-50 text-rose-900"}`}>
                 <p className="font-medium">
-                  {s.status} by {s.decidedBy}
+                  {statusLabel[s.status]} — {s.decidedBy}
                   {s.decidedAt && (
                     <span className="font-normal opacity-70">
                       {" "}· <LocalTime iso={s.decidedAt} />
@@ -161,18 +169,28 @@ export default function UnitWorkReview({
                 <ul className="mt-2 space-y-1">
                   {s.history.map((h) => (
                     <li key={h.attempt}>
-                      Attempt {h.attempt} — {h.status} by {h.decidedBy}: {h.feedback || "no comment"}
+                      Attempt {h.attempt} — {statusLabel[h.status]} by {h.decidedBy}: {h.feedback || "no comment"}
                     </li>
                   ))}
                 </ul>
               </details>
             )}
-            {s?.status === "Submitted" && p.key !== "quiz" && (
+            {s?.content.declaration && (
+              <a href={`/declaration/${s.submissionId}`} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-full border border-plum/40 px-5 py-2.5 text-sm font-medium text-plum transition hover:bg-lilac">
+                Declaration certificate
+              </a>
+            )}
+            {s?.content.declaration && (
+              <a href={`/api/declaration/${s.submissionId}`} className="inline-flex rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light">
+                Download declaration (PDF)
+              </a>
+            )}
+            {s && s.status !== "Draft" && (
               <Link
                 href={`${reviewBase}/${s.submissionId}`}
                 className="inline-flex rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light"
               >
-                Review &amp; mark
+                {s.status === "Submitted" ? "Review & mark" : "Change status"}
               </Link>
             )}
           </section>
@@ -320,5 +338,52 @@ function PartContent({ part, s, assessment }: { part: AssessmentPart; s: Submiss
         </div>
       )}
     </div>
+  );
+}
+
+// Super Admin: change when this work counts as submitted (e.g. it was handed in on paper earlier)
+function SubmittedDateEditor({ submissionId, submittedAt }: { submissionId: string; submittedAt: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(toLocalInput(submittedAt));
+  const [saving, startSaving] = useTransition();
+
+  const save = () =>
+    startSaving(async () => {
+      const res = await setSubmittedAtAction(submissionId, new Date(value).toISOString());
+      if (!res.ok) return void toast.error(res.error);
+      toast.success("Submitted date changed");
+      setOpen(false);
+      router.refresh();
+    });
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="ml-2 font-medium text-plum underline-offset-2 hover:underline">
+        Change date
+      </button>
+    );
+  }
+  return (
+    <span className="mt-2 flex flex-wrap items-center gap-2">
+      <input
+        type="datetime-local"
+        value={value}
+        max={toLocalInput(new Date().toISOString())}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label="Submitted date and time"
+        className="rounded-lg bg-lilac px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
+      />
+      <button
+        onClick={save}
+        disabled={saving || !value}
+        className="rounded-full bg-plum px-3 py-1.5 text-xs font-medium text-white transition hover:bg-plum-light disabled:opacity-60"
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+      <button onClick={() => setOpen(false)} className="rounded-full px-2 py-1.5 text-xs text-ink hover:bg-lilac">
+        Cancel
+      </button>
+    </span>
   );
 }

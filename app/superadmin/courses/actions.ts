@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { requireAdmin } from "@/lib/auth";
+import { adminActor, requireAdmin } from "@/lib/auth";
 import { deleteAssessment } from "@/lib/assessments";
 import { deleteUploads } from "@/lib/files";
 import { deleteUnitContent } from "@/lib/unit-content";
-import { addUnit, removeUnit, type Unit } from "@/lib/courses";
+import { addUnit, removeUnit, setPlacementHours, type Unit } from "@/lib/courses";
+import { PLACEMENT_HOURS_MAX } from "@/lib/course-status";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -22,9 +23,22 @@ export async function addUnitAction(courseCode: string, input: Unit): Promise<Re
   const res = await addUnit(courseCode, unit);
   if (res === "duplicate") return { ok: false, error: `${unit.code} is already in this course.` };
   if (res === "not-found") return { ok: false, error: "Course not found." };
-  await logActivity("Super Admin", `added unit ${unit.code} to ${courseCode}`, "course");
+  await logActivity(await adminActor(), `added unit ${unit.code} to ${courseCode}`, "course");
   revalidatePath("/superadmin", "layout");
   return { ok: true, unit };
+}
+
+// Work placement hours shown on the student's Course page; null clears it
+export async function setPlacementHoursAction(courseCode: string, hours: number | null): Promise<Result<{ hours: number | null }>> {
+  await requireAdmin();
+  if (hours !== null && (!Number.isInteger(hours) || hours < 0 || hours > PLACEMENT_HOURS_MAX)) {
+    return { ok: false, error: `Placement hours must be a whole number from 0 to ${PLACEMENT_HOURS_MAX}.` };
+  }
+  if (!(await setPlacementHours(courseCode, hours))) return { ok: false, error: "Course not found." };
+  await logActivity(await adminActor(), `set work placement hours for ${courseCode}`, "course");
+  revalidatePath("/superadmin/courses");
+  revalidatePath("/dashboard/course");
+  return { ok: true, hours };
 }
 
 export async function removeUnitAction(courseCode: string, unitCode: string): Promise<Result> {
@@ -34,7 +48,7 @@ export async function removeUnitAction(courseCode: string, unitCode: string): Pr
   await deleteAssessment(courseCode, unitCode);
   const resources = await deleteUnitContent(courseCode, unitCode);
   await deleteUploads(resources.flatMap((r) => (r.kind === "file" ? [r.file.id] : [])));
-  await logActivity("Super Admin", `removed unit ${unitCode} from ${courseCode}`, "course");
+  await logActivity(await adminActor(), `removed unit ${unitCode} from ${courseCode}`, "course");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
 }

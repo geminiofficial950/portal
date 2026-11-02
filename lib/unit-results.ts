@@ -1,24 +1,34 @@
 import "server-only";
 import type { ObjectId } from "mongodb";
 import { getDb } from "./db";
-import type { UnitResultDTO, UnitResultValue } from "./unit-meta";
+import { resolveResult, type ResultOption } from "./result-meta";
+import { listResultOptions } from "./result-options";
+import type { UnitResultDTO } from "./unit-meta";
 
-// One final outcome per student per unit; older outcomes are kept in history when it's changed
-type UnitResultDoc = Omit<UnitResultDTO, "decidedAt"> & {
+// One final outcome per student per unit; older outcomes are kept in history when it's changed.
+// `result` is a result option id; its name and colour are looked up when read, so renaming an option updates every result.
+type UnitResultInput = Omit<UnitResultDTO, "decidedAt" | "label" | "kind" | "tone">;
+type UnitResultDoc = UnitResultInput & {
   _id?: ObjectId;
   decidedAt: Date;
-  history: { result: UnitResultValue | "Cleared"; feedback: string; decidedBy: string; decidedAt: Date }[];
+  history: { result: string; feedback: string; decidedBy: string; decidedAt: Date }[];
 };
 
-const toDTO = (d: UnitResultDoc): UnitResultDTO => ({
-  studentId: d.studentId,
-  courseCode: d.courseCode,
-  unitCode: d.unitCode,
-  result: d.result,
-  feedback: d.feedback,
-  decidedBy: d.decidedBy,
-  decidedAt: d.decidedAt.toISOString(),
-});
+const toDTO = (d: UnitResultDoc, options: ResultOption[]): UnitResultDTO => {
+  const { label, kind, tone } = resolveResult(d.result, options);
+  return {
+    studentId: d.studentId,
+    courseCode: d.courseCode,
+    unitCode: d.unitCode,
+    result: d.result,
+    label,
+    kind,
+    tone,
+    feedback: d.feedback,
+    decidedBy: d.decidedBy,
+    decidedAt: d.decidedAt.toISOString(),
+  };
+};
 
 let indexesReady: Promise<unknown> | undefined;
 
@@ -30,16 +40,16 @@ async function collection() {
 }
 
 export async function listStudentResults(studentId: string, courseCode: string) {
-  const docs = await (await collection()).find({ studentId, courseCode }).toArray();
-  return docs.map(toDTO);
+  const [docs, options] = await Promise.all([(await collection()).find({ studentId, courseCode }).toArray(), listResultOptions()]);
+  return docs.map((d) => toDTO(d, options));
 }
 
 export async function getUnitResult(studentId: string, courseCode: string, unitCode: string) {
-  const doc = await (await collection()).findOne({ studentId, courseCode, unitCode });
-  return doc ? toDTO(doc) : null;
+  const [doc, options] = await Promise.all([(await collection()).findOne({ studentId, courseCode, unitCode }), listResultOptions()]);
+  return doc ? toDTO(doc, options) : null;
 }
 
-export async function setUnitResult(input: Omit<UnitResultDTO, "decidedAt">) {
+export async function setUnitResult(input: UnitResultInput) {
   const col = await collection();
   const key = { studentId: input.studentId, courseCode: input.courseCode, unitCode: input.unitCode };
   const prev = await col.findOne(key);
@@ -47,7 +57,12 @@ export async function setUnitResult(input: Omit<UnitResultDTO, "decidedAt">) {
   const history = prev?.history ?? [];
   if (prev) history.push({ result: prev.result, feedback: prev.feedback, decidedBy: prev.decidedBy, decidedAt: prev.decidedAt });
   await col.updateOne(key, { $set: { ...input, decidedAt: now, history } }, { upsert: true });
-  return toDTO({ ...input, decidedAt: now, history });
+  return toDTO({ ...input, decidedAt: now, history }, await listResultOptions());
+}
+
+// How many students currently hold this result (an option in use can't be deleted)
+export async function countResultsUsing(resultId: string) {
+  return (await collection()).countDocuments({ result: resultId });
 }
 
 export async function clearUnitResult(studentId: string, courseCode: string, unitCode: string) {

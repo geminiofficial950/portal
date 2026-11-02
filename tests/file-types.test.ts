@@ -19,7 +19,7 @@ describe("checkUpload", () => {
 
   it("rejects other file types", () => {
     for (const name of ["notes.txt", "run.exe", "page.html", "noextension"]) {
-      expect(checkUpload(name, PDF)).toEqual({ ok: false, error: "Only Word, PDF, JPG or PNG files can be uploaded." });
+      expect(checkUpload(name, PDF)).toEqual({ ok: false, error: "Only Word, PowerPoint, PDF, JPG or PNG files can be uploaded." });
     }
   });
 
@@ -38,5 +38,18 @@ describe("checkUpload", () => {
   it("makes the file name safe to store", () => {
     const res = checkUpload("../../etc/<evil>.pdf", PDF);
     expect(res.ok && res.safeName).toBe(".._.._etc__evil_.pdf");
+  });
+});
+
+describe("PowerPoint uploads", () => {
+  it("accepts real .pptx and .ppt files", () => {
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2]);
+    const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 1, 2]);
+    expect(checkUpload("slides.pptx", zip)).toMatchObject({ ok: true, mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+    expect(checkUpload("slides.ppt", ole)).toMatchObject({ ok: true, mime: "application/vnd.ms-powerpoint" });
+  });
+
+  it("rejects a renamed file", () => {
+    expect(checkUpload("slides.pptx", new Uint8Array([0x25, 0x50, 0x44, 0x46]))).toMatchObject({ ok: false });
   });
 });

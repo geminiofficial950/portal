@@ -6,10 +6,10 @@ import { MARKED_PARTS, summarise } from "@/lib/assessment-meta";
 import { getAssessment } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
-import { statusStyle } from "@/lib/submission-meta";
+import { statusLabel, statusStyle } from "@/lib/submission-meta";
 import { listCourseWork } from "@/lib/submissions";
 
-const ORDER = { Submitted: 0, Rejected: 1, Accepted: 2, Draft: 3 } as const;
+const ORDER = { Submitted: 0, MoreDocs: 1, Rejected: 2, Accepted: 3, Draft: 4 } as const;
 
 // Trainer marking, step 3: one unit, one tab per part (like the student's unit page)
 export default async function MarkingUnitPage(props: PageProps<"/trainer/marking/course/[code]/[unit]">) {
@@ -48,7 +48,7 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
       {parts.length === 0 ? (
         <div className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
           <ClipboardIcon className="h-8 w-8 text-plum/40" />
-          <p className="mt-3 text-sm text-ink/45">This unit has no theory, role play or workplace task set up yet.</p>
+          <p className="mt-3 text-sm text-ink">This unit has no Theory Task or Workplacement Task set up yet.</p>
         </div>
       ) : (
         <>
@@ -99,7 +99,7 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusStyle[s.status]}`}>
-                        {s.status === "Submitted" ? "To mark" : s.status}
+                        {s.status === "Submitted" ? "To mark" : statusLabel[s.status]}
                       </span>
                       {s.attempt > 1 && <span className="text-[11px] text-ink/45">Attempt {s.attempt}</span>}
                     </div>
@@ -109,7 +109,7 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
                     {s.submittedAt && (
                       <p className="mt-0.5 text-[11px] text-ink/45">
                         Submitted <LocalTime iso={s.submittedAt} />
-                        {s.decidedBy && ` · ${s.status.toLowerCase()} by ${s.decidedBy}`}
+                        {s.decidedBy && ` · ${statusLabel[s.status]} — ${s.decidedBy}`}
                       </p>
                     )}
                   </div>

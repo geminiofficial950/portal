@@ -29,7 +29,7 @@ export default async function MarkingCoursePage(props: PageProps<"/trainer/marki
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wide text-plum">{course.code}</p>
           <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">{course.name}</h1>
-          <p className="mt-1 text-sm text-ink/55">Open a unit to mark its theory, role play and workplace task.</p>
+          <p className="mt-1 text-sm text-ink">Open a unit to mark its Theory Task and Workplacement Task.</p>
         </div>
         <div className="min-w-48 rounded-[1.5rem] bg-lilac px-5 py-4">
           <p className="text-2xl font-medium text-ink">{total}</p>
