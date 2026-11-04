@@ -13,7 +13,7 @@ const NO_PERMISSION = "Super Admin has turned off ticket handling for trainers."
 
 const done = (ticket: TicketDTO | null): Result => {
   if (!ticket) return { ok: false, error: "This ticket isn’t assigned to you." };
-  revalidatePath("/trainer");
+  revalidatePath("/trainer", "layout");
   revalidatePath("/superadmin", "layout");
   revalidatePath("/dashboard/tickets");
   return { ok: true, ticket };

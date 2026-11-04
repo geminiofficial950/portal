@@ -84,8 +84,8 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
     <div className="animate-fade-up space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Need help?</h1>
-          <p className="mt-1 max-w-xl text-sm text-ink/55">
+          <h1 className="text-2xl font-semibold text-ink sm:text-[1.65rem]">Need help?</h1>
+          <p className="mt-1 max-w-xl text-sm text-ink">
             Ask the college anything about your course, assessments, or portal — then track
             replies here.
           </p>
@@ -107,15 +107,15 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
         ].map((s) => (
           <div key={s.label} className={`rounded-[1.5rem] px-5 py-4 ${s.tone}`}>
             <p className="text-2xl font-medium text-ink">{s.value}</p>
-            <p className="mt-1 text-xs text-ink/50">{s.label}</p>
+            <p className="mt-1 text-xs text-ink">{s.label}</p>
           </div>
         ))}
       </div>
 
       {asking && (
         <form onSubmit={sendAsk} className="rounded-[1.75rem] bg-lilac/80 p-5 sm:p-6">
-          <h2 className="text-base font-medium text-ink">What do you need help with?</h2>
-          <p className="mt-1 text-xs text-ink/55">Pick a topic so we send it to the right team.</p>
+          <h2 className="text-base font-semibold text-ink">What do you need help with?</h2>
+          <p className="mt-1 text-xs text-ink">Pick a topic so we send it to the right team.</p>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {TICKET_TOPICS.map((t) => {
@@ -130,7 +130,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                   }`}
                 >
                   <p className="text-sm font-medium">{t.label}</p>
-                  <p className={`mt-0.5 text-[11px] ${active ? "text-white/70" : "text-ink/45"}`}>{t.hint}</p>
+                  <p className={`mt-0.5 text-[11px] ${active ? "text-white/70" : "text-ink"}`}>{t.hint}</p>
                 </button>
               );
             })}
@@ -168,7 +168,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
               <button
                 type="button"
                 onClick={() => setAsking(false)}
-                className="rounded-full px-5 py-2.5 text-sm font-medium text-ink/60 transition hover:bg-white/60"
+                className="rounded-full px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-white/60"
               >
                 Cancel
               </button>
@@ -180,7 +180,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
       {requests.length > 0 && (
         <div className="grid gap-8 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] lg:gap-10">
           <section>
-            <h2 className="text-lg font-medium text-ink">Your requests</h2>
+            <h2 className="text-lg font-semibold text-ink">Your requests</h2>
             <ul className="mt-4 space-y-2 rounded-[2rem] bg-lilac/70 p-3 sm:p-4">
               {requests.map((item) => {
                 const active = selected?.ticketId === item.ticketId;
@@ -193,7 +193,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className={`text-[10px] font-medium ${active ? "text-white/60" : "text-ink/40"}`}>
+                        <p className={`text-[10px] font-medium ${active ? "text-white/60" : "text-ink"}`}>
                           {item.ticketId} · {item.topic}
                         </p>
                         <span
@@ -205,7 +205,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                         </span>
                       </div>
                       <p className="text-sm font-medium leading-snug">{item.subject}</p>
-                      <p className={`text-[11px] ${active ? "text-white/65" : "text-ink/45"}`}>Asked {item.created}</p>
+                      <p className={`text-[11px] ${active ? "text-white/65" : "text-ink"}`}>Asked {item.created}</p>
                     </button>
                   </li>
                 );
@@ -219,11 +219,11 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                 <div className="border-b border-ink/5 bg-lilac/50 px-5 py-4 sm:px-6">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-ink">
                         {selected.ticketId} · {selected.topic}
                       </p>
-                      <h2 className="mt-1 text-lg font-medium text-ink">{selected.subject}</h2>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs text-ink/50">
+                      <h2 className="mt-1 text-lg font-semibold text-ink">{selected.subject}</h2>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-ink">
                         <ClockIcon className="h-3.5 w-3.5" />
                         {replyHint(selected)}
                       </p>
@@ -240,11 +240,11 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                     return (
                       <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${mine ? "bg-plum text-white" : "bg-lilac text-ink"}`}>
-                          <p className={`text-[10px] font-medium ${mine ? "text-white/70" : "text-ink/45"}`}>
+                          <p className={`text-[10px] font-medium ${mine ? "text-white/70" : "text-ink"}`}>
                             {mine ? "You" : msg.name}
                           </p>
                           <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</p>
-                          <p className={`mt-2 text-[10px] ${mine ? "text-white/55" : "text-ink/40"}`}>{msg.time}</p>
+                          <p className={`mt-2 text-[10px] ${mine ? "text-white/55" : "text-ink"}`}>{msg.time}</p>
                         </div>
                       </div>
                     );
@@ -278,7 +278,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
             ) : (
               <div className="grid place-items-center rounded-[1.75rem] bg-lilac/70 px-6 py-16 text-center">
                 <TicketIcon className="h-8 w-8 text-plum/40" />
-                <p className="mt-3 text-sm text-ink/55">No requests yet — tap Ask for help to start.</p>
+                <p className="mt-3 text-sm text-ink">No requests yet — tap Ask for help to start.</p>
               </div>
             )}
           </section>

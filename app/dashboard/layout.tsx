@@ -11,7 +11,7 @@ import { getStudent } from "@/lib/students";
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       className={`${dmSans.variable} flex min-h-dvh flex-1 bg-plum font-dm text-ink lg:p-2 lg:pl-0`}
     >
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col bg-panel lg:rounded-[2rem]">
+      <div className="flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
         <Suspense fallback={<Header />}>
           <StudentHeader />
         </Suspense>

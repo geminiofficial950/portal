@@ -9,7 +9,9 @@
   --plum: #5b3f99;
   --plum-light: #7a62b3;
   --peach: #fdc580;
-  --panel: #fcf9f1; /* light mode: soft warm cream instead of white */
+  --panel: #f6f6f3; /* light mode: cards and sections — a soft off-white on the white page */
+  --panel-hover: #ededea; /* a card or section under the mouse: a little darker */
+  --page: #ffffff; /* the big page area behind the cards */
   --panel-muted: #faf9fd;
   --card-border: rgba(29, 27, 51, 0.1);
 }
@@ -29,9 +31,96 @@
   --color-lilac: var(--lilac);
   --color-ink: var(--ink);
   --color-panel: var(--panel);
+  --color-page: var(--page);
   --font-sans: var(--font-poppins);
   --font-dm: var(--font-dm-sans);
   --animate-fade-up: fade-up 0.6s ease-out both;
+  /* login page */
+  --animate-card-in: card-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-slide-in: slide-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-float-soft: float-soft 6s ease-in-out infinite;
+  --animate-blob: blob 16s ease-in-out infinite;
+  --animate-drift: drift 18s linear infinite;
+  --animate-tilt: tilt 9s ease-in-out infinite;
+  --animate-shine: shine 5s ease-in-out infinite;
+  --animate-glow: glow 6s ease-in-out infinite;
+
+  @keyframes tilt {
+    0%,
+    100% {
+      transform: perspective(1100px) rotateY(-7deg) rotateX(4deg);
+    }
+    50% {
+      transform: perspective(1100px) rotateY(7deg) rotateX(-3deg);
+    }
+  }
+  @keyframes shine {
+    0%,
+    55% {
+      transform: translateX(-130%) skewX(-18deg);
+    }
+    100% {
+      transform: translateX(230%) skewX(-18deg);
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 38px 6px rgba(255, 122, 165, 0.55);
+    }
+    33% {
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 38px 6px rgba(253, 207, 126, 0.6);
+    }
+    66% {
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 38px 6px rgba(143, 166, 255, 0.7);
+    }
+  }
+
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(40px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(60px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes float-soft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+  @keyframes blob {
+    0%,
+    100% {
+      border-radius: 45% 0 0 55% / 50% 0 0 50%;
+      transform: translateX(0);
+    }
+    50% {
+      border-radius: 55% 0 0 40% / 40% 0 0 60%;
+      transform: translateX(-30px);
+    }
+  }
+  @keyframes drift {
+    to {
+      background-position: 28px 28px;
+    }
+  }
 
   @keyframes fade-up {
     from {
@@ -175,6 +264,7 @@ html[data-theme="dark"] #portal-root {
   --plum-light: #8169e0;
   --peach: #f4bd73;
   --panel: #1c1828;
+  --page: var(--panel); /* dark mode stays as it was */
   --panel-muted: #231e33;
   --card-border: rgba(241, 238, 250, 0.16);
   --plum-text: #cdbfff; /* purple text and links on dark */
@@ -194,13 +284,22 @@ html[data-theme="dark"] #portal-root .portal-sidebar [class~="bg-plum-light/70"]
   background-color: #2b2540;
 }
 
-/* Light mode: white surfaces in the portal use the cream panel colour */
-html:not([data-theme="dark"]) #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]) {
+/* Light mode: white surfaces in the portal use the off-white panel colour, a little darker under the mouse.
+   Buttons that change background on hover (hover:bg-plum…) are left alone while hovered, so their hover colour shows. */
+html:not([data-theme="dark"]) #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]):not([class*="hover:bg-"]),
+html:not([data-theme="dark"]) #portal-root [class*="bg-white"][class*="hover:bg-"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]):not(:hover) {
   background-color: var(--panel) !important;
+}
+html:not([data-theme="dark"]) #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]):not([class*="hover:bg-"]):not(input):not(textarea):not(select):hover {
+  background-color: var(--panel-hover) !important;
 }
 
 /* Panels and light surfaces */
-html[data-theme="dark"] #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]) {
+html[data-theme="dark"] #portal-root [class~="hover:bg-[#faf8ff]"]:hover {
+  background-color: var(--panel-muted) !important;
+}
+html[data-theme="dark"] #portal-root [class*="bg-white"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]):not([class*="hover:bg-"]),
+html[data-theme="dark"] #portal-root [class*="bg-white"][class*="hover:bg-"]:not([class*="bg-white/1"]):not([class*="bg-white/2"]):not(:hover) {
   background-color: var(--panel) !important;
 }
 html[data-theme="dark"] #portal-root [class~="bg-[#faf9fd]"],
@@ -208,6 +307,10 @@ html[data-theme="dark"] #portal-root [class~="bg-[#fff0e8]"],
 html[data-theme="dark"] #portal-root [class~="bg-[#ffe8d6]"],
 html[data-theme="dark"] #portal-root [class~="bg-[#e8f3ff]"],
 html[data-theme="dark"] #portal-root [class~="bg-[#f2f3f6]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#f6f5fa]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#e4dcfb]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#efeaf9]"],
+html[data-theme="dark"] #portal-root [class~="bg-[#fffaf0]"],
 html[data-theme="dark"] #portal-root [class~="bg-slate-50"] {
   background-color: var(--panel-muted) !important;
 }

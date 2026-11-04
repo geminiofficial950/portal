@@ -1,178 +1,111 @@
-import { Source_Serif_4 } from "next/font/google";
 import Image from "next/image";
 import LoginForm from "./components/LoginForm";
 
-const serif = Source_Serif_4({ subsets: ["latin"], weight: ["600", "700"] });
+const PHONE = "1800 069 877";
+const EMAIL = "admin@stellacollege.edu.au";
 
-const accreditedCourses = ["First Aid", "Leisure & Health", "Age Care & Disability", "Food Processing"];
-
-const nonAccreditedCourses = ["Cyber Security", "Business", "Artificial Intelligence", "Mental Health"];
-
-const meetingSteps = [
-  "From the Stella College website, click Current Student.",
-  "Scroll down to the Book a Meeting section.",
-  "Choose the type of meeting that best suits your needs.",
-  "Select a date and time that works for you.",
-  "You'll receive a confirmation with all the meeting details.",
-];
-
-const WEBSITE = "https://www.stellacollege.edu.au";
-
-function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function PhoneIcon({ className }: { className?: string }) {
   return (
-    <section className="border-t border-slate-200 py-5 first:border-t-0 first:pt-0 last:pb-0">
-      <h3 className="text-[15px] font-semibold text-navy">{title}</h3>
-      <div className="mt-2 text-sm leading-relaxed text-slate-600">{children}</div>
-    </section>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+    </svg>
   );
 }
 
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+
+// Dotted texture used in the page corners
+const dots = "bg-[radial-gradient(rgba(255,255,255,0.18)_1.5px,transparent_1.6px)] [background-size:14px_14px]";
+
+// Login: navy page with a pink wave; a card split into a blue photo panel (curved edge) and the sign-in form
 export default function LoginPage() {
   return (
-    <div className="flex min-h-dvh flex-1 flex-col bg-[#f2f3f6] text-ink">
-      {/* Utility bar */}
-      <div className="bg-navy-deep text-xs text-white/80">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2 sm:px-6">
-          <p>RTO 41290</p>
-          <p className="flex flex-wrap gap-x-5">
-            <a href="tel:1800069877" className="hover:text-white">
-              1800 069 877
-            </a>
-            <a href="mailto:admin@stellacollege.edu.au" className="hover:text-white">
-              admin@stellacollege.edu.au
-            </a>
-          </p>
-        </div>
-      </div>
+    <main className="relative isolate flex min-h-dvh flex-1 items-center justify-center overflow-hidden bg-[#3b4a7b] px-4 py-10 text-ink sm:px-8">
+      {/* background: pink wave on the right, dotted corners */}
+      <div aria-hidden className="absolute -right-[18%] -top-[10%] -z-10 h-[125%] w-[62%] animate-blob rounded-[45%_0_0_55%/50%_0_0_50%] bg-[#ff6f97]" />
+      <div aria-hidden className={`absolute left-6 top-6 -z-10 h-40 w-40 animate-drift ${dots}`} />
+      <div aria-hidden className={`absolute bottom-6 right-6 -z-10 h-40 w-40 animate-drift ${dots}`} />
 
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-4">
-            <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} preload className="h-12 w-auto sm:h-14" />
-            <span className="hidden h-10 w-px bg-slate-200 sm:block" />
-            <span className={`${serif.className} hidden text-lg font-semibold text-navy sm:block`}>Learning Portal</span>
-          </div>
-          <a href={WEBSITE} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-navy hover:underline">
-            College website
-          </a>
-        </div>
-      </header>
+      <div className="relative grid w-full max-w-[1240px] animate-card-in overflow-hidden rounded-[2.25rem] lg:min-h-[660px] bg-[linear-gradient(160deg,#7cc0ff_0%,#5a8cf7_55%,#4a6cf6_100%)] shadow-[0_40px_90px_-30px_rgba(10,16,40,0.7)] lg:grid-cols-2">
+        {/* the light corner revealed under the blue panel's rounded bottom-right */}
+        <div aria-hidden className="absolute bottom-0 left-1/2 hidden h-28 w-28 -translate-x-full bg-[#eef3fb] lg:block" />
 
-      {/* Banner */}
-      <div className="relative isolate overflow-hidden bg-navy">
-        <Image src="/login-bg.png" alt="" fill preload sizes="100vw" className="-z-20 object-cover object-[50%_22%]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(19,32,77,0.95)_0%,rgba(19,32,77,0.82)_45%,rgba(19,32,77,0.35)_100%)]" />
-        <div className="mx-auto max-w-6xl px-4 py-10 text-white sm:px-6 sm:py-14 lg:pb-28">
-          <h1 className={`${serif.className} text-3xl font-semibold sm:text-4xl`}>Stella College Learning Portal</h1>
-          <p className="mt-2 max-w-lg text-sm text-white/80 sm:text-base">For enrolled students and trainers of Stella College.</p>
-        </div>
-      </div>
+        {/* left: blue panel with the photo */}
+        <section
+          aria-hidden
+          className="relative z-10 hidden flex-col bg-[linear-gradient(160deg,#7cc0ff_0%,#5a8cf7_55%,#4a6cf6_100%)] px-12 pb-10 pt-11 text-white lg:flex lg:rounded-br-[7rem]"
+        >
+          <div className="flex animate-fade-up items-center [animation-delay:0.3s]">
+            <Image src="/stella-logo.png" alt="" width={400} height={207} preload className="h-20 w-auto" />
+          </div>
 
-      {/* Login + information */}
-      <main className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 items-start gap-6 px-4 py-6 sm:px-6 lg:-mt-20 lg:grid-cols-[400px_minmax(0,1fr)] lg:gap-8 lg:pb-12">
-        <section aria-labelledby="login-heading" className="rounded-md border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-4">
-            <h2 id="login-heading" className={`${serif.className} text-xl font-semibold text-navy`}>
-              Log in
-            </h2>
+          {/* our photo, shown whole; the brand shapes sit behind it and peek out at the edges */}
+          <div className="relative mx-auto mt-8 h-[460px] w-[460px] max-w-full">
+            {/* shapes float on their own beats behind the photo */}
+            <span aria-hidden className="absolute left-0 top-4 h-7 w-7 animate-float-soft rounded-full bg-[#ff7aa5] [animation-duration:4s]" />
+            <span aria-hidden className="absolute -left-6 bottom-14 h-8 w-[230px] -rotate-[38deg] animate-float-soft rounded-full bg-[#fdcf7e] [animation-delay:-2s] [animation-duration:7s]" />
+            <span aria-hidden className="absolute -left-2 bottom-2 h-8 w-[150px] -rotate-[38deg] animate-float-soft rounded-full bg-[#ff7aa5] [animation-delay:-4s] [animation-duration:5s]" />
+            <span aria-hidden className="absolute -right-6 top-16 h-8 w-[200px] -rotate-[38deg] animate-float-soft rounded-full bg-[#ff9fbd] [animation-delay:-1s] [animation-duration:6s]" />
+            <span aria-hidden className="absolute -right-5 bottom-24 h-[190px] w-[95px] animate-float-soft rounded-r-full border-[26px] border-l-0 border-[#8fa6ff]/70 [animation-delay:-3s] [animation-duration:8s]" />
+            {/* the photo card: slow 3D sway, colour-shifting glow and a light sweep across it */}
+            <div className="absolute inset-[30px] animate-tilt">
+              <div className="relative h-full w-full animate-glow overflow-hidden rounded-[2rem]">
+                <Image
+                  src="/login-hero.png"
+                  alt="A Stella College graduate as a nurse, a mother, an aged care support worker, a professional and a graduate"
+                  fill
+                  preload
+                  sizes="400px"
+                  className="object-cover"
+                />
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-shine bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)]"
+                />
+              </div>
+            </div>
           </div>
-          <div className="px-6 py-5">
-            <LoginForm />
-          </div>
-          <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 text-xs leading-relaxed text-slate-600">
-            <p>
-              <span className="font-medium text-slate-700">Students:</span> use your Student ID (for example S1001) or email.
-            </p>
-            <p className="mt-1">
-              <span className="font-medium text-slate-700">Trainers:</span> use your Trainer ID or work email.
-            </p>
-          </div>
+
+          <p className="mt-auto pt-10 text-center text-xs font-medium text-white">© Stella College. All rights reserved.</p>
         </section>
 
-        <aside className="rounded-md border border-slate-200 bg-white px-6 py-5 shadow-sm lg:mt-20">
-          <h2 className={`${serif.className} text-xl font-semibold text-navy`}>Help &amp; information</h2>
-          <div className="mt-4">
-            <InfoBlock title="Can’t log in?">
-              Your login details are issued by the college when you enrol. If you’ve forgotten your password, email{" "}
-              <a href="mailto:admin@stellacollege.edu.au" className="text-royal hover:underline">
-                admin@stellacollege.edu.au
-              </a>{" "}
-              or call{" "}
-              <a href="tel:1800069877" className="text-royal hover:underline">
-                1800 069 877
-              </a>
-              .
-            </InfoBlock>
-            <InfoBlock title="Student support — book a meeting">
-              <p>
-                Whether you need help with your studies, assessments, placements or have a question, our team is here to help. No question is too
-                small.
-              </p>
-              <ol className="mt-2 list-decimal space-y-0.5 pl-5">
-                {meetingSteps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            </InfoBlock>
-            <InfoBlock title="Our courses">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="font-medium text-slate-700">Job-ready accredited courses</p>
-                  <ul className="mt-1 list-disc pl-5">
-                    {accreditedCourses.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="font-medium text-slate-700">Non-accredited courses</p>
-                  <ul className="mt-1 list-disc pl-5">
-                    {nonAccreditedCourses.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-xs text-slate-500">Current students get an additional 20% discount on non-accredited courses.</p>
-                </div>
-              </div>
-            </InfoBlock>
-          </div>
-        </aside>
-      </main>
+        {/* right: sign-in */}
+        <section
+          aria-labelledby="login-heading"
+          className="relative flex flex-col items-center justify-center bg-[#eef3fb] px-5 py-14 sm:px-12 lg:rounded-tl-[7rem]"
+        >
+          <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} className="mb-6 h-16 w-auto lg:hidden" />
 
-      {/* Footer */}
-      <footer className="bg-navy-deep text-sm text-white/75">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:grid-cols-3 sm:px-6">
-          <div>
-            <p className={`${serif.className} text-base font-semibold text-white`}>Stella College</p>
-            <p className="mt-1">RTO 41290</p>
+          <div className="w-full max-w-[380px] animate-slide-in [animation-delay:0.25s]">
+            <div className="rounded-t-2xl bg-[#f6f6f8] px-9 pb-0 pt-5 shadow-[0_10px_30px_-18px_rgba(59,74,123,0.45)]">
+              <h1 id="login-heading" className="inline-block border-b-[3px] border-[#4a6cf6] pb-2.5 text-xl font-semibold text-[#2c3550]">
+                Sign In
+              </h1>
+            </div>
+            <div className="-mt-1 rounded-2xl bg-white px-9 pb-8 pt-8 shadow-[0_20px_40px_-20px_rgba(59,74,123,0.45)]">
+              <LoginForm />
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-white">Contact</p>
-            <p className="mt-1">
-              <a href="tel:1800069877" className="hover:text-white">
-                1800 069 877
-              </a>
-            </p>
-            <p>
-              <a href="mailto:admin@stellacollege.edu.au" className="break-all hover:text-white">
-                admin@stellacollege.edu.au
-              </a>
-            </p>
+
+          <div className="mt-10 flex animate-fade-up flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm font-medium text-[#2c3550] [animation-delay:0.6s]">
+            <a href="tel:1800069877" className="flex items-center gap-2 hover:text-[#4a6cf6]">
+              <PhoneIcon className="h-4 w-4 text-[#4a6cf6]" />
+              {PHONE}
+            </a>
+            <a href={`mailto:${EMAIL}`} className="flex items-center gap-2 hover:text-[#4a6cf6]">
+              <MailIcon className="h-4 w-4 text-[#4a6cf6]" />
+              {EMAIL}
+            </a>
           </div>
-          <div>
-            <p className="font-medium text-white">Website</p>
-            <p className="mt-1">
-              <a href={WEBSITE} target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                www.stellacollege.edu.au
-              </a>
-            </p>
-          </div>
-        </div>
-        <div className="border-t border-white/10">
-          <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-white/55 sm:px-6">© Stella College. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+        </section>
+      </div>
+    </main>
   );
 }

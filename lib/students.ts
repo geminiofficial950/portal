@@ -127,23 +127,6 @@ export async function enrolmentsByMonth(months = 6) {
   });
 }
 
-// Student count + average progress per course code (a student counts once in each of their courses)
-export async function progressByCourse() {
-  const col = await collection();
-  return col
-    .aggregate<{ _id: string; students: number; avg: number }>([
-      {
-        $project: {
-          progress: 1,
-          codes: { $cond: [{ $gt: [{ $size: { $ifNull: ["$courses", []] } }, 0] }, "$courses", ["$course"]] },
-        },
-      },
-      { $unwind: "$codes" },
-      { $group: { _id: "$codes", students: { $sum: 1 }, avg: { $avg: "$progress" } } },
-    ])
-    .toArray();
-}
-
 export class DuplicateEmailError extends Error {}
 export class DuplicateStudentIdError extends Error {}
 

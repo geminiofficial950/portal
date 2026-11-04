@@ -12,13 +12,13 @@ export const formatDue = (iso: string) =>
 
 export default function DueLabel({ dueAt }: { dueAt: string | null }) {
   const minute = useNow();
-  if (!dueAt) return <span className="text-xs text-ink/45">No due date</span>;
-  if (minute === null) return <span className="text-xs text-ink/45">Due date…</span>;
+  if (!dueAt) return <span className="text-xs text-ink">No due date</span>;
+  if (minute === null) return <span className="text-xs text-ink">Due date…</span>;
 
   const msLeft = new Date(dueAt).getTime() - minute * 60000;
   const days = Math.ceil(msLeft / 86400000);
   const text = formatDue(dueAt);
-  const tone = msLeft < 0 ? "text-rose-600" : days <= 3 ? "text-amber-700" : "text-ink/55";
+  const tone = msLeft < 0 ? "text-rose-600" : days <= 3 ? "text-amber-700" : "text-ink";
   const hint = msLeft < 0 ? " · Overdue" : days <= 1 ? " · Due today" : days <= 7 ? ` · ${days} days left` : "";
 
   return (

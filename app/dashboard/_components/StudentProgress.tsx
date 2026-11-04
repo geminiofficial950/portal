@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import LocalTime from "../assessment/_components/LocalTime";
-import { clearUnitResultAction, setStudentDueAction, setUnitHiddenAction, setUnitResultAction } from "../../actions/unit-results";
+import { clearUnitResultAction, setStudentDueAction, setUnitHiddenAction, setUnitResultAction, setUnitsUnlockedAction } from "../../actions/unit-results";
 import { ASSESSMENT_PARTS, isPastDue } from "@/lib/assessment-meta";
 import { toLocalInput } from "@/lib/format";
 import type { StudentProgressDTO, UnitProgress } from "@/lib/progress";
@@ -21,6 +21,7 @@ export default function StudentProgress({
   showPhotos = false,
   canChangeDue = false,
   canHide = false,
+  canUnlock = false,
   workHrefBase,
 }: {
   initial: StudentProgressDTO;
@@ -29,6 +30,7 @@ export default function StudentProgress({
   showPhotos?: boolean;
   canChangeDue?: boolean; // Super Admin: give this student their own due date per unit
   canHide?: boolean; // Super Admin: hide a unit from this student
+  canUnlock?: boolean; // Super Admin, Admin, trainer: unlock units for this student (they start locked)
   workHrefBase?: string; // Super Admin: links each unit to everything the student handed in
 }) {
   const [data, setData] = useState(initial);
@@ -37,6 +39,21 @@ export default function StudentProgress({
     setData((d) => ({ ...d, units: d.units.map((u) => (u.code === code ? { ...u, ...patch } : u)) }));
 
   const passed = data.units.filter((u) => u.outcome?.kind === "pass").length;
+  const unlockedCount = data.units.filter((u) => u.unlocked).length;
+  const [bulkBusy, startBulk] = useTransition();
+
+  // Unlock (or lock) every unit at once
+  const setAll = (unlocked: boolean) => {
+    const codes = data.units.filter((u) => u.unlocked !== unlocked).map((u) => u.code);
+    if (!codes.length) return;
+    if (!unlocked && !window.confirm(`Lock all ${codes.length} units for ${data.student.name}? They won’t be able to open them. Their work so far is kept.`)) return;
+    startBulk(async () => {
+      const res = await setUnitsUnlockedAction(data.student.studentId, data.course.code, codes, unlocked);
+      if (!res.ok) return void toast.error(res.error);
+      setData((d) => ({ ...d, units: d.units.map((u) => ({ ...u, unlocked })) }));
+      toast.success(unlocked ? "All units unlocked for the student" : "All units locked");
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +82,31 @@ export default function StudentProgress({
         </p>
       )}
 
+      {canUnlock && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-ink/10 bg-white px-5 py-4">
+          <p className="min-w-0 flex-1 text-sm font-medium text-ink">
+            <span className="font-semibold text-emerald-700">{unlockedCount} unlocked</span> · {data.units.length - unlockedCount} locked. Students can only
+            open unlocked units.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAll(true)}
+            disabled={bulkBusy || unlockedCount === data.units.length}
+            className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Unlock all units
+          </button>
+          <button
+            type="button"
+            onClick={() => setAll(false)}
+            disabled={bulkBusy || unlockedCount === 0}
+            className="rounded-full border border-ink/20 bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:bg-lilac disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Lock all
+          </button>
+        </div>
+      )}
+
       <ol className="space-y-3">
         {data.units.map((u, i) => (
           <UnitRow
@@ -77,6 +119,7 @@ export default function StudentProgress({
             canClear={canClear}
             canChangeDue={canChangeDue}
             canHide={canHide}
+            canUnlock={canUnlock}
             options={data.resultOptions}
             onChange={(patch) => setUnit(u.code, patch)}
             onViewPhoto={showPhotos ? setViewing : undefined}
@@ -117,6 +160,7 @@ function UnitRow({
   canClear,
   canChangeDue,
   canHide,
+  canUnlock,
   options,
   onChange,
   onViewPhoto,
@@ -130,6 +174,7 @@ function UnitRow({
   canClear: boolean;
   canChangeDue: boolean;
   canHide: boolean;
+  canUnlock: boolean;
   options: ResultOption[];
   onChange: (patch: Partial<UnitProgress>) => void;
   onViewPhoto?: (photo: { fileId: string; label: string }) => void;
@@ -150,6 +195,16 @@ function UnitRow({
       if (!res.ok) return void toast.error(res.error);
       onChange({ hidden: hide });
       toast.success(hide ? `${unit.code} hidden from the student` : `${unit.code} shown to the student again`);
+    });
+  };
+  const toggleUnlocked = () => {
+    const unlock = !unit.unlocked;
+    if (!unlock && !window.confirm(`Lock ${unit.code} for this student? They won’t be able to open it. Their work so far is kept.`)) return;
+    startSaving(async () => {
+      const res = await setUnitsUnlockedAction(studentId, courseCode, [unit.code], unlock);
+      if (!res.ok) return void toast.error(res.error);
+      onChange({ unlocked: unlock });
+      toast.success(unlock ? `${unit.code} unlocked for the student` : `${unit.code} locked`);
     });
   };
   const [due, setDue] = useState(toLocalInput(unit.dueAt));
@@ -191,11 +246,22 @@ function UnitRow({
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="flex min-w-0 items-start gap-4">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lilac text-sm font-medium text-plum">{n}</span>
+          {/* green = unlocked for the student, grey = locked */}
+          <span
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-white ${unit.unlocked ? "bg-emerald-600" : "bg-zinc-400"}`}
+            title={unit.unlocked ? "Unlocked for the student" : "Locked"}
+          >
+            {n}
+          </span>
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-plum">
               {unit.code}
               {unit.hidden && <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-medium text-white">Hidden from student</span>}
+              {unit.unlocked ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Unlocked</span>
+              ) : (
+                <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-800">Locked</span>
+              )}
             </p>
             <p className="font-medium leading-snug text-ink">{unit.title}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -252,6 +318,17 @@ function UnitRow({
               className="rounded-full bg-plum px-4 py-2 text-xs font-medium text-white transition hover:bg-plum-light"
             >
               {unit.outcome ? "Change result" : "Give result"}
+            </button>
+          )}
+          {canUnlock && (
+            <button
+              onClick={toggleUnlocked}
+              disabled={saving}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+                unit.unlocked ? "border border-ink/20 bg-white text-ink hover:bg-lilac" : "bg-emerald-600 text-white hover:bg-emerald-700"
+              }`}
+            >
+              {unit.unlocked ? "Lock again" : "Unlock for student"}
             </button>
           )}
           {canHide && (

@@ -3,24 +3,26 @@
 import { useActionState, useState } from "react";
 import { login, type LoginState } from "../actions/auth";
 
+// Underlined fields, as on the login card
 const input =
-  "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-[15px] text-ink outline-none transition placeholder:text-slate-400 focus:border-navy focus:ring-2 focus:ring-navy/15";
+  "h-10 w-full border-0 border-b border-[#c9d2e3] bg-transparent px-0 text-[15px] text-[#2c3550] outline-none transition placeholder:text-[#7c86a2] focus:border-b-2 focus:border-[#4a6cf6]";
+const label = "block text-sm font-medium text-[#4a6cf6]";
 
 export default function LoginForm() {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(login, {});
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       {state.error && (
-        <p role="alert" className="border-l-4 border-rose-600 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
+        <p role="alert" className="rounded-md border-l-4 border-rose-600 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
           {state.error}
         </p>
       )}
 
-      <div>
-        <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
-          User ID or email
+      <div className="animate-fade-up [animation-delay:0.45s]">
+        <label htmlFor="username" className={label}>
+          User ID or Email
         </label>
         <input
           id="username"
@@ -28,13 +30,14 @@ export default function LoginForm() {
           type="text"
           autoComplete="username"
           defaultValue={state.username}
+          placeholder="e.g. 232111"
           required
           className={input}
         />
       </div>
 
-      <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+      <div className="animate-fade-up [animation-delay:0.55s]">
+        <label htmlFor="password" className={label}>
           Password
         </label>
         <div className="relative">
@@ -43,14 +46,15 @@ export default function LoginForm() {
             name="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
+            placeholder="••••••••"
             required
-            className={`${input} pr-16`}
+            className={`${input} pr-12`}
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-slate-500 hover:text-navy"
+            className="absolute inset-y-0 right-0 text-xs font-semibold text-[#4a6cf6] hover:underline"
           >
             {showPassword ? "Hide" : "Show"}
           </button>
@@ -60,14 +64,14 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="h-11 w-full rounded-md bg-navy text-[15px] font-medium text-white transition hover:bg-navy-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-wait disabled:opacity-70"
+        className="mt-2 h-11 w-full animate-fade-up rounded-md bg-[#4a6cf6] text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(74,108,246,0.9)] transition [animation-delay:0.65s] hover:-translate-y-0.5 hover:bg-[#3d5ce0] hover:shadow-[0_16px_28px_-12px_rgba(74,108,246,0.95)] active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4a6cf6] disabled:cursor-wait disabled:opacity-70"
       >
-        {pending ? "Logging in…" : "Log in"}
+        {pending ? "Signing in…" : "Sign In"}
       </button>
 
-      <p className="text-sm">
-        <a href="mailto:admin@stellacollege.edu.au?subject=Portal%20password%20reset" className="text-royal underline-offset-2 hover:underline">
-          Forgotten your password?
+      <p className="animate-fade-up text-center text-sm [animation-delay:0.75s]">
+        <a href="mailto:admin@stellacollege.edu.au?subject=Portal%20login%20help" className="font-medium text-[#ff4f86] hover:underline">
+          Need help signing in?
         </a>
       </p>
     </form>

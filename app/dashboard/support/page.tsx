@@ -37,8 +37,8 @@ export default function SupportPage() {
     <div className="animate-fade-up grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] lg:gap-10">
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Support</h1>
-          <p className="mt-1 text-sm text-ink/55">
+          <h1 className="text-2xl font-semibold text-ink sm:text-[1.65rem]">Support</h1>
+          <p className="mt-1 text-sm text-ink">
             We’re here to help with enrolment, assessments, and portal access.
           </p>
         </div>
@@ -73,13 +73,13 @@ export default function SupportPage() {
                 <Icon className="h-5 w-5" />
               </span>
               <p className="mt-4 text-sm font-medium text-ink">{title}</p>
-              <p className="mt-1 text-xs text-ink/55">{value}</p>
+              <p className="mt-1 text-xs text-ink">{value}</p>
             </Link>
           ))}
         </div>
 
         <section>
-          <h2 className="text-lg font-medium text-ink">Frequently asked</h2>
+          <h2 className="text-lg font-semibold text-ink">Frequently asked</h2>
           <ul className="mt-4 space-y-2 rounded-[2rem] bg-lilac/70 p-3 sm:p-4">
             {faqs.map((faq, i) => {
               const open = openFaq === i;
@@ -99,7 +99,7 @@ export default function SupportPage() {
                     )}
                   </button>
                   {open && (
-                    <p className="px-5 pb-4 pt-2 text-xs leading-relaxed text-ink/60">{faq.a}</p>
+                    <p className="px-5 pb-4 pt-2 text-xs leading-relaxed text-ink">{faq.a}</p>
                   )}
                 </li>
               );
@@ -116,8 +116,8 @@ export default function SupportPage() {
               <ChatIcon className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-base font-medium text-ink">Send a message</h2>
-              <p className="text-xs text-ink/55">We usually reply within one business day.</p>
+              <h2 className="text-base font-semibold text-ink">Send a message</h2>
+              <p className="text-xs text-ink">We usually reply within one business day.</p>
             </div>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -153,9 +153,9 @@ export default function SupportPage() {
         <div className="absolute -bottom-10 -left-6 h-24 w-24 rounded-full border border-white/10" />
 
         <div className="relative rounded-2xl bg-[#ffe8d6] p-4 text-ink">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Campus help</p>
-          <h2 className="mt-1 text-base font-medium">Student Services Desk</h2>
-          <p className="mt-1 text-xs text-ink/55">Mon–Fri · 9:00 AM – 5:00 PM</p>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink">Campus help</p>
+          <h2 className="mt-1 text-base font-semibold">Student Services Desk</h2>
+          <p className="mt-1 text-xs text-ink">Mon–Fri · 9:00 AM – 5:00 PM</p>
         </div>
 
         <div className="relative mt-6 space-y-4 text-sm">

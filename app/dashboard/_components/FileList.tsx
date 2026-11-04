@@ -3,9 +3,10 @@
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { FILE_RULES, formatBytes, type FileRef } from "@/lib/submission-meta";
+import FileActions from "./FileActions";
 import { FileIcon, PlusIcon, TrashIcon } from "./icons";
 
-// Attached files with download links. Pass `onChange` to allow uploading and removing.
+// Attached files, each with View (opens here like a book) and Download. Pass `onChange` to allow uploading and removing.
 export default function FileList({
   files,
   onChange,
@@ -44,24 +45,21 @@ export default function FileList({
 
   return (
     <div className="space-y-2">
-      {files.length === 0 && !onChange && <p className="text-xs text-ink/45">{emptyText}</p>}
+      {files.length === 0 && !onChange && <p className="text-xs text-ink">{emptyText}</p>}
       {files.map((f) => (
-        <div key={f.id} className="flex items-center gap-3 rounded-xl bg-lilac/70 px-4 py-2.5">
+        <div key={f.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-lilac/70 px-4 py-2.5">
           <FileIcon className="h-4 w-4 shrink-0 text-plum" />
-          <a
-            href={`/api/files/${f.id}`}
-            className="min-w-0 flex-1 truncate text-sm text-ink hover:text-plum hover:underline"
-            title={`Download ${f.name}`}
-          >
+          <span className="min-w-0 flex-1 truncate text-sm text-ink" title={f.name}>
             {f.name}
-          </a>
-          <span className="shrink-0 text-[11px] text-ink/45">{formatBytes(f.size)}</span>
+          </span>
+          <span className="shrink-0 text-[11px] text-ink">{formatBytes(f.size)}</span>
+          <FileActions file={f} size="sm" />
           {onChange && (
             <button
               type="button"
               onClick={() => onChange(files.filter((x) => x.id !== f.id))}
               aria-label={`Remove ${f.name}`}
-              className="shrink-0 rounded-full p-1.5 text-ink/35 transition hover:bg-rose-50 hover:text-rose-600"
+              className="shrink-0 rounded-full p-1.5 text-ink transition hover:bg-rose-50 hover:text-rose-600"
             >
               <TrashIcon className="h-4 w-4" />
             </button>
@@ -79,7 +77,7 @@ export default function FileList({
             <PlusIcon className="h-3.5 w-3.5" />
             {uploading ? `Uploading ${uploading}…` : uploadLabel}
           </button>
-          <span className="text-[11px] text-ink/45">{FILE_RULES.label}</span>
+          <span className="text-[11px] text-ink">{FILE_RULES.label}</span>
           <input
             ref={input}
             type="file"

@@ -8,6 +8,7 @@ import { ClipboardIcon, FileIcon } from "../_components/icons";
 import UploadButton from "../_components/UploadButton";
 import { sortPlacementDocs, type DocumentRequestDTO, type PlacementDocDTO, type SignedDocDTO } from "@/lib/document-meta";
 import { FILE_RULES } from "@/lib/submission-meta";
+import FileActions from "../_components/FileActions";
 
 export type PlacementGroup = { code: string; name: string; text: string; docs: PlacementDocDTO[] };
 
@@ -85,21 +86,14 @@ export default function StudentDocuments({
                             <span className="block text-sm font-medium text-ink">{d.title}</span>
                             {mine ? (
                               <span className="block text-xs text-emerald-800">
-                                Signed copy uploaded <LocalTime iso={mine.uploadedAt} /> ·{" "}
-                                <a href={`/api/files/${mine.file.id}`} className="underline">
-                                  {mine.file.name}
-                                </a>
+                                Signed copy uploaded <LocalTime iso={mine.uploadedAt} /> · {mine.file.name}
                               </span>
                             ) : (
                               <span className="block text-xs text-amber-800">Signed copy not uploaded yet</span>
                             )}
                           </span>
-                          <a
-                            href={`/api/files/${d.file.id}`}
-                            className="rounded-full border border-plum px-4 py-2 text-xs font-medium text-plum transition hover:bg-plum hover:text-white"
-                          >
-                            Download form
-                          </a>
+                          <FileActions file={d.file} title={d.title} size="sm" downloadLabel="Download form" />
+                          {mine && <FileActions file={mine.file} title={`${d.title} (your signed copy)`} size="sm" downloadLabel="Your copy" />}
                           <UploadButton
                             label={mine ? "Replace signed copy" : "Upload signed copy"}
                             ariaLabel={`Upload signed ${d.title}`}
@@ -145,12 +139,13 @@ export default function StudentDocuments({
                 {r.note && <p className="text-sm text-ink">{r.note}</p>}
                 {r.file && r.uploadedAt && (
                   <p className="text-xs text-ink">
-                    You uploaded{" "}
-                    <a href={`/api/files/${r.file.id}`} className="font-medium text-plum underline">
-                      {r.file.name}
-                    </a>{" "}
-                    on <LocalTime iso={r.uploadedAt} />
+                    You uploaded <span className="font-medium">{r.file.name}</span> on <LocalTime iso={r.uploadedAt} />
                   </p>
+                )}
+                {r.file && r.uploadedAt && (
+                  <div>
+                    <FileActions file={r.file} title={r.name} size="sm" />
+                  </div>
                 )}
                 <div className="mt-auto">
                   <UploadButton label={r.file ? "Replace file" : "Upload document"} ariaLabel={`Upload ${r.name}`} onUploaded={uploadRequested(r)} />

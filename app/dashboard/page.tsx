@@ -1,86 +1,133 @@
 import Link from "next/link";
-import Calendar from "./_components/Calendar";
+import { Suspense } from "react";
+import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
-import TeamChat from "./_components/TeamChat";
-import TodayTasks from "./_components/TodayTasks";
 import { ArrowRightIcon, ClipboardIcon, BoxIcon, TicketIcon } from "./_components/icons";
+import { listCourseAssessments } from "@/lib/assessments";
+import { requireStudent } from "@/lib/auth";
+import { getCourse } from "@/lib/courses";
+import { listStudentDueDates } from "@/lib/due-dates";
+import { listHiddenUnits } from "@/lib/hidden-units";
+import { getStudent } from "@/lib/students";
+import { listTickets } from "@/lib/tickets";
+import { listUnlockedUnits } from "@/lib/unit-unlocks";
+import { listStudentResults } from "@/lib/unit-results";
 
-const quickLinks = [
-  {
-    href: "/dashboard/course",
-    label: "My courses",
-    value: "Go",
-    hint: "Open course details",
-    icon: BoxIcon,
-    tone: "bg-[#ffe8d6]",
-  },
-  {
-    href: "/dashboard/course",
-    label: "Active courses",
-    value: "4",
-    hint: "Continue learning",
-    icon: ClipboardIcon,
-    tone: "bg-lilac",
-  },
-  {
-    href: "/dashboard/tickets",
-    label: "Open tickets",
-    value: "1",
-    hint: "1 in review",
-    icon: TicketIcon,
-    tone: "bg-[#e8f3ff]",
-  },
+// The three cards at the top, counted for the logged-in student
+async function QuickLinks() {
+  const session = await requireStudent();
+  const [student, tickets] = await Promise.all([getStudent(session.sub), listTickets({ studentId: session.sub })]);
+  const courses = student?.courses ?? [];
+  const active = courses.filter((c) => c.status === "Active").length;
+  const open = tickets.filter((t) => t.status !== "Resolved");
+  const inProgress = open.filter((t) => t.status === "In progress").length;
+  const links = [
+    {
+      href: "/dashboard/course",
+      label: "My courses",
+      value: courses.length,
+      hint: courses.length === 1 ? "1 course enrolled" : `${courses.length} courses enrolled`,
+      icon: BoxIcon,
+      tone: "bg-[#ffe8d6]",
+    },
+    {
+      href: "/dashboard/course",
+      label: "Active courses",
+      value: active,
+      hint: "Continue learning",
+      icon: ClipboardIcon,
+      tone: "bg-lilac",
+    },
+    {
+      href: "/dashboard/tickets",
+      label: "Open tickets",
+      value: open.length,
+      hint: open.length ? `${inProgress} in progress` : "No open tickets",
+      icon: TicketIcon,
+      tone: "bg-[#e8f3ff]",
+    },
+  ];
+  return <Cards links={links} />;
+}
+
+// Due dates for the calendar dots: every unit the student can see (not hidden) without a final result yet;
+// a locked unit is marked "Locked" in the pop-up.
+// A due date Super Admin set for this student replaces the unit's own.
+async function DueCalendar() {
+  const session = await requireStudent();
+  const student = await getStudent(session.sub);
+  const dues: CalendarDue[] = (
+    await Promise.all(
+      (student?.courses ?? []).map(async ({ code }) => {
+        const [course, assessments, ownDue, hidden, unlocked, results] = await Promise.all([
+          getCourse(code),
+          listCourseAssessments(code),
+          listStudentDueDates(session.sub, code),
+          listHiddenUnits(session.sub, code),
+          listUnlockedUnits(session.sub, code),
+          listStudentResults(session.sub, code),
+        ]);
+        return (course?.units ?? []).flatMap((u) => {
+          const iso = ownDue[u.code] ?? assessments[u.code]?.dueAt ?? null;
+          const open = !hidden.has(u.code) && !results.some((r) => r.unitCode === u.code);
+          return iso && open
+            ? [{ id: `${code}/${u.code}`, iso, label: `Due: ${u.code} – ${u.title}`, note: unlocked.has(u.code) ? undefined : "Locked" }]
+            : [];
+        });
+      }),
+    )
+  ).flat();
+  return <Calendar dues={dues} />;
+}
+
+type Card = { href: string; label: string; value: number | string; hint: string; icon: typeof BoxIcon; tone: string };
+
+function Cards({ links }: { links: Card[] }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {links.map(({ href, label, value, hint, icon: Icon, tone }) => (
+        <Link
+          key={label}
+          href={href}
+          className={`group rounded-[1.5rem] p-5 transition hover:brightness-[0.98] ${tone}`}
+        >
+          <div className="flex items-start justify-between">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80 text-plum">
+              <Icon className="h-5 w-5" />
+            </span>
+            <ArrowRightIcon className="h-4 w-4 text-ink transition group-hover:translate-x-0.5 group-hover:text-plum" />
+          </div>
+          <p className="mt-4 text-sm font-medium text-ink">{label}</p>
+          <p className="mt-1 text-2xl font-medium text-ink">{value}</p>
+          <p className="mt-1 text-xs font-medium text-ink">{hint}</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// Shown while the counts load
+const placeholder: Card[] = [
+  { href: "/dashboard/course", label: "My courses", value: "–", hint: "Loading…", icon: BoxIcon, tone: "bg-[#ffe8d6]" },
+  { href: "/dashboard/course", label: "Active courses", value: "–", hint: "Loading…", icon: ClipboardIcon, tone: "bg-lilac" },
+  { href: "/dashboard/tickets", label: "Open tickets", value: "–", hint: "Loading…", icon: TicketIcon, tone: "bg-[#e8f3ff]" },
 ];
 
 export default function DashboardPage() {
   return (
     <div className="animate-fade-up space-y-10">
-      <div className="grid gap-4 sm:grid-cols-3">
-        {quickLinks.map(({ href, label, value, hint, icon: Icon, tone }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`group rounded-[1.5rem] p-5 transition hover:brightness-[0.98] ${tone}`}
-          >
-            <div className="flex items-start justify-between">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80 text-plum">
-                <Icon className="h-5 w-5" />
-              </span>
-              <ArrowRightIcon className="h-4 w-4 text-ink/80 transition group-hover:translate-x-0.5 group-hover:text-plum" />
-            </div>
-            <p className="mt-4 text-sm font-medium text-ink">{label}</p>
-            <p className="mt-1 text-2xl font-medium text-ink">{value}</p>
-            <p className="mt-1 text-xs font-medium text-ink/85">{hint}</p>
-          </Link>
-        ))}
-      </div>
+      <Suspense fallback={<Cards links={placeholder} />}>
+        <QuickLinks />
+      </Suspense>
 
       <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] xl:gap-14">
         <div className="space-y-10">
-          <Calendar />
-          <TodayTasks />
-          <Link
-            href="/dashboard/course"
-            className="flex items-center justify-between gap-4 overflow-hidden rounded-[1.5rem] bg-[#ffe8d6] p-5 transition hover:brightness-[0.98]"
-          >
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">
-                Upcoming workshop
-              </p>
-              <h3 className="mt-1 text-base font-medium text-ink">
-                First Aid Practical Intensive
-              </h3>
-              <p className="mt-1 text-xs text-ink/55">6 Nov 2026 · On campus · HLTAID011</p>
-            </div>
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-plum px-4 py-2 text-[11px] font-medium text-white">
-              Go to my course
-              <ArrowRightIcon className="h-3.5 w-3.5" />
-            </span>
-          </Link>
+          <Suspense fallback={<Calendar />}>
+            <DueCalendar />
+          </Suspense>
         </div>
         <div className="space-y-10">
           <Notification />
-          <TeamChat />
         </div>
       </div>
     </div>

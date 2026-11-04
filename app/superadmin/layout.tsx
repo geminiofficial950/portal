@@ -9,7 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ export default function SuperAdminLayout({ children }: LayoutProps<"/superadmin"
       <Suspense fallback={<Sidebar variant="admin" />}>
         <AdminSidebar />
       </Suspense>
-      <div className="flex min-w-0 flex-1 flex-col bg-panel lg:rounded-[2rem]">
+      <div className="flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
         <Header variant="admin" />
         <main className="flex-1 px-4 pb-6 sm:px-4 lg:px-4">
           <Suspense>{children}</Suspense>

@@ -32,6 +32,7 @@ export default async function ReviewPage(props: PageProps<"/trainer/marking/[id]
         theory={assessment.theory.questions}
         rolePlay={assessment.rolePlay}
         workplace={assessment.workplace}
+        quiz={assessment.quiz}
         canMark={settings.trainerPermissions.markAssessments}
       />
     </div>

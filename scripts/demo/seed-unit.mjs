@@ -1,9 +1,10 @@
 // Sample units in the current format, as the Super Admin would set them up:
-// overview · Quiz and Activities · Resources (Learner Guide, PowerPoint Presentation, Supporting Document)
+// overview · Quiz and Activities · Resources (Learner Guide, PowerPoint Presentation, Supporting Document folder)
 // · Theory Task (PDF) · Workplacement Task (PDF). Everything is marked demo: true.
 // Usage (from the project folder):
 //   node --env-file=.env scripts/demo/seed-unit.mjs fill [UNIT…]     → add them (a unit already set up is skipped, never overwritten)
 //   node --env-file=.env scripts/demo/seed-unit.mjs remove [UNIT…]   → delete them and their PDF files
+//   node --env-file=.env scripts/demo/seed-unit.mjs folder [UNIT…]   → swap a unit's Supporting Document for the sample folder
 // Without unit codes it uses the three sample units below.
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -33,6 +34,38 @@ async function upload(name, buf) {
 }
 const html = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// The sample Supporting Document folder: a few files in sub-folders, as if Super Admin uploaded a folder
+async function supportingFolder(UNIT, title, d) {
+  const files = [
+    [`Fact sheets/${UNIT} Key points.pdf`, `Key points: ${title}`, ["Use this alongside the Learner Guide.", ...d.notes.map((n) => `- ${n}`)]],
+    [`Fact sheets/${UNIT} Glossary.pdf`, `Glossary: ${title}`, d.learn.map((l) => `- ${l}`)],
+    [`Templates/${UNIT} Reflection template.pdf`, `Reflection template: ${title}`, ["What did I do?", "What went well?", "What would I do differently next time?", "(Sample file.)"]],
+    [`${UNIT} Case study.pdf`, `Case study: ${title}`, [`A short case study for ${UNIT}.`, `In this unit you learn ${d.about}.`, "(Sample file - replace it from the Super Admin Resources tab.)"]],
+  ];
+  const out = [];
+  for (const [path, heading, lines] of files) {
+    const f = await upload(path.split("/").pop(), makePdf(heading, lines));
+    out.push({ id: randomUUID(), kind: "file", title: path, description: "", file: f, slot: "supporting" });
+  }
+  return out;
+}
+
+// Replaces a unit's Supporting Document (old single PDF or folder) with the sample folder
+async function folder(UNIT) {
+  const content = await db.collection("unitContent").findOne({ courseCode: COURSE, unitCode: UNIT });
+  const unit = (await db.collection("courses").findOne({ code: COURSE }))?.units?.find((u) => u.code === UNIT);
+  const d = UNITS[UNIT];
+  if (!content || !unit || !d) return console.log(`${UNIT}: not set up — skipped`);
+  const old = (content.resources ?? []).filter((r) => r.kind === "file" && r.slot === "supporting");
+  for (const r of old) await bucket.delete(new ObjectId(r.file.id)).catch(() => {});
+  const added = await supportingFolder(UNIT, `${UNIT} - ${unit.title}`, d);
+  await db.collection("unitContent").updateOne(
+    { _id: content._id },
+    { $set: { resources: [...content.resources.filter((r) => !(r.kind === "file" && r.slot === "supporting")), ...added], updatedAt: new Date() } },
+  );
+  console.log(`${UNIT}: Supporting Document folder ✓ (${added.length} files, ${old.length} old removed)`);
+}
+
 async function fill(UNIT, dueDays) {
   const course = await db.collection("courses").findOne({ code: COURSE });
   const unit = course?.units.find((u) => u.code === UNIT);
@@ -59,10 +92,6 @@ async function fill(UNIT, dueDays) {
     ...d.learn.map((l, i) => `Slide ${i + 2} - ${l}`),
     "(Sample file - replace it with the real PowerPoint from the Super Admin Resources tab.)",
   ]));
-  const support = await upload(`${UNIT} Supporting Document.pdf`, makePdf(`Supporting Document: ${title}`, [
-    "Use this alongside the Learner Guide.",
-    ...d.notes.map((n) => `- ${n}`),
-  ]));
   const theoryTask = await upload(`${UNIT} Theory Task.pdf`, makePdf(`Theory Task: ${title}`, [
     "Instructions: answer every question below. Print this task or copy it into Word, complete it,",
     "then upload your completed work in the portal (Theory Task -> Upload your completed work).",
@@ -86,7 +115,7 @@ async function fill(UNIT, dueDays) {
     resources: [
       file(guide, "learnerGuide", "Learner Guide"),
       file(slides, "presentation", "PowerPoint Presentation"),
-      file(support, "supporting", "Supporting Document"),
+      ...(await supportingFolder(UNIT, title, d)),
     ],
     updatedAt: new Date(),
     demo: true,
@@ -124,6 +153,7 @@ async function remove(UNIT) {
 
 if (mode === "fill") for (const code of codes) await fill(code, SAMPLE[code] ?? 14);
 if (mode === "remove") for (const code of codes) await remove(code);
+if (mode === "folder") for (const code of codes) await folder(code);
 
-if (mode !== "fill" && mode !== "remove") console.log("Usage: node --env-file=.env scripts/demo/seed-unit.mjs fill|remove [UNIT…]");
+if (!["fill", "remove", "folder"].includes(mode)) console.log("Usage: node --env-file=.env scripts/demo/seed-unit.mjs fill|remove|folder [UNIT…]");
 await c.close();

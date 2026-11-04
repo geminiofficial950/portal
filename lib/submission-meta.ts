@@ -26,7 +26,8 @@ export const needsRework = (s: SubmissionStatus | undefined) => s === "Rejected"
 export type FileRef = { id: string; name: string; size: number };
 
 export type SubmissionContent = {
-  quizAnswers?: number[]; // chosen option index per quiz question (same order as the questions)
+  quizAnswers?: number[]; // chosen option index per quiz question (same order as the questions; -1 for a written one)
+  quizWritten?: { questionId: string; text: string }[]; // answers typed for written quiz questions
   score?: { correct: number; total: number; percent: number };
   theory?: { questionId: string; html: string; files?: FileRef[] }[]; // files = documents uploaded for that question
   html?: string; // written work for role play / workplace task
@@ -34,6 +35,8 @@ export type SubmissionContent = {
   supervisor?: string; // workplace supervisor's name
   // The student ticked the declaration when submitting (Theory / Workplacement Task); the text they agreed to is kept with it
   declaration?: { agreedAt: string; intro?: string; points?: string[]; agree?: string };
+  // Theory / Workplacement Task with attachments asked for: which uploaded file went into which one
+  slots?: { slotId: string; label: string; fileIds: string[] }[];
 };
 
 export type PastAttempt = {
@@ -69,6 +72,7 @@ export type SubmissionDTO = {
 export const FILE_RULES = {
   maxBytes: 10 * 1024 * 1024,
   maxFiles: 10,
+  maxPerSlot: 5, // files for one attachment Super Admin asked for
   accept: ".doc,.docx,.ppt,.pptx,.pdf,.jpg,.jpeg,.png",
   label: "Word, PowerPoint, PDF, JPG or PNG · up to 10 MB each",
 } as const;

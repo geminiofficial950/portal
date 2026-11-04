@@ -220,7 +220,7 @@ export default function UserGuidePage() {
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/55">
           Student help
         </p>
-        <h1 className="mt-2 text-2xl font-medium sm:text-[1.75rem]">How do I…?</h1>
+        <h1 className="mt-2 text-2xl font-semibold sm:text-[1.75rem]">How do I…?</h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/70">
           Short guides for the things students ask most — portal, courses, assessments, and help.
         </p>
@@ -245,7 +245,7 @@ export default function UserGuidePage() {
               className={`rounded-full px-4 py-2 text-xs font-medium transition ${
                 active
                   ? "bg-plum text-white"
-                  : "bg-lilac text-ink/70 hover:bg-lilac/80 hover:text-ink"
+                  : "bg-lilac text-ink hover:bg-lilac/80 hover:text-ink"
               }`}
             >
               {cat}
@@ -256,7 +256,7 @@ export default function UserGuidePage() {
 
       <div className="grid gap-8 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] lg:gap-10">
         <aside>
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink/40">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink">
             Topics
           </p>
           <ul className="space-y-2">
@@ -283,7 +283,7 @@ export default function UserGuidePage() {
                     <span className="min-w-0">
                       <span className="block text-sm font-medium leading-snug">{guide.howDoI}</span>
                       <span
-                        className={`mt-1 block text-[11px] ${active ? "text-white/65" : "text-ink/45"}`}
+                        className={`mt-1 block text-[11px] ${active ? "text-white/65" : "text-ink"}`}
                       >
                         {guide.readTime}
                       </span>
@@ -293,7 +293,7 @@ export default function UserGuidePage() {
               );
             })}
             {filtered.length === 0 && (
-              <li className="rounded-2xl bg-lilac/70 px-4 py-8 text-center text-sm text-ink/50">
+              <li className="rounded-2xl bg-lilac/70 px-4 py-8 text-center text-sm text-ink">
                 Nothing matches “{query}”.
               </li>
             )}
@@ -310,11 +310,11 @@ export default function UserGuidePage() {
                 <p className="text-[11px] font-medium uppercase tracking-wide text-plum/70">
                   {selected.category}
                 </p>
-                <h2 className="mt-1 text-xl font-medium text-ink sm:text-[1.35rem]">
+                <h2 className="mt-1 text-xl font-semibold text-ink sm:text-[1.35rem]">
                   {selected.title}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-ink/55">{selected.summary}</p>
-                <p className="mt-3 text-[11px] text-ink/40">
+                <p className="mt-2 text-sm leading-relaxed text-ink">{selected.summary}</p>
+                <p className="mt-3 text-[11px] text-ink">
                   {selected.readTime} · {completed}/{selected.steps.length} steps ticked
                 </p>
               </div>
@@ -347,7 +347,7 @@ export default function UserGuidePage() {
                     <span className={`block text-sm font-medium text-ink ${done ? "line-through opacity-60" : ""}`}>
                       {step.title}
                     </span>
-                    <span className="mt-1 block text-xs leading-relaxed text-ink/55">
+                    <span className="mt-1 block text-xs leading-relaxed text-ink">
                       {step.detail}
                     </span>
                   </span>
@@ -358,7 +358,7 @@ export default function UserGuidePage() {
 
           <div className="mx-5 mb-5 rounded-2xl bg-lilac/70 px-4 py-4 sm:mx-7 sm:mb-6">
             <p className="text-[10px] font-medium uppercase tracking-wide text-plum/70">Tip</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink/75">{selected.tip}</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink">{selected.tip}</p>
           </div>
 
           <div className="border-t border-ink/5 px-5 py-4 sm:px-7">

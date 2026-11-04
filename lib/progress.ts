@@ -1,12 +1,13 @@
 import "server-only";
-import { summarise, type AssessmentPart, type AssessmentSummary } from "./assessment-meta";
+import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type AssessmentSummary } from "./assessment-meta";
 import { listCourseAssessments } from "./assessments";
 import { getCourse } from "./courses";
 import { listHiddenUnits } from "./hidden-units";
+import { listUnlockedUnits } from "./unit-unlocks";
 import { listStudentDueDates } from "./due-dates";
 import type { SubmissionStatus } from "./submission-meta";
 import { getStudent, listStudents, pickCourse } from "./students";
-import { listStudentSubmissions } from "./submissions";
+import { listCourseWork, listStudentSubmissions } from "./submissions";
 import type { ResultOption } from "./result-meta";
 import { listResultOptions } from "./result-options";
 import type { UnitResultDTO } from "./unit-meta";
@@ -24,6 +25,7 @@ export type UnitProgress = {
   // Photos taken at submit time (only passed to Super Admin pages)
   photos: { part: AssessmentPart; fileId: string; submittedAt: string | null }[];
   hidden: boolean; // Super Admin hid this unit from the student
+  unlocked: boolean; // staff unlocked it for the student (every unit starts locked)
 };
 
 export type StudentProgressDTO = {
@@ -41,12 +43,13 @@ export async function getStudentProgress(studentId: string, courseCode?: string 
   const course = picked ? await getCourse(picked.code) : null;
   if (!student || !course) return null;
 
-  const [assessments, submissions, results, ownDue, hidden, resultOptions] = await Promise.all([
+  const [assessments, submissions, results, ownDue, hidden, unlocked, resultOptions] = await Promise.all([
     listCourseAssessments(course.code),
     listStudentSubmissions(student.studentId, course.code),
     listStudentResults(student.studentId, course.code),
     listStudentDueDates(student.studentId, course.code),
     listHiddenUnits(student.studentId, course.code),
+    listUnlockedUnits(student.studentId, course.code),
     listResultOptions(),
   ]);
 
@@ -64,6 +67,7 @@ export async function getStudentProgress(studentId: string, courseCode?: string 
       extended: !!ownDue[u.code],
       outcome: results.find((r) => r.unitCode === u.code) ?? null,
       hidden: hidden.has(u.code),
+      unlocked: unlocked.has(u.code),
       photos: submissions
         .filter((s) => s.unitCode === u.code && s.photo)
         .map((s) => ({ part: s.part, fileId: s.photo!.id, submittedAt: s.submittedAt })),
@@ -94,4 +98,26 @@ export async function listStudentsWithResults() {
       };
     }),
   );
+}
+
+// Average progress per course for the admin dashboard, worked out like each student's course player:
+// a student's progress = assessment parts marked Satisfactory ÷ every part set up in the course
+export async function courseProgressAverages(courseCodes: string[]) {
+  const students = await listStudents();
+  const rows = await Promise.all(
+    courseCodes.map(async (code) => {
+      const enrolled = students.filter((s) => s.courses.some((c) => c.code === code));
+      const [assessments, work] = await Promise.all([listCourseAssessments(code), listCourseWork(code)]);
+      const set = Object.fromEntries(Object.entries(assessments).map(([unit, a]) => [unit, summarise(a)]));
+      const partsSet = Object.values(set).reduce((n, sum) => n + ASSESSMENT_PARTS.filter((p) => sum[p.key]).length, 0);
+      const counts = (w: { unitCode: string; part: AssessmentPart }) => !!set[w.unitCode]?.[w.part];
+      const avg =
+        enrolled.length && partsSet
+          ? enrolled.reduce((sum, st) => sum + work.filter((w) => w.studentId === st.studentId && w.status === "Accepted" && counts(w)).length / partsSet, 0) /
+            enrolled.length
+          : 0;
+      return [code, { students: enrolled.length, avg: Math.round(Math.min(1, avg) * 100) }] as const;
+    }),
+  );
+  return Object.fromEntries(rows) as Record<string, { students: number; avg: number }>;
 }

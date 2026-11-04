@@ -13,7 +13,7 @@ const done = (ticket: TicketDTO | null): Result => {
   if (!ticket) return { ok: false, error: "Ticket not found." };
   revalidatePath("/superadmin", "layout");
   revalidatePath("/dashboard/tickets");
-  revalidatePath("/trainer");
+  revalidatePath("/trainer", "layout");
   return { ok: true, ticket };
 };
 

@@ -63,3 +63,13 @@ export async function findAssessmentFile(fileId: string) {
   const doc = await (await collection()).findOne({ $or: [{ "theory.files.id": fileId }, { "workplace.files.id": fileId }] });
   return doc ? { courseCode: doc.courseCode, unitCode: doc.unitCode } : null;
 }
+
+// Trainer dashboard: unit due dates between now and `days` ahead, soonest first
+export async function listUpcomingDue(days = 14) {
+  const now = new Date();
+  const docs = await (await collection())
+    .find({ dueAt: { $gte: now, $lte: new Date(now.getTime() + days * 86400000) } })
+    .sort({ dueAt: 1 })
+    .toArray();
+  return docs.map((d) => ({ courseCode: d.courseCode, unitCode: d.unitCode, dueAt: d.dueAt!.toISOString() }));
+}

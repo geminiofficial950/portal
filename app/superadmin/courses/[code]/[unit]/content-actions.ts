@@ -6,8 +6,8 @@ import { adminActor, requireAdmin } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { deleteUploads, ownedUploads } from "@/lib/files";
 import { cleanEditorHtml } from "@/lib/sanitize";
-import { addResource, removeResource, saveOverview, setSlotResource } from "@/lib/unit-content";
-import { isResourceSlot, RESOURCE_LIMITS, RESOURCE_SLOTS, validateResource, type Resource, type ResourceInput, type ResourceSlot } from "@/lib/unit-meta";
+import { addResource, addSupportingFiles, clearSupportingFiles, getUnitContent, removeResource, saveOverview, setSlotResource } from "@/lib/unit-content";
+import { isResourceSlot, RESOURCE_LIMITS, RESOURCE_SLOTS, SUPPORTING_MAX, validateResource, type Resource, type ResourceInput, type ResourceSlot } from "@/lib/unit-meta";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -75,7 +75,7 @@ export async function setSlotDocumentAction(
   fileId: string,
 ): Promise<Result<{ resource: Resource }>> {
   const admin = await requireAdmin();
-  if (!isResourceSlot(slot)) return { ok: false, error: "Unknown document." };
+  if (!isResourceSlot(slot) || slot === "supporting") return { ok: false, error: "Unknown document." };
   if (!(await unitExists(courseCode, unitCode))) return { ok: false, error: "This unit isn’t in the course any more." };
   const [file] = await ownedUploads([String(fileId)], admin.sub);
   if (!file) return { ok: false, error: "That upload wasn’t found — upload it again." };
@@ -86,4 +86,55 @@ export async function setSlotDocumentAction(
   await logActivity(await adminActor(), `uploaded the ${label} for ${unitCode}`, "course");
   refresh(courseCode, unitCode);
   return { ok: true, resource };
+}
+
+// Clean folder path for a supporting file ("Week 1/Notes.pdf"), falling back to the file name
+const cleanPath = (raw: unknown, name: string) => {
+  const parts = String(raw ?? "")
+    .split(/[\\/]+/)
+    .map((p) => p.trim().replace(/[^\w.\- ()]/g, "_"))
+    .filter((p) => p && p !== "." && p !== "..");
+  parts[parts.length - 1] = name; // the stored (safe) name is the real one
+  return parts.join("/").slice(0, RESOURCE_LIMITS.title) || name;
+};
+
+// Adds uploaded files to the Supporting Document folder (a whole folder or a few files at a time)
+export async function addSupportingFilesAction(
+  courseCode: string,
+  unitCode: string,
+  items: { fileId: string; path: string }[],
+): Promise<Result<{ resources: Resource[] }>> {
+  const admin = await requireAdmin();
+  if (!(await unitExists(courseCode, unitCode))) return { ok: false, error: "This unit isn’t in the course any more." };
+  if (!Array.isArray(items) || !items.length) return { ok: false, error: "Choose the files to upload." };
+  const have = (await getUnitContent(courseCode, unitCode)).resources.filter((r) => r.kind === "file" && r.slot === "supporting").length;
+  const ids = items.map((i) => String(i?.fileId ?? ""));
+  const owned = await ownedUploads(ids, admin.sub);
+  if (have + owned.length > SUPPORTING_MAX) {
+    await deleteUploads(owned.map((f) => f.id));
+    return { ok: false, error: `The Supporting Document folder holds up to ${SUPPORTING_MAX} files — it has ${have} already.` };
+  }
+  const resources: Resource[] = owned.map((file) => ({
+    id: crypto.randomUUID(),
+    kind: "file",
+    title: cleanPath(items.find((i) => i.fileId === file.id)?.path, file.name),
+    description: "",
+    file,
+    slot: "supporting",
+  }));
+  if (!resources.length) return { ok: false, error: "Those uploads weren’t found — upload them again." };
+  await addSupportingFiles(courseCode, unitCode, resources);
+  await logActivity(await adminActor(), `added ${resources.length} Supporting Document file${resources.length === 1 ? "" : "s"} to ${unitCode}`, "course");
+  refresh(courseCode, unitCode);
+  return { ok: true, resources };
+}
+
+// Empties the Supporting Document folder
+export async function clearSupportingFilesAction(courseCode: string, unitCode: string): Promise<Result> {
+  await requireAdmin();
+  const removed = await clearSupportingFiles(courseCode, unitCode);
+  await deleteUploads(removed.flatMap((r) => (r.kind === "file" ? [r.file.id] : [])));
+  await logActivity(await adminActor(), `removed the Supporting Document folder from ${unitCode}`, "course");
+  refresh(courseCode, unitCode);
+  return { ok: true };
 }

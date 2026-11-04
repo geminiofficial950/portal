@@ -5,9 +5,9 @@ import { validateAssessment } from "@/lib/assessment-validate";
 const base = (): UnitAssessment => ({
   ...emptyAssessment(),
   quiz: { passMark: 80, questions: [{ id: "q1", text: "Q?", options: ["a", "b"], answer: 1 }] },
-  theory: { questions: [{ id: "t1", text: "Explain.", guidance: "", wordLimit: 200 }], files: [] },
+  theory: { questions: [{ id: "t1", text: "Explain.", guidance: "", wordLimit: 200 }], files: [], uploads: [] },
   rolePlay: { scenario: "Upset client", instructions: "Calm them", criteria: [{ id: "c1", text: "Stays calm" }] },
-  workplace: { task: "Two shifts", evidence: [{ id: "e1", text: "Log" }], supervisorSignOff: true, files: [] },
+  workplace: { task: "Two shifts", evidence: [{ id: "e1", text: "Log" }], supervisorSignOff: true, files: [], uploads: [] },
 });
 
 const error = (a: UnitAssessment) => {
@@ -19,7 +19,7 @@ describe("validateAssessment", () => {
   it("accepts a complete assessment unchanged", () => {
     const res = validateAssessment(base());
     expect(res.ok).toBe(true);
-    expect(res.ok && res.value.quiz.questions[0]).toEqual({ id: "q1", text: "Q?", options: ["a", "b"], answer: 1 });
+    expect(res.ok && res.value.quiz.questions[0]).toEqual({ id: "q1", text: "Q?", kind: "choice", options: ["a", "b"], answer: 1 });
   });
 
   it("accepts an empty assessment (nothing set up yet)", () => {
@@ -106,5 +106,53 @@ describe("task documents (Theory Task / Workplacement Task)", () => {
     ];
     const res = validateAssessment(a);
     expect(res.ok && res.value.theory.files).toEqual([{ id: "6ae591d80e5ad0fc166bedee", name: "Theory task.pdf", size: 1200 }]);
+  });
+});
+
+describe("attachments asked for on a task", () => {
+  it("keeps named attachments, trims them and drops blank ones", () => {
+    const a = base();
+    a.workplace.uploads = [
+      { id: "s1", label: "  Signed log timesheet " },
+      { id: "s2", label: "   " },
+      { id: "bad id!", label: "Supervisor report" },
+    ];
+    const res = validateAssessment(a);
+    expect(res.ok).toBe(true);
+    const uploads = res.ok ? res.value.workplace.uploads : [];
+    expect(uploads.map((u) => u.label)).toEqual(["Signed log timesheet", "Supervisor report"]);
+    expect(uploads[0].id).toBe("s1");
+    expect(uploads[1].id).not.toBe("bad id!");
+  });
+
+  it("keeps at most 10 and caps long names", () => {
+    const a = base();
+    a.theory.uploads = Array.from({ length: 14 }, (_, i) => ({ id: `s${i}`, label: "x".repeat(200) }));
+    const res = validateAssessment(a);
+    const uploads = res.ok ? res.value.theory.uploads : [];
+    expect(uploads).toHaveLength(10);
+    expect(uploads[0].label).toHaveLength(120);
+  });
+
+  it("treats a missing list as none", () => {
+    const a = base() as unknown as { theory: Record<string, unknown> };
+    delete a.theory.uploads;
+    const res = validateAssessment(a as unknown as UnitAssessment);
+    expect(res.ok && res.value.theory.uploads).toEqual([]);
+  });
+});
+
+describe("written quiz questions", () => {
+  it("keeps a written question without options", () => {
+    const a = base();
+    a.quiz.questions.push({ id: "w1", text: " Explain dignity of risk. ", kind: "written", options: ["junk"], answer: 3 });
+    const res = validateAssessment(a);
+    expect(res.ok && res.value.quiz.questions[1]).toEqual({ id: "w1", text: "Explain dignity of risk.", kind: "written", options: [], answer: -1 });
+  });
+
+  it("still needs the question text", () => {
+    const a = base();
+    a.quiz.questions = [{ id: "w1", text: " ", kind: "written", options: [], answer: -1 }];
+    expect(error(a)).toBe("Quiz question 1 is empty.");
   });
 });

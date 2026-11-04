@@ -1,18 +1,21 @@
 import Link from "next/link";
-import Calendar from "../dashboard/_components/Calendar";
 import {
   ArrowRightIcon,
   BoxIcon,
+  ClipboardIcon,
   TicketIcon,
   UserPlusIcon,
   UsersIcon,
 } from "../dashboard/_components/icons";
 import EnrolmentChart from "./_components/EnrolmentChart";
+import LiveRefresh from "./_components/LiveRefresh";
 import { listActivity, type ActivityKind } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
 import { initials } from "@/lib/format";
-import { countStudents, enrolmentsByMonth, progressByCourse } from "@/lib/students";
+import { courseProgressAverages } from "@/lib/progress";
+import { countStudents, enrolmentsByMonth } from "@/lib/students";
+import { listAllForMarking } from "@/lib/submissions";
 import { countOpenTickets, listOpenTickets } from "@/lib/tickets";
 import { countTrainers } from "@/lib/trainers";
 
@@ -30,35 +33,48 @@ const activityTone: Record<ActivityKind, string> = {
   settings: "bg-rose-400",
 };
 
+// The request time; the page is rendered per request (it reads the session)
+const requestTime = () => new Date();
+
+// Super Admin / Admin overview, all from live data; LiveRefresh reloads it every minute and when the tab is opened again
 export default async function SuperAdminOverview() {
   await requireAdmin();
-  const [studentCount, courses, trainerCount, ticketCount, enrolments, progress, openTickets, activity] =
-    await Promise.all([
-      countStudents(),
-      listCourses(),
-      countTrainers(),
-      countOpenTickets(),
-      enrolmentsByMonth(6),
-      progressByCourse(),
-      listOpenTickets(4),
-      listActivity(6),
-    ]);
+  const now = requestTime();
+  const [studentCount, courses, trainerCount, ticketCount, enrolments, openTickets, activity, toMark] = await Promise.all([
+    countStudents(),
+    listCourses(),
+    countTrainers(),
+    countOpenTickets(),
+    enrolmentsByMonth(6),
+    listOpenTickets(4),
+    listActivity(6),
+    listAllForMarking(),
+  ]);
+  const progress = await courseProgressAverages(courses.map((c) => c.code));
+
+  const oldestWait = toMark[0]?.submittedAt ? Math.floor((now.getTime() - new Date(toMark[0].submittedAt).getTime()) / 86_400_000) : 0;
 
   const kpis = [
     { href: "/superadmin/students", label: "Total students", value: studentCount.total, hint: `${studentCount.pending} pending approval`, icon: UsersIcon, tone: "bg-lilac" },
     { href: "/superadmin/courses", label: "Courses", value: courses.length, hint: `${courses.reduce((n, c) => n + c.units.length, 0)} units in total`, icon: BoxIcon, tone: "bg-[#ffe8d6]" },
     { href: "/superadmin/trainers", label: "Trainers", value: trainerCount.total, hint: `${trainerCount.active} active`, icon: UserPlusIcon, tone: "bg-[#e8f3ff]" },
     { href: "/superadmin/tickets", label: "Open tickets", value: ticketCount.open, hint: `${ticketCount.unassigned} unassigned`, icon: TicketIcon, tone: "bg-emerald-50" },
+    {
+      href: "/superadmin/students",
+      label: "Waiting to be marked",
+      value: toMark.length,
+      hint: toMark.length ? `Oldest waiting ${oldestWait} day${oldestWait === 1 ? "" : "s"}` : "Nothing waiting",
+      icon: ClipboardIcon,
+      tone: "bg-[#fdeaf2]",
+    },
   ];
 
-  const completion = courses.map((c) => {
-    const row = progress.find((p) => p._id === c.code);
-    return { code: c.code, name: c.name, students: row?.students ?? 0, avg: Math.round(row?.avg ?? 0) };
-  });
+  const completion = courses.map((c) => ({ code: c.code, name: c.name, students: progress[c.code]?.students ?? 0, avg: progress[c.code]?.avg ?? 0 }));
 
   return (
     <div className="animate-fade-up space-y-10">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <LiveRefresh at={now.toISOString()} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {kpis.map(({ href, label, value, hint, icon: Icon, tone }) => (
           <Link
             key={href}
@@ -172,7 +188,6 @@ export default async function SuperAdminOverview() {
             )}
           </section>
 
-          <Calendar />
         </div>
       </div>
     </div>

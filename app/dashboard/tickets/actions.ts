@@ -43,6 +43,6 @@ export async function replyAsStudentAction(ticketId: string, text: string): Prom
   if (!ticket) return { ok: false, error: "Ticket not found." };
   revalidatePath("/dashboard/tickets");
   revalidatePath("/superadmin", "layout");
-  revalidatePath("/trainer");
+  revalidatePath("/trainer", "layout");
   return { ok: true, ticket };
 }

@@ -28,6 +28,7 @@ export default async function AdminReviewPage(props: PageProps<"/superadmin/mark
         theory={assessment.theory.questions}
         rolePlay={assessment.rolePlay}
         workplace={assessment.workplace}
+        quiz={assessment.quiz}
         canMark
       />
     </div>

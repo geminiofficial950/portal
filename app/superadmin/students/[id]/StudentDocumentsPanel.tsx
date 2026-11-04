@@ -7,6 +7,7 @@ import { deleteRequestAction, requestDocumentAction } from "../../../actions/doc
 import LocalTime from "../../../dashboard/assessment/_components/LocalTime";
 import { TrashIcon } from "../../../dashboard/_components/icons";
 import { DOC_NOTE_MAX, DOC_TITLE_MAX, sortPlacementDocs, type DocumentRequestDTO, type PlacementDocDTO, type SignedDocDTO } from "@/lib/document-meta";
+import FileActions from "../../../dashboard/_components/FileActions";
 
 const card = "space-y-3 rounded-[1.5rem] bg-lilac/80 p-5";
 
@@ -80,13 +81,7 @@ export default function StudentDocumentsPanel({
                     <span className="block text-xs text-ink">{d.courseCode}</span>
                   </span>
                   {copy ? (
-                    <a
-                      href={`/api/files/${copy.file.id}`}
-                      className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:underline"
-                      title={`Uploaded ${new Date(copy.uploadedAt).toLocaleString("en-AU")}`}
-                    >
-                      Download signed copy
-                    </a>
+                    <FileActions file={copy.file} title={`${d.title} (signed copy)`} size="sm" />
                   ) : (
                     <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800">Not uploaded yet</span>
                   )}
@@ -143,9 +138,7 @@ export default function StudentDocumentsPanel({
                   )}
                 </span>
                 {r.file ? (
-                  <a href={`/api/files/${r.file.id}`} className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:underline">
-                    Download
-                  </a>
+                  <FileActions file={r.file} title={r.name} size="sm" />
                 ) : (
                   <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800">Waiting for student</span>
                 )}

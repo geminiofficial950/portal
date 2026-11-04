@@ -164,6 +164,38 @@ export async function listCourseWork(courseCode: string, unitCode?: string) {
   return docs.map(toDTO);
 }
 
+// Trainer marking inbox: all handed-in quiz / theory / workplace work in every course (no drafts)
+export async function listAllHandedIn() {
+  const docs = await (await collection())
+    .find({ status: { $ne: "Draft" }, part: { $in: ["quiz", "theory", "workplace"] } })
+    .sort({ submittedAt: 1 })
+    .toArray();
+  return docs.map(toDTO);
+}
+
+// Trainer dashboard: every piece of work waiting to be marked, oldest first
+export async function listAllForMarking() {
+  const docs = await (await collection())
+    .find({ status: "Submitted", part: { $in: ["quiz", "theory", "workplace"] } })
+    .sort({ submittedAt: 1 })
+    .toArray();
+  return docs.map(toDTO);
+}
+
+// Trainer dashboard: work sent back to the student (Not Yet Satisfactory / Request More Documents) and not handed in again
+export async function listAwaitingRework(limit = 6) {
+  const docs = await (await collection())
+    .find({ status: { $in: ["Rejected", "MoreDocs"] }, part: { $in: ["quiz", "theory", "workplace"] } })
+    .sort({ decidedAt: 1 })
+    .limit(limit)
+    .toArray();
+  return docs.map(toDTO);
+}
+
+export async function countDecidedSince(decidedBy: string, since: Date) {
+  return (await collection()).countDocuments({ decidedBy, decidedAt: { $gte: since }, part: { $in: ["quiz", "theory", "workplace"] } });
+}
+
 // Waiting-to-mark count per course
 export async function countToMarkByCourse() {
   const rows = await (await collection())

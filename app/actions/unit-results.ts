@@ -8,6 +8,8 @@ import { adminActor, DATES_SUPER_ADMIN_ONLY, requireAdmin, requireStaff } from "
 import { getCourse } from "@/lib/courses";
 import { clearStudentDueDate, setStudentDueDate } from "@/lib/due-dates";
 import { setUnitHidden } from "@/lib/hidden-units";
+import { notifyUnitChange } from "@/lib/student-notifications";
+import { setUnitsUnlocked } from "@/lib/unit-unlocks";
 import { getSettings } from "@/lib/settings";
 import type { SubmissionStatus } from "@/lib/submission-meta";
 import { getStudent, hasCourse } from "@/lib/students";
@@ -117,8 +119,29 @@ export async function setUnitHiddenAction(studentId: string, courseCode: string,
   const unit = course?.units.find((u) => u.code === unitCode);
   if (!student || !course || !unit) return { ok: false, error: "Student or unit not found." };
   await setUnitHidden(student.studentId, course.code, unit.code, hidden);
+  await notifyUnitChange(student.studentId, course.code, hidden ? "hidden" : "shown", [unit]);
   await logActivity(await adminActor(), `${hidden ? "hid" : "showed"} ${unit.code} ${hidden ? "from" : "to"} ${student.name}`, "student");
   refresh(student.studentId);
   revalidatePath("/dashboard/course");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+// Unlocks units for one student (or locks them again). Every unit starts locked; Super Admin, Admins and trainers
+// unlock them. `unitCodes` is one unit, or all of them for "Unlock all". Work already done is kept either way.
+export async function setUnitsUnlockedAction(studentId: string, courseCode: string, unitCodes: string[], unlocked: boolean): Promise<Result> {
+  const staff = await requireStaff();
+  const student = await getStudent(studentId);
+  const course = student && hasCourse(student, courseCode) ? await getCourse(courseCode) : null;
+  const codes = Array.isArray(unitCodes) ? unitCodes.filter((c) => course?.units.some((u) => u.code === c)) : [];
+  if (!student || !course || !codes.length) return { ok: false, error: "Student or unit not found." };
+  await setUnitsUnlocked(student.studentId, course.code, codes, unlocked, staff.name);
+  await notifyUnitChange(student.studentId, course.code, unlocked ? "unlocked" : "locked", course.units.filter((u) => codes.includes(u.code)));
+  const what = codes.length === 1 ? codes[0] : `${codes.length} units`;
+  await logActivity(staff.name, `${unlocked ? "unlocked" : "locked"} ${what} for ${student.name}`, "student");
+  refresh(student.studentId);
+  revalidatePath("/dashboard/course", "layout");
+  revalidatePath("/dashboard/assessment", "layout");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
