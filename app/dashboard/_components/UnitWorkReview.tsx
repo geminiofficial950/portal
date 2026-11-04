@@ -7,9 +7,10 @@ import toast from "react-hot-toast";
 import { setSubmittedAtAction } from "../../actions/submissions";
 import { createPortal } from "react-dom";
 import FileList from "./FileList";
+import SubmittedFiles from "./SubmittedFiles";
 import LocalTime from "../assessment/_components/LocalTime";
 import { CheckIcon } from "./icons";
-import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
+import { ASSESSMENT_PARTS, isWritten, summarise, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
 import { toLocalInput } from "@/lib/format";
 import { needsRework, statusLabel, statusStyle, type SubmissionDTO } from "@/lib/submission-meta";
@@ -218,6 +219,8 @@ export default function UnitWorkReview({
 }
 
 function PartContent({ part, s, assessment }: { part: AssessmentPart; s: SubmissionDTO; assessment: UnitAssessment }) {
+  // Task with named attachments: each one with the files the student put in it
+  if (s.content.slots?.length) return <SubmittedFiles sub={s} />;
   if (part === "quiz") {
     const answers = s.content.quizAnswers ?? [];
     return (
@@ -233,25 +236,31 @@ function PartContent({ part, s, assessment }: { part: AssessmentPart; s: Submiss
               <p className="text-sm font-medium text-ink">
                 {i + 1}. {q.text}
               </p>
-              <ul className="mt-2 space-y-1 text-sm">
-                {q.options.map((o, k) => {
-                  const chosen = answers[i] === k;
-                  const correct = q.answer === k;
-                  return (
-                    <li
-                      key={k}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
-                        chosen ? (correct ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800") : correct ? "text-emerald-700" : "text-ink/60"
-                      }`}
-                    >
-                      <span className="w-28 shrink-0 text-[10px] font-medium uppercase">
-                        {chosen && correct ? "Student ✓ correct" : chosen ? "Student’s answer" : correct ? "Correct answer" : ""}
-                      </span>
-                      {o}
-                    </li>
-                  );
-                })}
-              </ul>
+              {isWritten(q) ? (
+                <p className="mt-2 whitespace-pre-wrap rounded-lg bg-white/70 px-3 py-2 text-sm text-ink">
+                  {s.content.quizWritten?.find((w) => w.questionId === q.id)?.text || "No answer."}
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {q.options.map((o, k) => {
+                    const chosen = answers[i] === k;
+                    const correct = q.answer === k;
+                    return (
+                      <li
+                        key={k}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
+                          chosen ? (correct ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800") : correct ? "text-emerald-700" : "text-ink/60"
+                        }`}
+                      >
+                        <span className="w-28 shrink-0 text-[10px] font-medium uppercase">
+                          {chosen && correct ? "Student ✓ correct" : chosen ? "Student’s answer" : correct ? "Correct answer" : ""}
+                        </span>
+                        {o}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </li>
           ))}
         </ol>

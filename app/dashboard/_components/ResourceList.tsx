@@ -1,5 +1,6 @@
 "use client";
 
+import FileActions from "./FileActions";
 import { formatBytes } from "@/lib/submission-meta";
 import type { Resource } from "@/lib/unit-meta";
 import { BookIcon, FileIcon, TrashIcon } from "./icons";
@@ -20,7 +21,7 @@ export default function ResourceList({
     return (
       <div className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-6 py-10 text-center">
         <BookIcon className="h-8 w-8 text-plum/40" />
-        <p className="mt-3 text-sm text-ink/50">No resources for this unit yet.</p>
+        <p className="mt-3 text-sm text-ink">No resources for this unit yet.</p>
       </div>
     );
   }
@@ -37,19 +38,19 @@ export default function ResourceList({
               {r.kind === "file" ? <FileIcon className="h-5 w-5" /> : r.kind === "link" ? <span className="text-sm">↗</span> : <BookIcon className="h-5 w-5" />}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-ink/40">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-ink">
                 {i + 1}. {kindLabel[r.kind]}
               </p>
               <h3 className="mt-0.5 font-medium text-ink">{r.title}</h3>
-              {r.description && <p className="mt-1 whitespace-pre-wrap text-sm text-ink/60">{r.description}</p>}
+              {r.description && <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{r.description}</p>}
 
               {r.kind === "file" && (
-                <a
-                  href={`/api/files/${r.file.id}`}
-                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-plum px-4 py-2 text-xs font-medium text-white transition hover:bg-plum-light"
-                >
-                  Download {r.file.name} · {formatBytes(r.file.size)}
-                </a>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="text-sm text-ink">
+                    {r.file.name} · {formatBytes(r.file.size)}
+                  </span>
+                  <FileActions file={r.file} title={r.title} size="sm" />
+                </div>
               )}
               {r.kind === "link" && (
                 <a
@@ -77,7 +78,7 @@ export default function ResourceList({
                 onClick={() => onRemove(r)}
                 disabled={busyId === r.id}
                 aria-label={`Remove ${r.title}`}
-                className="shrink-0 rounded-full p-2 text-ink/35 transition hover:bg-rose-50 hover:text-rose-600"
+                className="shrink-0 rounded-full p-2 text-ink transition hover:bg-rose-50 hover:text-rose-600"
               >
                 <TrashIcon className="h-4 w-4" />
               </button>

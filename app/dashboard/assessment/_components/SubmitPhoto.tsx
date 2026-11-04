@@ -84,7 +84,7 @@ export default function SubmitPhoto({
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/60 p-4 font-dm text-ink backdrop-blur-[2px]">
       <div role="dialog" aria-modal="true" aria-labelledby="photo-title" className="w-full max-w-md overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
         <div className="bg-plum px-6 py-5 text-white">
-          <h2 id="photo-title" className="text-lg font-medium">
+          <h2 id="photo-title" className="text-lg font-semibold">
             {title}
           </h2>
           <p className="mt-0.5 text-xs text-white/75">A photo of you is taken when you submit. Only the college admin can see it.</p>
@@ -141,7 +141,7 @@ export default function SubmitPhoto({
                 </button>
               </>
             )}
-            <button onClick={onCancel} disabled={uploading} className="rounded-full px-5 py-3 text-sm font-medium text-ink/60 hover:bg-lilac">
+            <button onClick={onCancel} disabled={uploading} className="rounded-full px-5 py-3 text-sm font-medium text-ink hover:bg-lilac">
               Cancel
             </button>
           </div>

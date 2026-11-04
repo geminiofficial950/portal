@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { ArrowRightIcon, BackIcon, BookIcon, CheckIcon, ChevronDownIcon, ClipboardIcon, ClockIcon, CompressIcon, ExpandIcon, FileIcon } from "../../_components/icons";
+import { ArrowRightIcon, BackIcon, BookIcon, CheckIcon, ChevronDownIcon, ClipboardIcon, ClockIcon, FileIcon, LockIcon } from "../../_components/icons";
+import FileActions from "../../_components/FileActions";
 import FileList from "../../_components/FileList";
 import DueLabel from "../_components/DueLabel";
 import LocalTime from "../_components/LocalTime";
 import SubmitPhoto from "../_components/SubmitPhoto";
 import { logUnitViewAction, saveWorkAction, submitQuizAction } from "../actions";
 import type { DeclarationText } from "@/lib/declaration";
-import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type StudentAssessment } from "@/lib/assessment-meta";
+import { ASSESSMENT_PARTS, isWritten, QUIZ_WRITTEN_MAX, summarise, type AssessmentPart, type StudentAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
 import { FILE_RULES, formatBytes, needsRework, statusLabel, statusStyle, type FileRef, type SubmissionDTO, type SubmissionStatus } from "@/lib/submission-meta";
 import { toneCard, toneStyle } from "@/lib/result-meta";
@@ -28,6 +29,7 @@ export type OutlineUnit = {
   hasOverview: boolean;
   resources: { id: string; title: string; kind: Resource["kind"] }[];
   parts: { key: AssessmentPart; status: SubmissionStatus | "Not started" }[];
+  unlocked: boolean; // staff unlocked it for this student; a locked unit is grey and can't be opened
 };
 
 // What can be opened in a unit: "overview", "resources" or "part:<assessment part>"
@@ -46,9 +48,6 @@ function itemsOf(u: Pick<OutlineUnit, "hasOverview" | "resources" | "parts">): I
   ];
 }
 
-const isPdf = (f: FileRef) => /\.pdf$/i.test(f.name);
-const isSlides = (f: FileRef) => /\.pptx?$/i.test(f.name);
-const isImage = (f: FileRef) => /\.(jpe?g|png)$/i.test(f.name);
 
 function ItemIcon({ kind, className = "h-4 w-4" }: { kind: Item["kind"]; className?: string }) {
   if (kind === "resources") return <FileIcon className={className} />;
@@ -70,6 +69,7 @@ export default function UnitWork({
   overview,
   resources,
   outcome,
+  locked = false,
 }: {
   course: { code: string; name: string };
   unit: Unit;
@@ -84,6 +84,7 @@ export default function UnitWork({
   overview: string;
   resources: Resource[];
   outcome: UnitResultDTO | null;
+  locked?: boolean; // this unit isn't unlocked for the student: only the notice and the course content show
 }) {
   // A final result or a passed deadline both close the unit
   const closed = pastDue || !!outcome;
@@ -154,6 +155,16 @@ export default function UnitWork({
             <DueLabel dueAt={assessment.dueAt} />
           </div>
 
+          {locked && (
+            <div className="flex flex-col items-center gap-3 rounded-[1.5rem] border border-dashed border-ink/25 bg-ink/[0.06] px-6 py-12 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-zinc-400 text-white">
+                <LockIcon className="h-7 w-7" />
+              </span>
+              <p className="text-lg font-semibold text-ink">This unit is locked</p>
+              <p className="max-w-md text-base text-ink">Your trainer or the college will unlock it when it’s time to start. Units shown in green are open for you.</p>
+            </div>
+          )}
+
           {outcome && (
             <div className={`rounded-[1.5rem] px-5 py-4 ${toneCard[outcome.tone]}`}>
               <p className="text-xs font-semibold uppercase tracking-wide">Unit outcome</p>
@@ -185,7 +196,7 @@ export default function UnitWork({
             </section>
           )}
 
-          {item?.kind === "resources" && <ResourcesView resources={resources} />}
+          {item?.kind === "resources" && <ResourcesView courseCode={course.code} unitCode={unit.code} resources={resources} />}
 
           {part && (
             <section aria-label={partLabel(part)} className="space-y-4">
@@ -236,13 +247,31 @@ export default function UnitWork({
             {units.map((u, i) => {
               const here = u.code === unit.code;
               const list = here ? items : itemsOf(u);
-              const accepted = u.parts.length > 0 && u.parts.every((p) => p.status === "Accepted");
+              // A locked unit: the whole block is grey and doesn't open
+              if (!u.unlocked) {
+                return (
+                  <li key={u.code}>
+                    <div
+                      aria-disabled="true"
+                      title="Locked — your trainer will unlock this unit"
+                      className={`flex items-center gap-3 rounded-2xl border border-dashed px-4 py-3.5 ${here ? "border-zinc-500 bg-ink/[0.1]" : "border-ink/20 bg-ink/[0.06]"}`}
+                    >
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-zinc-400 text-sm font-semibold text-white">{i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold leading-snug text-ink">{u.title}</span>
+                        <span className="block text-xs text-ink">{u.code} · Locked</span>
+                      </span>
+                      <LockIcon className="h-5 w-5 shrink-0 text-ink" />
+                    </div>
+                  </li>
+                );
+              }
               return (
                 <li key={u.code}>
                   <details open={here} className={`group rounded-2xl border ${here ? "border-plum bg-lilac" : "border-ink/10 bg-white"}`}>
                     <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
-                      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold ${accepted ? "bg-emerald-600 text-white" : "bg-plum text-white"}`}>
-                        {accepted ? <CheckIcon className="h-5 w-5" /> : i + 1}
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-600 text-sm font-semibold text-white">
+                        {i + 1}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold leading-snug text-ink">{u.title}</span>
@@ -297,20 +326,46 @@ export default function UnitWork({
   );
 }
 
+// One document in Resources: nothing opens in the page — View opens it, Download saves it
+function DocumentRow({ resource }: { resource: FileResource }) {
+  const f = resource.file;
+  return (
+    <li className={`${card} flex flex-wrap items-center gap-4`} aria-label={resource.title}>
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-lilac text-[11px] font-bold uppercase text-plum">{f.name.split(".").pop()}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-lg font-semibold leading-snug text-ink">{resource.title}</span>
+        <span className="block truncate text-sm text-ink">
+          {f.name} · {formatBytes(f.size)}
+        </span>
+        {resource.description && <span className="mt-1 block whitespace-pre-wrap text-base text-ink">{resource.description}</span>}
+      </span>
+      <FileActions file={f} title={resource.title} />
+    </li>
+  );
+}
+
 // Everything under "Resources": the Learner Guide, PowerPoint Presentation and Supporting Document, then any extras
-function ResourcesView({ resources }: { resources: Resource[] }) {
-  const main = RESOURCE_SLOTS.flatMap((slot) => resources.filter((r) => r.kind === "file" && r.slot === slot.key));
+function ResourcesView({ courseCode, unitCode, resources }: { courseCode: string; unitCode: string; resources: Resource[] }) {
+  const main = RESOURCE_SLOTS.filter((slot) => slot.key !== "supporting").flatMap((slot) =>
+    resources.filter((r) => r.kind === "file" && r.slot === slot.key),
+  );
+  const supporting = resources.filter((r): r is FileResource => r.kind === "file" && r.slot === "supporting");
   const extra = resources.filter((r) => !(r.kind === "file" && r.slot));
   return (
     <div className="space-y-10">
       <h2 className="text-xl font-semibold text-ink">Resources</h2>
-      {main.map((r) => r.kind === "file" && <FileViewer key={r.id} resource={r} />)}
+      {main.length > 0 && (
+        <ul className="space-y-3">{main.map((r) => r.kind === "file" && <DocumentRow key={r.id} resource={r} />)}</ul>
+      )}
+      {supporting.length > 0 && <SupportingDownloads courseCode={courseCode} unitCode={unitCode} files={supporting} />}
       {extra.length > 0 && (
         <div className="space-y-5">
           {main.length > 0 && <h3 className="text-lg font-semibold text-ink">More resources</h3>}
           {extra.map((r) =>
             r.kind === "file" ? (
-              <FileViewer key={r.id} resource={r} />
+              <ul key={r.id}>
+                <DocumentRow resource={r} />
+              </ul>
             ) : r.kind === "link" ? (
               <section key={r.id} className={card} aria-label={r.title}>
                 <h3 className="text-lg font-semibold text-ink">{r.title}</h3>
@@ -340,76 +395,54 @@ function ResourcesView({ resources }: { resources: Resource[] }) {
   );
 }
 
-// A resource file: shown in the page when it's a PDF or picture, always downloadable
-function FileViewer({ resource }: { resource: Extract<Resource, { kind: "file" }> }) {
-  const f = resource.file;
-  const src = `/api/files/${f.id}?inline=1`;
-  // Just the document: no browser PDF toolbar or page thumbnails
-  const pdfSrc = `${src}#toolbar=0&navpanes=0&view=FitH`;
-  const box = useRef<HTMLDivElement>(null);
-  const [full, setFull] = useState(false);
+type FileResource = Extract<Resource, { kind: "file" }>;
 
-  useEffect(() => {
-    const onChange = () => setFull(document.fullscreenElement === box.current);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
 
-  // Full screen on this page (Esc also leaves it)
-  const toggleFull = () => {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void box.current?.requestFullscreen?.().catch(() => toast.error("Full screen isn’t available in this browser."));
-  };
-
+// The Supporting Document folder: a list of files to download (one by one, or all as a ZIP) — nothing is shown in the page
+function SupportingDownloads({ courseCode, unitCode, files }: { courseCode: string; unitCode: string; files: FileResource[] }) {
+  const sorted = [...files].sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+  const total = files.reduce((n, r) => n + r.file.size, 0);
   return (
-    <section aria-label={resource.title} className="space-y-4">
-      <div ref={box} className={`flex flex-col overflow-hidden border border-ink/10 bg-ink shadow-md ${full ? "h-dvh rounded-none" : "rounded-[1.5rem]"}`}>
-        <div className="flex items-center justify-between gap-3 bg-ink px-5 py-3 text-white">
-          <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-            <FileIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{resource.title}</span>
-          </span>
-          {(isPdf(f) || isImage(f)) && (
-            <button
-              type="button"
-              onClick={toggleFull}
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/25"
-            >
-              {full ? <CompressIcon className="h-4 w-4" /> : <ExpandIcon className="h-4 w-4" />}
-              {full ? "Exit full screen" : "Expand full screen"}
-            </button>
-          )}
-        </div>
-        {isPdf(f) ? (
-          <iframe src={pdfSrc} title={resource.title} className={`block w-full bg-white ${full ? "flex-1" : "h-[70dvh] min-h-96"}`} />
-        ) : isImage(f) ? (
-          // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route
-          <img src={src} alt={resource.title} className={`mx-auto block w-auto bg-white ${full ? "max-h-full flex-1 object-contain" : "max-h-[70dvh]"}`} />
-        ) : (
-          <div className="grid min-h-64 place-items-center bg-lilac px-6 py-12 text-center">
-            <div>
-              <FileIcon className="mx-auto h-10 w-10 text-plum" />
-              <p className="mt-3 text-base font-medium text-ink">This {isSlides(f) ? "PowerPoint presentation" : "Word document"} can’t be shown here.</p>
-              <p className="mt-1 text-sm text-ink">Download it below to read it.</p>
-            </div>
-          </div>
-        )}
-      </div>
-      {resource.description && <p className="whitespace-pre-wrap text-base text-ink">{resource.description}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-dashed border-ink/20 bg-white px-5 py-4">
-        <span>
-          <span className="block text-base font-semibold text-ink">Download the file</span>
-          <span className="block text-sm text-ink">
-            {f.name} · {formatBytes(f.size)}
+    <section aria-label="Supporting Document" className="overflow-hidden rounded-[1.5rem] border border-ink/10 bg-white shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-ink px-5 py-3 text-white">
+        <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+          <FileIcon className="h-4 w-4 shrink-0" />
+          Supporting Document
+          <span className="font-normal">
+            · {files.length} file{files.length === 1 ? "" : "s"} · {formatBytes(total)}
           </span>
         </span>
-        <a href={`/api/files/${f.id}`} className="rounded-xl bg-plum px-6 py-3 text-sm font-semibold text-white transition hover:bg-plum-light">
-          Download
+        <a
+          href={`/api/supporting/${encodeURIComponent(courseCode)}/${encodeURIComponent(unitCode)}`}
+          className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-ink transition hover:bg-lilac"
+        >
+          Download all (ZIP)
         </a>
       </div>
+      <ul className="divide-y divide-ink/10">
+        {sorted.map((r) => {
+          const slash = r.title.lastIndexOf("/");
+          return (
+            <li key={r.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lilac text-[10px] font-bold uppercase text-plum">
+                {r.file.name.split(".").pop()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-medium text-ink">{slash >= 0 ? r.title.slice(slash + 1) : r.title}</span>
+                <span className="block text-sm text-ink">
+                  {slash >= 0 && `${r.title.slice(0, slash)} · `}
+                  {formatBytes(r.file.size)}
+                </span>
+              </span>
+              <FileActions file={r.file} />
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
+
 
 // ---------- Status + feedback ----------
 
@@ -499,10 +532,13 @@ function QuizPart({
 }) {
   const [retrying, setRetrying] = useState(false);
   const [askPhoto, setAskPhoto] = useState(false);
-  const [answers, setAnswers] = useState<(number | null)[]>(() => quiz.questions.map(() => null));
+  // an option index for a multiple-choice question, typed text for a written one
+  const [answers, setAnswers] = useState<(number | string | null)[]>(() => quiz.questions.map(() => null));
+  const setAnswer = (i: number, v: number | string) => setAnswers((a) => a.map((x, j) => (j === i ? v : x)));
   const [sending, startSending] = useTransition();
   const taking = !pastDue && (!sub || retrying);
-  const answered = answers.filter((a) => a !== null).length;
+  const answered = answers.filter((a) => (typeof a === "string" ? a.trim().length > 0 : a !== null)).length;
+  const hasChoice = quiz.questions.some((q) => !isWritten(q));
 
   const submit = () => {
     if (answered < quiz.questions.length) return void toast.error(`Answer all ${quiz.questions.length} questions first.`);
@@ -514,7 +550,7 @@ function QuizPart({
   const send = (photoId: string | null) => {
     setAskPhoto(false);
     startSending(async () => {
-      const res = await submitQuizAction(courseCode, unitCode, answers as number[], photoId);
+      const res = await submitQuizAction(courseCode, unitCode, answers as (number | string)[], photoId);
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.submission);
       setRetrying(false);
@@ -541,12 +577,12 @@ function QuizPart({
         <>
           <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
             <div>
-              <h2 className="text-base font-medium text-ink">Quiz and Activities</h2>
-              <p className="mt-0.5 text-xs text-ink/50">
-                {quiz.questions.length} questions · pick one answer each · pass mark {quiz.passMark}%
+              <h2 className="text-base font-semibold text-ink">Quiz and Activities</h2>
+              <p className="mt-0.5 text-xs text-ink">
+                {quiz.questions.length} questions · answer every one{hasChoice ? ` · pass mark ${quiz.passMark}%` : ""}
               </p>
             </div>
-            <p className="text-xs text-ink/55">
+            <p className="text-xs text-ink">
               {answered} / {quiz.questions.length} answered
             </p>
           </div>
@@ -557,25 +593,39 @@ function QuizPart({
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-lilac text-[11px] text-plum">{i + 1}</span>
                 <span className="pt-1">{q.text}</span>
               </p>
-              <div className="mt-4 grid gap-2 pl-10">
-                {q.options.map((opt, k) => (
-                  <label
-                    key={k}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
-                      answers[i] === k ? "bg-plum text-white" : "bg-lilac/70 text-ink hover:bg-lilac"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`q-${q.id}`}
-                      checked={answers[i] === k}
-                      onChange={() => setAnswers((a) => a.map((v, j) => (j === i ? k : v)))}
-                      className="h-4 w-4 accent-peach"
-                    />
-                    {opt}
-                  </label>
-                ))}
-              </div>
+              {isWritten(q) ? (
+                <div className="mt-4 pl-10">
+                  <textarea
+                    rows={4}
+                    value={typeof answers[i] === "string" ? (answers[i] as string) : ""}
+                    maxLength={QUIZ_WRITTEN_MAX}
+                    onChange={(e) => setAnswer(i, e.target.value)}
+                    placeholder="Type your answer here"
+                    aria-label={`Your answer to question ${i + 1}`}
+                    className="w-full resize-y rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40"
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-2 pl-10">
+                  {q.options.map((opt, k) => (
+                    <label
+                      key={k}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm transition ${
+                        answers[i] === k ? "bg-plum text-white" : "bg-lilac/70 text-ink hover:bg-lilac"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`q-${q.id}`}
+                        checked={answers[i] === k}
+                        onChange={() => setAnswer(i, k)}
+                        className="h-4 w-4 accent-peach"
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              )}
             </fieldset>
           ))}
           <div className="flex flex-wrap gap-3">
@@ -587,14 +637,14 @@ function QuizPart({
               {sending ? "Submitting…" : "Submit quiz"}
             </button>
             {retrying && (
-              <button onClick={() => setRetrying(false)} className="rounded-full px-5 py-3 text-sm font-medium text-ink/60 hover:bg-lilac">
+              <button onClick={() => setRetrying(false)} className="rounded-full px-5 py-3 text-sm font-medium text-ink hover:bg-lilac">
                 Cancel
               </button>
             )}
           </div>
         </>
       )}
-      {!sub && pastDue && <p className={`${card} text-sm text-ink/55`}>This unit is closed, so the quiz can’t be taken now.</p>}
+      {!sub && pastDue && <p className={`${card} text-sm text-ink`}>This unit is closed, so the quiz can’t be taken now.</p>}
       {askPhoto && <SubmitPhoto title="Submit your quiz" onCancel={() => setAskPhoto(false)} onConfirm={(p) => send(p.id)} />}
     </section>
   );
@@ -627,13 +677,32 @@ function WrittenWork({
   const canEdit = canEditWork(sub?.status, pastDue, false);
   const task = part === "theory" ? assessment.theory.files : assessment.workplace.files;
   const [files, setFiles] = useState<FileRef[]>(sub?.files ?? []);
+  // Attachments Super Admin asked for: one upload box each (otherwise the student uploads any files)
+  const asked = part === "theory" ? assessment.theory.uploads : assessment.workplace.uploads;
+  const [slotFiles, setSlotFiles] = useState<Record<string, FileRef[]>>(() =>
+    Object.fromEntries(
+      asked.map((s, i) => [
+        s.id,
+        sub && !sub.content.slots
+          ? // handed in before the attachments were set up: show those files under the first one, so nothing is hidden or lost
+            i === 0
+            ? sub.files
+            : []
+          : (sub?.content.slots?.find((x) => x.slotId === s.id)?.fileIds ?? [])
+              .map((id) => sub?.files.find((f) => f.id === id))
+              .filter((f): f is FileRef => !!f),
+      ]),
+    ),
+  );
+  const workKey = () =>
+    asked.length ? asked.map((s) => (slotFiles[s.id] ?? []).map((f) => f.id).join(",")).join("|") : files.map((f) => f.id).join();
   const [saving, startSaving] = useTransition();
-  const [savedIds, setSavedIds] = useState(() => (sub?.files ?? []).map((f) => f.id).join());
+  const [savedIds, setSavedIds] = useState(workKey);
   // every declaration point is ticked on its own, then "I agree" at the end
   const [ticked, setTicked] = useState<boolean[]>(() => declaration.points.map(() => false));
   const [agreed, setAgreed] = useState(false);
   const allTicked = ticked.every(Boolean) && agreed;
-  const dirty = canEdit && files.map((f) => f.id).join() !== savedIds;
+  const dirty = canEdit && workKey() !== savedIds;
 
   useEffect(() => {
     if (!dirty) return;
@@ -644,7 +713,9 @@ function WrittenWork({
 
   const send = (mode: "draft" | "submit", photoId: string | null = null) => {
     if (mode === "submit" && !photoId) {
-      if (files.length === 0) return void toast.error("Upload your completed work first.");
+      const missing = asked.find((s) => !slotFiles[s.id]?.length);
+      if (missing) return void toast.error(`Upload “${missing.label}” first.`);
+      if (!asked.length && files.length === 0) return void toast.error("Upload your completed work first.");
       if (!ticked.every(Boolean)) return void toast.error("Tick every point of the declaration before you submit.");
       if (!agreed) return void toast.error(`Tick “${declaration.agree}” before you submit.`);
       if (photoRequired) return setAskPhoto(true);
@@ -652,9 +723,15 @@ function WrittenWork({
     }
     setAskPhoto(false);
     startSaving(async () => {
-      const res = await saveWorkAction(courseCode, unitCode, part, { fileIds: files.map((f) => f.id) }, mode, photoId, mode === "submit" && allTicked);
+      const work = asked.length
+        ? {
+            fileIds: asked.flatMap((s) => (slotFiles[s.id] ?? []).map((f) => f.id)),
+            slots: asked.map((s) => ({ slotId: s.id, fileIds: (slotFiles[s.id] ?? []).map((f) => f.id) })),
+          }
+        : { fileIds: files.map((f) => f.id) };
+      const res = await saveWorkAction(courseCode, unitCode, part, work, mode, photoId, mode === "submit" && allTicked);
       if (!res.ok) return void toast.error(res.error);
-      setSavedIds(files.map((f) => f.id).join());
+      setSavedIds(workKey());
       onSaved(res.submission);
       toast.success(mode === "submit" ? "Submitted to your trainer" : "Draft saved");
     });
@@ -667,10 +744,12 @@ function WrittenWork({
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-ink">1. Read and download the task</h3>
-          <p className="mt-0.5 text-sm text-ink">Open the task below, download it, complete it, then upload your work in step 2.</p>
+          <p className="mt-0.5 text-sm text-ink">View the task below, download it, complete it, then upload your work in step 2.</p>
         </div>
         {task.map((f) => (
-          <FileViewer key={f.id} resource={{ id: f.id, kind: "file", title: f.name.replace(/\.[^.]+$/, ""), description: "", file: f }} />
+          <ul key={f.id}>
+            <DocumentRow resource={{ id: f.id, kind: "file", title: f.name.replace(/\.[^.]+$/, ""), description: "", file: f }} />
+          </ul>
         ))}
       </div>
 
@@ -678,16 +757,49 @@ function WrittenWork({
         <div>
           <h3 className="text-lg font-semibold text-ink">2. Upload your completed work</h3>
           <p className="mt-0.5 text-sm text-ink">
-            {canEdit ? `You can attach several files (${FILE_RULES.label}, up to ${FILE_RULES.maxFiles}).` : "What you handed in:"}
+            {!canEdit
+              ? "What you handed in:"
+              : asked.length
+                ? `Upload a file for each item below (${FILE_RULES.label}). All of them are needed before you can submit.`
+                : `You can attach several files (${FILE_RULES.label}, up to ${FILE_RULES.maxFiles}).`}
           </p>
         </div>
-        <FileList
-          files={files}
-          onChange={canEdit ? (next) => setFiles(next.slice(0, FILE_RULES.maxFiles)) : undefined}
-          emptyText="No files uploaded."
-          uploadLabel="Upload file"
-          inputLabel="Upload your completed work"
-        />
+        {asked.length ? (
+          <ol className="space-y-3">
+            {asked.map((s, i) => {
+              const done = !!slotFiles[s.id]?.length;
+              return (
+                <li key={s.id} className="rounded-xl border border-ink/10 p-3">
+                  <p className="mb-2 flex items-center gap-2 text-base font-semibold text-ink">
+                    <span
+                      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${done ? "bg-emerald-600 text-white" : "bg-lilac text-plum"}`}
+                    >
+                      {done ? <CheckIcon className="h-3.5 w-3.5" /> : i + 1}
+                    </span>
+                    {s.label}
+                  </p>
+                  <FileList
+                    files={slotFiles[s.id] ?? []}
+                    onChange={
+                      canEdit ? (next) => setSlotFiles((m) => ({ ...m, [s.id]: next.slice(0, FILE_RULES.maxPerSlot) })) : undefined
+                    }
+                    emptyText={canEdit ? "Not uploaded yet." : "Nothing uploaded."}
+                    uploadLabel="Upload file"
+                    inputLabel={`Upload ${s.label}`}
+                  />
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <FileList
+            files={files}
+            onChange={canEdit ? (next) => setFiles(next.slice(0, FILE_RULES.maxFiles)) : undefined}
+            emptyText="No files uploaded."
+            uploadLabel="Upload file"
+            inputLabel="Upload your completed work"
+          />
+        )}
       </div>
 
       {canEdit && (

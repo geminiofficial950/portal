@@ -198,6 +198,20 @@ export const PlayIcon = (p: P) => (
   </svg>
 );
 
+export const VideoIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <rect x="2.5" y="6" width="13" height="12" rx="2" />
+    <path d="m15.5 10.5 6-3.5v10l-6-3.5" />
+  </svg>
+);
+
+export const LockIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+
 export const FileIcon = (p: P) => (
   <svg {...base} {...p}>
     <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-6Z" />

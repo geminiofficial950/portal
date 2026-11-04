@@ -9,12 +9,14 @@ import ResourceList from "../../../../dashboard/_components/ResourceList";
 import RichTextEditor from "../../../../dashboard/_components/RichTextEditor";
 import AssessmentEditor from "./AssessmentEditor";
 import UploadButton from "../../../../dashboard/_components/UploadButton";
+import SupportingFolder from "./SupportingFolder";
 import { addResourceAction, removeResourceAction, saveOverviewAction, setSlotDocumentAction } from "./content-actions";
 import type { UnitAssessment } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
 import type { FileRef } from "@/lib/submission-meta";
 import { formatBytes } from "@/lib/submission-meta";
 import { RESOURCE_SLOTS, type Resource, type ResourceSlot, type UnitContent } from "@/lib/unit-meta";
+import FileActions from "../../../../dashboard/_components/FileActions";
 
 const SECTIONS = [
   { key: "overview", label: "1. Main unit", hint: "What the unit is about" },
@@ -143,7 +145,7 @@ const KINDS = [
 function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: string; unitCode: string; initial: Resource[] }) {
   // The three main documents live in slots; everything else is an extra resource
   const [slots, setSlots] = useState(() =>
-    Object.fromEntries(initial.flatMap((r) => (r.kind === "file" && r.slot ? [[r.slot, r]] : []))) as Partial<Record<ResourceSlot, Resource>>,
+    Object.fromEntries(initial.flatMap((r) => (r.kind === "file" && r.slot && r.slot !== "supporting" ? [[r.slot, r]] : []))) as Partial<Record<ResourceSlot, Resource>>,
   );
   const [list, setList] = useState(initial.filter((r) => !(r.kind === "file" && r.slot)));
 
@@ -206,23 +208,24 @@ function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: strin
       <div className={`${card} space-y-4`}>
         <div>
           <h2 className="text-lg font-medium text-ink">Resources documents</h2>
-          <p className="mt-0.5 text-sm text-ink">Students see these three under “Resources” in the unit. Word, PowerPoint, PDF, JPG or PNG · up to 10 MB.</p>
+          <p className="mt-0.5 text-sm text-ink">Students see these under “Resources” in the unit. Word, PowerPoint, PDF, JPG or PNG · up to 10 MB each.</p>
         </div>
         <ul className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
-          {RESOURCE_SLOTS.map((slot) => {
+          {RESOURCE_SLOTS.filter((slot) => slot.key !== "supporting").map((slot) => {
             const r = slots[slot.key];
             return (
               <li key={slot.key} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
                 <span className="min-w-0 flex-1">
                   <span className="block text-base font-medium text-ink">{slot.label}</span>
                   {r?.kind === "file" ? (
-                    <a href={`/api/files/${r.file.id}`} className="block truncate text-sm text-plum underline">
+                    <span className="block truncate text-sm text-ink">
                       {r.file.name} · {formatBytes(r.file.size)}
-                    </a>
+                    </span>
                   ) : (
                     <span className="block text-sm text-amber-800">Not uploaded yet</span>
                   )}
                 </span>
+                {r?.kind === "file" && <FileActions file={r.file} title={slot.label} size="sm" />}
                 <UploadButton label={r ? "Replace" : "Upload"} ariaLabel={`Upload ${slot.label}`} onUploaded={uploadSlot(slot.key)} />
                 {r && (
                   <button onClick={() => removeSlot(slot.key)} className="rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink hover:bg-rose-50 hover:text-rose-700">
@@ -232,6 +235,11 @@ function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: strin
               </li>
             );
           })}
+          <SupportingFolder
+            courseCode={courseCode}
+            unitCode={unitCode}
+            initial={initial.filter((r): r is Extract<Resource, { kind: "file" }> => r.kind === "file" && r.slot === "supporting")}
+          />
         </ul>
       </div>
 

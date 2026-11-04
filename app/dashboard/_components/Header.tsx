@@ -1,4 +1,3 @@
-import ThemeToggle from "../../components/ThemeToggle";
 import type { PortalVariant } from "./Sidebar";
 
 type HeaderUser = { initials: string; email: string };
@@ -17,8 +16,7 @@ export default function Header({
   user?: HeaderUser;
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center justify-end px-4 pt-2 sm:px-4 lg:h-14 lg:px-4 lg:pt-2">
-      <ThemeToggle />
-    </header>
+    // Spacer under the mobile top bar; on desktop just a little top padding (Dark mode is in the sidebar now)
+    <header aria-hidden className="h-16 shrink-0 lg:h-6" />
   );
 }

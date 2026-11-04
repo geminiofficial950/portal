@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRightIcon, BackIcon, CheckIcon, ClipboardIcon } from "../../../../../dashboard/_components/icons";
+import { BackIcon, BookIcon, CheckIcon, ClipboardIcon, FileIcon } from "../../../../../dashboard/_components/icons";
 import LocalTime from "../../../../../dashboard/assessment/_components/LocalTime";
 import { MARKED_PARTS, summarise } from "@/lib/assessment-meta";
 import { getAssessment } from "@/lib/assessments";
@@ -10,8 +10,26 @@ import { statusLabel, statusStyle } from "@/lib/submission-meta";
 import { listCourseWork } from "@/lib/submissions";
 
 const ORDER = { Submitted: 0, MoreDocs: 1, Rejected: 2, Accepted: 3, Draft: 4 } as const;
+const DAY = 86_400_000;
+// The request time; this page is rendered per request (it reads the session), so "now" is that moment
+const requestTime = () => Date.now();
+const dayWord = (n: number) => (n === 1 ? "1 day" : `${n} days`);
 
-// Trainer marking, step 3: one unit, one tab per part (like the student's unit page)
+// Thumbnail tile per part (same as the marking inbox)
+const PART_TILE: Record<string, { tone: string; icon: typeof ClipboardIcon }> = {
+  quiz: { tone: "bg-[#fdc580] text-[#1d1b33]", icon: ClipboardIcon },
+  theory: { tone: "bg-plum text-white", icon: BookIcon },
+  workplace: { tone: "bg-[#e8659a] text-white", icon: FileIcon },
+};
+
+// How long work has waited: the colour always comes with words
+function waitTone(days: number) {
+  if (days > 7) return { cls: "bg-rose-100 text-rose-800", text: `${dayWord(days)} · overdue` };
+  if (days >= 3) return { cls: "bg-amber-100 text-amber-900", text: `Waiting ${dayWord(days)}` };
+  return { cls: "bg-emerald-100 text-emerald-800", text: days === 0 ? "Came in today" : `Waiting ${dayWord(days)}` };
+}
+
+// Trainer marking, one unit: a tab per part, then every student's work for that part
 export default async function MarkingUnitPage(props: PageProps<"/trainer/marking/course/[code]/[unit]">) {
   await requireTrainer();
   const { code, unit: unitParam } = await props.params;
@@ -19,6 +37,7 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
   const unit = course?.units.find((u) => u.code === decodeURIComponent(unitParam));
   if (!course || !unit) notFound();
 
+  const now = requestTime();
   const [assessment, work] = await Promise.all([getAssessment(course.code, unit.code), listCourseWork(course.code, unit.code)]);
   const set = summarise(assessment);
   const parts = MARKED_PARTS.filter((p) => set[p.key]);
@@ -29,31 +48,29 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
   const tab = parts.find((p) => p.key === asked) ?? parts.find((p) => toMark(p.key) > 0) ?? parts[0];
   const items = tab ? work.filter((s) => s.part === tab.key).sort((a, b) => ORDER[a.status] - ORDER[b.status]) : [];
   const base = `/trainer/marking/course/${encodeURIComponent(course.code)}/${encodeURIComponent(unit.code)}`;
+  const tile = PART_TILE[tab?.key ?? "theory"] ?? PART_TILE.theory;
 
   return (
     <div className="animate-fade-up space-y-6">
-      <Link href={`/trainer/marking/course/${encodeURIComponent(course.code)}`} className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum">
+      <Link href={`/trainer/marking/course/${encodeURIComponent(course.code)}`} className="inline-flex items-center gap-2 text-sm font-medium text-ink transition hover:text-plum">
         <BackIcon className="h-4 w-4" />
         {course.code} units
       </Link>
 
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-plum">
+        <p className="text-sm font-semibold text-plum">
           {course.code} · {unit.code}
         </p>
-        <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">{unit.title}</h1>
-        <p className="mt-1 text-sm text-ink/55">Pick a part, then open a student’s work to give feedback and accept or reject it.</p>
+        <h1 className="mt-0.5 text-2xl font-semibold text-ink">{unit.title}</h1>
+        <p className="mt-1 text-sm text-ink">Pick a part, then open a student’s work to give it a status.</p>
       </div>
 
       {parts.length === 0 ? (
-        <div className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
-          <ClipboardIcon className="h-8 w-8 text-plum/40" />
-          <p className="mt-3 text-sm text-ink">This unit has no Theory Task or Workplacement Task set up yet.</p>
-        </div>
+        <p className="rounded-xl bg-[#f6f5fa] px-5 py-10 text-center text-sm font-medium text-ink">This unit has no assessment set up yet.</p>
       ) : (
         <>
-          <div role="tablist" aria-label="Assessment parts" className={`grid gap-2 sm:grid-cols-2 ${parts.length === 3 ? "lg:grid-cols-3" : ""}`}>
-            {parts.map((p, i) => {
+          <div role="tablist" aria-label="Assessment parts" className="flex flex-wrap gap-2">
+            {parts.map((p) => {
               const active = tab?.key === p.key;
               const n = toMark(p.key);
               return (
@@ -63,70 +80,76 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
                   role="tab"
                   aria-selected={active}
                   scroll={false}
-                  className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-left transition ${
-                    active ? "bg-plum text-white shadow-md shadow-plum/20" : "bg-lilac text-ink hover:bg-plum/10"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    active ? "bg-plum text-white" : "bg-[#f6f5fa] text-ink hover:bg-plum/10"
                   }`}
                 >
-                  <span
-                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-medium ${
-                      done(p.key) ? "bg-emerald-400 text-white" : active ? "bg-white/20" : "bg-white text-plum"
-                    }`}
-                  >
-                    {done(p.key) ? <CheckIcon className="h-4 w-4" /> : i + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium">{p.label}</span>
-                    <span
-                      className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        n ? statusStyle.Submitted : statusStyle["Not started"]
-                      }`}
-                    >
-                      {n ? `${n} to mark` : "Nothing to mark"}
-                    </span>
+                  {done(p.key) && <CheckIcon className="h-4 w-4" />}
+                  {p.label}
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-[rgba(255,255,255,0.25)]" : n ? "bg-amber-100 text-amber-900" : "bg-white"}`}>
+                    {n ? `${n} to mark` : "0"}
                   </span>
                 </Link>
               );
             })}
           </div>
 
-          <ul className="space-y-3">
-            {items.map((s) => (
-              <li key={s.submissionId}>
-                <Link
-                  href={`/trainer/marking/${s.submissionId}`}
-                  className="group grid gap-3 rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] transition hover:border-plum/20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusStyle[s.status]}`}>
-                        {s.status === "Submitted" ? "To mark" : statusLabel[s.status]}
-                      </span>
-                      {s.attempt > 1 && <span className="text-[11px] text-ink/45">Attempt {s.attempt}</span>}
-                    </div>
-                    <p className="mt-1.5 font-medium text-ink">
-                      {s.studentName} <span className="text-xs font-normal text-ink/45">({s.studentId})</span>
-                    </p>
-                    {s.submittedAt && (
-                      <p className="mt-0.5 text-[11px] text-ink/45">
-                        Submitted <LocalTime iso={s.submittedAt} />
-                        {s.decidedBy && ` · ${statusLabel[s.status]} — ${s.decidedBy}`}
+          {items.length ? (
+            <ul className="space-y-3">
+              {items.map((s) => {
+                const wait = waitTone(s.submittedAt ? Math.max(0, Math.floor((now - new Date(s.submittedAt).getTime()) / DAY)) : 0);
+                const pending = s.status === "Submitted";
+                return (
+                  <li key={s.submissionId} className="flex flex-wrap items-center gap-4 rounded-xl bg-[#f6f5fa] p-4 sm:flex-nowrap">
+                    <span className={`grid h-16 w-16 shrink-0 place-items-center rounded-lg ${tile.tone}`}>
+                      <tile.icon className="h-7 w-7" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/trainer/marking/${s.submissionId}`} className="font-semibold text-plum hover:underline">
+                        {s.studentName} <span className="font-medium text-ink">({s.studentId})</span>
+                      </Link>
+                      <p className="mt-1 text-sm font-semibold text-ink">
+                        {tab?.label}
+                        {s.attempt > 1 && ` · attempt ${s.attempt}`}
+                        <span className="font-medium">
+                          {s.submittedAt && (
+                            <>
+                              {" "}
+                              · submitted <LocalTime iso={s.submittedAt} />
+                            </>
+                          )}
+                        </span>
                       </p>
-                    )}
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-plum">
-                    {s.status === "Submitted" ? "Review" : "View"}
-                    <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                  </span>
-                </Link>
-              </li>
-            ))}
-            {items.length === 0 && (
-              <li className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
-                <ClipboardIcon className="h-8 w-8 text-plum/40" />
-                <p className="mt-3 text-sm text-ink/45">No student has handed in the {tab?.label.toLowerCase()} yet.</p>
-              </li>
-            )}
-          </ul>
+                      {!pending && s.decidedBy && (
+                        <p className="mt-0.5 text-sm text-ink">
+                          {statusLabel[s.status]} — {s.decidedBy}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2.5">
+                      {pending ? (
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${wait.cls}`}>{wait.text}</span>
+                      ) : (
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[s.status]}`}>{statusLabel[s.status]}</span>
+                      )}
+                      <Link
+                        href={`/trainer/marking/${s.submissionId}`}
+                        className={`rounded-full px-5 py-2 text-xs font-semibold transition ${
+                          pending ? "bg-plum text-white hover:bg-plum-light" : "bg-[#e4dcfb] text-plum hover:bg-plum hover:text-white"
+                        }`}
+                      >
+                        {pending ? "Review" : "View"}
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="rounded-xl bg-[#f6f5fa] px-5 py-10 text-center text-sm font-medium text-ink">
+              No student has handed in the {tab?.label} yet.
+            </p>
+          )}
         </>
       )}
     </div>

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { findAssessmentFile } from "@/lib/assessments";
 import { findPlacementFile } from "@/lib/documents";
 import { isUnitHidden } from "@/lib/hidden-units";
+import { isUnitUnlocked } from "@/lib/unit-unlocks";
 import { getUpload } from "@/lib/files";
 import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
@@ -34,7 +35,11 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/files/[id]">
       const courseCode = unitFile?.courseCode ?? placement?.courseCode;
       const student = courseCode ? await getStudent(session.sub) : null;
       allowed = !!courseCode && student?.status === "Active" && hasCourse(student, courseCode);
-      if (allowed && unitFile) allowed = !(await isUnitHidden(session.sub, unitFile.courseCode, unitFile.unitCode));
+      if (allowed && unitFile) {
+        allowed =
+          !(await isUnitHidden(session.sub, unitFile.courseCode, unitFile.unitCode)) &&
+          (await isUnitUnlocked(session.sub, unitFile.courseCode, unitFile.unitCode));
+      }
       if (allowed && courseCode) logged = { courseCode, unitCode: unitFile?.unitCode ?? null, studentName: student!.name };
     }
   }

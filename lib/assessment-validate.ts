@@ -1,5 +1,13 @@
 // Pure validation for the Super Admin assessment editor (unit-tested in tests/assessment-validate.test.ts).
-import { LIMITS, TASK_FILES_MAX, type ListItem, type UnitAssessment } from "./assessment-meta";
+import {
+  LIMITS,
+  TASK_FILES_MAX,
+  UPLOAD_SLOT_LABEL_MAX,
+  UPLOAD_SLOTS_MAX,
+  type ListItem,
+  type UnitAssessment,
+  type UploadSlot,
+} from "./assessment-meta";
 import type { FileRef } from "./submission-meta";
 
 type Validated = { ok: true; value: UnitAssessment } | { ok: false; error: string };
@@ -20,6 +28,13 @@ const fileRefs = (items: unknown): FileRef[] =>
     .map((f: FileRef) => ({ id: String(f?.id ?? ""), name: str(f?.name, 200), size: Math.max(0, Number(f?.size) || 0) }))
     .filter((f) => /^[a-f\d]{24}$/i.test(f.id));
 
+// The attachments asked for on a task: blank names are dropped
+const slots = (items: unknown): UploadSlot[] =>
+  (Array.isArray(items) ? items : [])
+    .slice(0, UPLOAD_SLOTS_MAX)
+    .map((s: UploadSlot) => ({ id: id(s?.id), label: str(s?.label, UPLOAD_SLOT_LABEL_MAX) }))
+    .filter((s) => s.label);
+
 // Rebuild from the client payload so only known, valid fields get stored
 function clean(input: UnitAssessment): UnitAssessment {
   const quizIn = Array.isArray(input?.quiz?.questions) ? input.quiz.questions : [];
@@ -35,13 +50,15 @@ function clean(input: UnitAssessment): UnitAssessment {
     const n = `Quiz question ${i + 1}`;
     const text = str(q?.text);
     if (!text) throw new Invalid(`${n} is empty.`);
+    // Written: the student types an answer, nothing to pick
+    if (q?.kind === "written") return { id: id(q?.id), text, kind: "written" as const, options: [], answer: -1 };
     const options = (Array.isArray(q?.options) ? q.options : []).slice(0, LIMITS.options).map((o) => str(o, 500));
     if (options.length < 2) throw new Invalid(`${n} needs at least 2 options.`);
     const blank = options.findIndex((o) => !o);
     if (blank >= 0) throw new Invalid(`${n}: option ${blank + 1} is empty.`);
     const answer = Number(q?.answer);
     if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) throw new Invalid(`${n}: pick the correct option.`);
-    return { id: id(q?.id), text, options, answer };
+    return { id: id(q?.id), text, kind: "choice" as const, options, answer };
   });
 
   const theory = theoryIn.map((q, i) => {
@@ -61,7 +78,7 @@ function clean(input: UnitAssessment): UnitAssessment {
   return {
     dueAt,
     quiz: { passMark, questions: quiz },
-    theory: { questions: theory, files: fileRefs(input?.theory?.files) },
+    theory: { questions: theory, files: fileRefs(input?.theory?.files), uploads: slots(input?.theory?.uploads) },
     rolePlay: {
       scenario: str(input?.rolePlay?.scenario, LIMITS.longText),
       instructions: str(input?.rolePlay?.instructions, LIMITS.longText),
@@ -72,6 +89,7 @@ function clean(input: UnitAssessment): UnitAssessment {
       evidence: list(input?.workplace?.evidence),
       supervisorSignOff: input?.workplace?.supervisorSignOff === true,
       files: fileRefs(input?.workplace?.files),
+      uploads: slots(input?.workplace?.uploads),
     },
   };
 }

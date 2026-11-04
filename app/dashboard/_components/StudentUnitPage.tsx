@@ -7,6 +7,7 @@ import { getCourse } from "@/lib/courses";
 import { getDeclaration } from "@/lib/declaration-store";
 import { getStudentDueDate } from "@/lib/due-dates";
 import { listHiddenUnits } from "@/lib/hidden-units";
+import { listUnlockedUnits } from "@/lib/unit-unlocks";
 import { getSettings } from "@/lib/settings";
 import type { SubmissionDTO } from "@/lib/submission-meta";
 import { getStudent, hasCourse } from "@/lib/students";
@@ -36,8 +37,9 @@ export default async function StudentUnitPage({
   const unit = course?.units.find((u) => u.code === unitCode);
   if (!course || !unit) notFound();
 
-  const [hidden, assessments, outline, submissions, settings, content, outcome, ownDue, declaration] = await Promise.all([
+  const [hidden, unlocked, assessments, outline, submissions, settings, content, outcome, ownDue, declaration] = await Promise.all([
     listHiddenUnits(student.studentId, course.code),
+    listUnlockedUnits(student.studentId, course.code),
     listCourseAssessments(course.code),
     listCourseOutline(course.code),
     listStudentSubmissions(student.studentId, course.code),
@@ -62,8 +64,12 @@ export default async function StudentUnitPage({
         hasOverview: outline[u.code]?.hasOverview ?? false,
         resources: outline[u.code]?.resources ?? [],
         parts: ASSESSMENT_PARTS.filter((p) => set?.[p.key]).map((p) => ({ key: p.key, status: statusOf(u.code, p.key) ?? "Not started" })),
+        unlocked: unlocked.has(u.code),
       };
     });
+
+  // A locked unit shows only the "locked" notice: none of its content, tasks or due date is sent
+  const locked = !unlocked.has(unit.code);
 
   // Course progress: assessment parts marked Satisfactory out of all parts set up
   const allParts = units.flatMap((u) => u.parts);
@@ -85,14 +91,15 @@ export default async function StudentUnitPage({
         units={units}
         percent={percent}
         initialItem={item}
-        assessment={forStudent(assessment)}
-        initialSubmissions={byPart}
-        pastDue={isPastDue(assessment.dueAt)}
+        assessment={forStudent(locked ? emptyAssessment() : assessment)}
+        initialSubmissions={locked ? {} : byPart}
+        pastDue={!locked && isPastDue(assessment.dueAt)}
         photoRequired={settings.switches.proctoring}
         declaration={declaration}
-        overview={content.overview}
-        resources={content.resources}
-        outcome={outcome}
+        overview={locked ? "" : content.overview}
+        resources={locked ? [] : content.resources}
+        outcome={locked ? null : outcome}
+        locked={locked}
       />
     </div>
   );

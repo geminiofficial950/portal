@@ -14,6 +14,9 @@ export const RESOURCE_SLOTS = [
 ] as const;
 export type ResourceSlot = (typeof RESOURCE_SLOTS)[number]["key"];
 export const isResourceSlot = (v: unknown): v is ResourceSlot => RESOURCE_SLOTS.some((s) => s.key === v);
+// The Supporting Document is a folder: many files, each a resource with slot "supporting" whose title is its path in the folder.
+// Students download them (one by one or all as a ZIP); they aren't shown in the page.
+export const SUPPORTING_MAX = 30;
 
 export type Resource =
   | { id: string; kind: "file"; title: string; description: string; file: FileRef; slot?: ResourceSlot }

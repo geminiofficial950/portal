@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import toast from "react-hot-toast";
+
+// Something on a day, for the dots on the calendar: a due date or a meeting. `label` says what it is; `note` is optional.
+export type CalendarDue = { id: string; iso: string; label: string; note?: string };
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -17,7 +21,15 @@ const useToday = () =>
     () => null,
   );
 
-export default function Calendar() {
+// Days in the viewer's own time zone ("2026-10-10" style keys, month 0-based)
+const dayKey = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
+const keyOf = (iso: string) => {
+  const d = new Date(iso);
+  return dayKey(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+// Month view; a day with something on it has a dot, and clicking it pops up what's on that day
+export default function Calendar({ dues = [] }: { dues?: CalendarDue[] }) {
   const todayStr = useToday();
   const today = todayStr ? new Date(todayStr) : null;
   const [view, setView] = useState<{ y: number; m: number } | null>(null);
@@ -53,6 +65,28 @@ export default function Calendar() {
   for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevDays - i, muted: true });
   for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, muted: false });
 
+  const dueOn = new Map<string, CalendarDue[]>();
+  for (const d of dues) dueOn.set(keyOf(d.iso), [...(dueOn.get(keyOf(d.iso)) ?? []), d]);
+
+  const showDue = (day: number, list: CalendarDue[]) => {
+    const when = new Date(y, m, day).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+    const time = (iso: string) => new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+    toast(
+      <div className="text-sm text-ink">
+        <p className="font-semibold">{when}</p>
+        <ul className="mt-1 space-y-0.5">
+          {list.map((d) => (
+            <li key={d.id}>
+              {d.label} · {time(d.iso)}
+              {d.note && ` · ${d.note}`}
+            </li>
+          ))}
+        </ul>
+      </div>,
+      { id: `due-${y}-${m}-${day}`, icon: "📅", duration: 5000 },
+    );
+  };
+
   const shift = (delta: number) => {
     const d = new Date(y, m + delta, 1);
     setView({ y: d.getFullYear(), m: d.getMonth() });
@@ -86,7 +120,7 @@ export default function Calendar() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1 text-2xl leading-none text-ink/40">
+        <div className="flex items-center gap-1 text-2xl leading-none text-ink">
           <button onClick={() => shift(-1)} aria-label="Previous month" className="rounded px-2 py-1 hover:bg-lilac hover:text-plum">
             ‹
           </button>
@@ -105,15 +139,24 @@ export default function Calendar() {
         {cells.map(({ day, muted }, i) => {
           const isToday =
             !muted && today && today.getFullYear() === y && today.getMonth() === m && today.getDate() === day;
+          const due = muted ? undefined : dueOn.get(dayKey(y, m, day));
+          const circle = `relative grid h-9 w-9 place-items-center rounded-full ${isToday ? "bg-peach text-white" : "text-ink"}`;
           return (
             <span key={i} className="grid place-items-center">
-              <span
-                className={`grid h-9 w-9 place-items-center rounded-full ${
-                  isToday ? "bg-peach text-white" : muted ? "text-ink/30" : "text-ink"
-                }`}
-              >
-                {day}
-              </span>
+              {due ? (
+                <button
+                  type="button"
+                  onClick={() => showDue(day, due)}
+                  aria-label={`${day}: ${due.length} on this day — show what`}
+                  className={`${circle} font-semibold transition hover:bg-lilac hover:text-plum`}
+                >
+                  {day}
+                  {/* the dot under a day with something due */}
+                  <span aria-hidden className="absolute -bottom-0.5 h-2 w-2 rounded-full bg-plum ring-2 ring-white" />
+                </button>
+              ) : (
+                <span className={circle}>{day}</span>
+              )}
             </span>
           );
         })}

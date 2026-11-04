@@ -1,57 +1,86 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "../../dashboard/_components/icons";
+import MarkingInbox, { type InboxRow } from "./MarkingInbox";
+import { ASSESSMENT_PARTS } from "@/lib/assessment-meta";
+import { listAssessmentSummaries } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
-import { countToMarkByCourse } from "@/lib/submissions";
+import { getSettings } from "@/lib/settings";
+import { listAllHandedIn } from "@/lib/submissions";
 
-// Trainer marking, step 1: pick a course
+const DAY = 86_400_000;
+// The request time; this page is rendered per request (it reads the session), so "now" is that moment
+const requestTime = () => Date.now();
+const daysSince = (iso: string | null, now: number) => (iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / DAY)) : 0);
+
+// Trainer marking: one inbox for everything handed in (to mark / sent back / marked) with filters,
+// and the course → unit browse kept underneath
 export default async function MarkingPage() {
   await requireTrainer();
-  const [courses, toMark] = await Promise.all([listCourses(), countToMarkByCourse()]);
-  const total = Object.values(toMark).reduce((a, b) => a + b, 0);
+  const now = requestTime();
+  const [work, courses, settings, assessed] = await Promise.all([listAllHandedIn(), listCourses(), getSettings(), listAssessmentSummaries()]);
+  // units with an assessment — the only ones a trainer can mark
+  const assessedUnits = (code: string) => courses.find((c) => c.code === code)?.units.filter((u) => assessed[`${code}/${u.code}`]).length ?? 0;
+  const unitTitle = (code: string, unit: string) => courses.find((c) => c.code === code)?.units.find((u) => u.code === unit)?.title ?? unit;
+
+  const rows: InboxRow[] = work.map((s) => ({
+    id: s.submissionId,
+    studentId: s.studentId,
+    studentName: s.studentName,
+    courseCode: s.courseCode,
+    unitCode: s.unitCode,
+    unitTitle: unitTitle(s.courseCode, s.unitCode),
+    part: s.part,
+    partLabel: ASSESSMENT_PARTS.find((p) => p.key === s.part)?.label ?? s.part,
+    attempt: s.attempt,
+    status: s.status,
+    submittedAt: s.submittedAt,
+    decidedAt: s.decidedAt,
+    decidedBy: s.decidedBy,
+    waitDays: daysSince(s.submittedAt, now),
+    sinceDecidedDays: daysSince(s.decidedAt, now),
+  }));
+  const toMarkByCourse = (code: string) => rows.filter((r) => r.courseCode === code && r.status === "Submitted").length;
 
   return (
-    <div className="animate-fade-up space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Assessment marking</h1>
-          <p className="mt-1 text-sm text-ink">Open a course, then a unit, to review the Theory Task and Workplacement Task work students handed in.</p>
-        </div>
-        <div className="min-w-48 rounded-[1.5rem] bg-lilac px-5 py-4">
-          <p className="text-2xl font-medium text-ink">{total}</p>
-          <p className="mt-1 text-xs text-ink/50">waiting to be marked</p>
-        </div>
-      </div>
+    <div className="animate-fade-up space-y-10">
+      <MarkingInbox
+        rows={rows}
+        courses={courses.map(({ code, name }) => ({ code, name }))}
+        canMark={settings.trainerPermissions.markAssessments}
+      />
 
-      <ol className="space-y-3">
-        {courses.map((c, i) => (
-          <li key={c.code}>
-            <Link
-              href={`/trainer/marking/course/${encodeURIComponent(c.code)}`}
-              className="group grid gap-4 rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] transition hover:border-plum/20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-            >
-              <div className="flex min-w-0 items-start gap-4">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lilac text-sm font-medium text-plum">{i + 1}</span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-plum">{c.code}</p>
-                  <p className="font-medium leading-snug text-ink">{c.name}</p>
-                  <p className="mt-1 text-xs text-ink/45">
-                    {c.units.length} unit{c.units.length === 1 ? "" : "s"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 sm:justify-end">
-                {toMark[c.code] ? (
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{toMark[c.code]} to mark</span>
-                ) : (
-                  <span className="text-xs text-ink/40">Nothing to mark</span>
-                )}
-                <ArrowRightIcon className="h-4 w-4 text-ink/30 transition group-hover:translate-x-0.5 group-hover:text-plum" />
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ol>
+      {/* the course → unit → part way in, kept for browsing */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold text-ink">Browse by course</h2>
+        <ul className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {courses.map((c) => {
+            const n = toMarkByCourse(c.code);
+            return (
+              <li key={c.code}>
+                <Link
+                  href={`/trainer/marking/course/${encodeURIComponent(c.code)}`}
+                  className="group flex h-full items-center gap-4 rounded-xl bg-[#f6f5fa] p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  {/* course code on two lines: letters, then the number */}
+                  <span className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-plum text-[11px] font-bold leading-tight text-white">
+                    <span>{c.code.match(/^\D+/)?.[0] ?? c.code}</span>
+                    <span>{c.code.replace(/^\D+/, "")}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold leading-snug text-ink">{c.name}</span>
+                    <span className="mt-1 block text-xs font-medium text-ink">
+                      {assessedUnits(c.code)} unit{assessedUnits(c.code) === 1 ? "" : "s"} with assessments ·{" "}
+                      {n ? <span className="font-semibold text-plum">{n} to mark</span> : "nothing to mark"}
+                    </span>
+                  </span>
+                  <ArrowRightIcon className="h-4 w-4 shrink-0 text-ink transition group-hover:translate-x-0.5 group-hover:text-plum" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </div>
   );
 }

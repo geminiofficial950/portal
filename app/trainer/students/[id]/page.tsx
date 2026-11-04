@@ -37,6 +37,7 @@ export default async function TrainerStudentProgressPage(props: PageProps<"/trai
         initial={{ ...progress, units: progress.units.map((u) => ({ ...u, photos: [] })) }}
         canGrade={settings.trainerPermissions.markAssessments}
         canClear={false}
+        canUnlock
         workHrefBase={`/trainer/students/${progress.student.studentId}`}
       />
     </div>

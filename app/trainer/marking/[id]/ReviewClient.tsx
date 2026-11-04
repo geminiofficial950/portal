@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { CheckIcon, CloseIcon } from "../../../dashboard/_components/icons";
 import FileList from "../../../dashboard/_components/FileList";
+import SubmittedFiles from "../../../dashboard/_components/SubmittedFiles";
 import LocalTime from "../../../dashboard/assessment/_components/LocalTime";
 import { decideAction } from "../actions";
 import { ASSESSMENT_PARTS, type TheoryQuestion, type UnitAssessment } from "@/lib/assessment-meta";
@@ -30,10 +31,12 @@ export default function ReviewClient({
   theory,
   rolePlay,
   workplace,
+  quiz,
   canMark,
 }: {
   initialSubmission: SubmissionDTO;
   theory: TheoryQuestion[];
+  quiz: UnitAssessment["quiz"];
   rolePlay: UnitAssessment["rolePlay"];
   workplace: UnitAssessment["workplace"];
   canMark: boolean;
@@ -203,7 +206,7 @@ export default function ReviewClient({
               </a>
             )}
           </div>
-          <FileList files={s.files} emptyText="The student didn’t upload any documents." />
+          <SubmittedFiles sub={s} emptyText="The student didn’t upload any documents." />
         </div>
       )}
 
@@ -213,6 +216,24 @@ export default function ReviewClient({
           <p className="mt-1 text-lg font-semibold text-ink">
             {s.content.score.correct} / {s.content.score.total} correct ({s.content.score.percent}%)
           </p>
+          {!!s.content.quizWritten?.length && <p className="mt-1 text-sm text-ink">Multiple-choice questions only. Read the written answers below.</p>}
+        </div>
+      )}
+
+      {s.part === "quiz" && !!s.content.quizWritten?.length && (
+        <div className={`${card} space-y-4`}>
+          <h2 className="text-base font-medium text-ink">Written answers</h2>
+          {s.content.quizWritten.map((w) => {
+            const n = quiz.questions.findIndex((q) => q.id === w.questionId);
+            return (
+              <div key={w.questionId}>
+                <p className="text-sm font-semibold text-ink">
+                  {n >= 0 ? `${n + 1}. ${quiz.questions[n].text}` : "Question removed"}
+                </p>
+                <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-lilac/60 px-4 py-3 text-sm text-ink">{w.text}</p>
+              </div>
+            );
+          })}
         </div>
       )}
 

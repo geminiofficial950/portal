@@ -86,6 +86,24 @@ export async function setSlotResource(courseCode: string, unitCode: string, reso
   return previous;
 }
 
+// Adds files to the Supporting Document folder
+export async function addSupportingFiles(courseCode: string, unitCode: string, resources: Resource[]) {
+  await (await collection()).updateOne(
+    { courseCode, unitCode },
+    { $push: { resources: { $each: resources } }, $set: { updatedAt: new Date() }, $setOnInsert: { overview: "" } },
+    { upsert: true },
+  );
+}
+
+// Empties the Supporting Document folder; returns the files taken out
+export async function clearSupportingFiles(courseCode: string, unitCode: string) {
+  const col = await collection();
+  const doc = await col.findOne({ courseCode, unitCode });
+  const removed = doc?.resources?.filter((r) => r.kind === "file" && r.slot === "supporting") ?? [];
+  if (removed.length) await col.updateOne({ courseCode, unitCode }, { $pull: { resources: { slot: "supporting" } }, $set: { updatedAt: new Date() } });
+  return removed;
+}
+
 export async function removeResource(courseCode: string, unitCode: string, resourceId: string) {
   const col = await collection();
   const before = await col.findOne({ courseCode, unitCode });

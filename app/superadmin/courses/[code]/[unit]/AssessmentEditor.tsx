@@ -6,11 +6,15 @@ import { CheckIcon, PlusIcon, TrashIcon } from "../../../../dashboard/_component
 import FileList from "../../../../dashboard/_components/FileList";
 import {
   ASSESSMENT_PARTS,
+  isWritten,
   LIMITS,
   summarise,
   TASK_FILES_MAX,
+  UPLOAD_SLOT_LABEL_MAX,
+  UPLOAD_SLOTS_MAX,
   type AssessmentPart,
   type UnitAssessment,
+  type UploadSlot,
 } from "@/lib/assessment-meta";
 import type { Unit } from "@/lib/courses";
 import { toLocalInput } from "@/lib/format";
@@ -140,6 +144,8 @@ export default function AssessmentEditor({
           title="Theory Task"
           files={a.theory.files}
           onChange={(files) => setA({ ...a, theory: { ...a.theory, files } })}
+          uploads={a.theory.uploads}
+          onUploadsChange={(uploads) => setA({ ...a, theory: { ...a.theory, uploads } })}
         />
       )}
       {tab === "workplace" && (
@@ -147,6 +153,8 @@ export default function AssessmentEditor({
           title="Workplacement Task"
           files={a.workplace.files}
           onChange={(files) => setA({ ...a, workplace: { ...a.workplace, files } })}
+          uploads={a.workplace.uploads}
+          onUploadsChange={(uploads) => setA({ ...a, workplace: { ...a.workplace, uploads } })}
         />
       )}
     </div>
@@ -207,7 +215,9 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
       <div className={`${card} flex flex-wrap items-center justify-between gap-4`}>
         <div>
           <h2 className="text-base font-medium text-ink">Quiz and Activities</h2>
-          <p className="mt-0.5 text-xs text-ink/50">Students pick one answer per question. The portal marks it straight away.</p>
+          <p className="mt-0.5 text-xs text-ink/50">
+            Each question is multiple choice (scored automatically) or a written answer (the student types it and the trainer reads it).
+          </p>
         </div>
         <label className="flex items-center gap-3 text-sm text-ink/70">
           Pass mark
@@ -248,47 +258,79 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
             </button>
           </div>
 
-          <p className="mt-4 pl-10 text-[11px] font-medium text-ink/45">Options — select the correct one</p>
-          <ul className="mt-2 space-y-2 pl-10">
-            {q.options.map((opt, k) => (
-              <li key={k} className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name={`answer-${q.id}`}
-                  checked={q.answer === k}
-                  onChange={() => update(i, { answer: k })}
-                  aria-label={`Option ${k + 1} is correct`}
-                  className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-600"
-                />
-                <input
-                  value={opt}
-                  maxLength={500}
-                  onChange={(e) => update(i, { options: q.options.map((o, m) => (m === k ? e.target.value : o)) })}
-                  placeholder={`Option ${k + 1}`}
-                  aria-label={`Question ${i + 1} option ${k + 1}`}
-                  className={`${field} py-2.5 ${q.answer === k ? "ring-2 ring-emerald-300" : ""}`}
-                />
+          <div role="radiogroup" aria-label={`Question ${i + 1} type`} className="mt-3 flex flex-wrap gap-2 pl-10">
+            {(
+              [
+                ["choice", "Multiple choice"],
+                ["written", "Written answer"],
+              ] as const
+            ).map(([kind, label]) => {
+              const active = (q.kind ?? "choice") === kind;
+              return (
                 <button
-                  disabled={q.options.length <= 2}
+                  key={kind}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
                   onClick={() =>
-                    update(i, {
-                      options: q.options.filter((_, m) => m !== k),
-                      answer: q.answer === k ? 0 : q.answer > k ? q.answer - 1 : q.answer,
-                    })
+                    !active &&
+                    update(i, kind === "written" ? { kind, options: [], answer: -1 } : { kind, options: ["", "", "", ""], answer: 0 })
                   }
-                  aria-label={`Remove option ${k + 1}`}
-                  className={`${removeBtn} disabled:invisible`}
+                  className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${active ? "bg-plum text-white" : "bg-lilac text-plum hover:bg-plum/10"}`}
                 >
-                  <TrashIcon className="h-4 w-4" />
+                  {label}
                 </button>
-              </li>
-            ))}
-          </ul>
-          {q.options.length < LIMITS.options && (
-            <button onClick={() => update(i, { options: [...q.options, ""] })} className={`${addBtn} ml-10 mt-3`}>
-              <PlusIcon className="h-3.5 w-3.5" />
-              Add option
-            </button>
+              );
+            })}
+          </div>
+
+          {isWritten(q) ? (
+            <p className="mt-3 pl-10 text-sm text-ink">The student gets a box to type their answer. The trainer reads it when marking.</p>
+          ) : (
+            <>
+              <p className="mt-4 pl-10 text-[11px] font-medium text-ink/45">Options — select the correct one</p>
+              <ul className="mt-2 space-y-2 pl-10">
+                {q.options.map((opt, k) => (
+                  <li key={k} className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name={`answer-${q.id}`}
+                      checked={q.answer === k}
+                      onChange={() => update(i, { answer: k })}
+                      aria-label={`Option ${k + 1} is correct`}
+                      className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-600"
+                    />
+                    <input
+                      value={opt}
+                      maxLength={500}
+                      onChange={(e) => update(i, { options: q.options.map((o, m) => (m === k ? e.target.value : o)) })}
+                      placeholder={`Option ${k + 1}`}
+                      aria-label={`Question ${i + 1} option ${k + 1}`}
+                      className={`${field} py-2.5 ${q.answer === k ? "ring-2 ring-emerald-300" : ""}`}
+                    />
+                    <button
+                      disabled={q.options.length <= 2}
+                      onClick={() =>
+                        update(i, {
+                          options: q.options.filter((_, m) => m !== k),
+                          answer: q.answer === k ? 0 : q.answer > k ? q.answer - 1 : q.answer,
+                        })
+                      }
+                      aria-label={`Remove option ${k + 1}`}
+                      className={`${removeBtn} disabled:invisible`}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {q.options.length < LIMITS.options && (
+                <button onClick={() => update(i, { options: [...q.options, ""] })} className={`${addBtn} ml-10 mt-3`}>
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  Add option
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}
@@ -301,7 +343,17 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
         className={addBtn}
       >
         <PlusIcon className="h-4 w-4" />
-        Add quiz question
+        Add multiple-choice question
+      </button>
+      <button
+        onClick={() =>
+          onChange({ ...value, questions: [...value.questions, { id: newId(), text: "", kind: "written", options: [], answer: -1 }] })
+        }
+        disabled={value.questions.length >= LIMITS.questions}
+        className={`${addBtn} ml-2`}
+      >
+        <PlusIcon className="h-4 w-4" />
+        Add written question
       </button>
     </section>
   );
@@ -310,23 +362,86 @@ function QuizEditor({ value, onChange }: { value: UnitAssessment["quiz"]; onChan
 // ---------- Theory Task / Workplacement Task ----------
 
 // Super Admin uploads the task (PDF is best — students can read it in the page); students download it and upload their work
-function TaskFilesEditor({ title, files, onChange }: { title: string; files: FileRef[]; onChange: (files: FileRef[]) => void }) {
+function TaskFilesEditor({
+  title,
+  files,
+  onChange,
+  uploads,
+  onUploadsChange,
+}: {
+  title: string;
+  files: FileRef[];
+  onChange: (files: FileRef[]) => void;
+  uploads: UploadSlot[];
+  onUploadsChange: (uploads: UploadSlot[]) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <section className={`${card} space-y-4`}>
+        <div>
+          <h2 className="text-base font-medium text-ink">{title}</h2>
+          <p className="mt-0.5 text-sm text-ink">
+            Upload the task document(s). Students read or download them, do the task and upload their completed work — nothing to type.
+            A PDF opens right in the student’s page. Up to {TASK_FILES_MAX} files. Remember to save.
+          </p>
+        </div>
+        <FileList
+          files={files}
+          onChange={(next) => onChange(next.slice(0, TASK_FILES_MAX))}
+          emptyText="No task document yet."
+          uploadLabel="Upload task document"
+          inputLabel={`Upload ${title} document`}
+        />
+      </section>
+      <UploadSlotsEditor title={title} uploads={uploads} onChange={onUploadsChange} />
+    </div>
+  );
+}
+
+// The attachments the student must upload for this task. Each one gets its own upload box on the student's page,
+// and they can't submit until every box has a file. Leave it empty to let them upload any files.
+function UploadSlotsEditor({ title, uploads, onChange }: { title: string; uploads: UploadSlot[]; onChange: (u: UploadSlot[]) => void }) {
+  const set = (i: number, label: string) => onChange(uploads.map((u, j) => (j === i ? { ...u, label } : u)));
   return (
     <section className={`${card} space-y-4`}>
       <div>
-        <h2 className="text-base font-medium text-ink">{title}</h2>
+        <h2 className="text-base font-medium text-ink">What the student must upload</h2>
         <p className="mt-0.5 text-sm text-ink">
-          Upload the task document(s). Students read or download them, do the task and upload their completed work — nothing to type.
-          A PDF opens right in the student’s page. Up to {TASK_FILES_MAX} files. Remember to save.
+          Name each attachment you need (for example “Completed answers” or “Signed log timesheet”). The student gets an upload box for
+          each one and must fill them all before submitting. Leave this empty to let them upload any files. Remember to save.
         </p>
       </div>
-      <FileList
-        files={files}
-        onChange={(next) => onChange(next.slice(0, TASK_FILES_MAX))}
-        emptyText="No task document yet."
-        uploadLabel="Upload task document"
-        inputLabel={`Upload ${title} document`}
-      />
+      {uploads.length > 0 && (
+        <ol className="space-y-2">
+          {uploads.map((u, i) => (
+            <li key={u.id} className="flex items-center gap-2">
+              <span className="w-6 shrink-0 text-right text-sm font-medium text-ink">{i + 1}.</span>
+              <input
+                value={u.label}
+                maxLength={UPLOAD_SLOT_LABEL_MAX}
+                onChange={(e) => set(i, e.target.value)}
+                placeholder="e.g. Signed log timesheet"
+                aria-label={`${title} attachment ${i + 1}`}
+                className={field}
+              />
+              <button
+                type="button"
+                onClick={() => onChange(uploads.filter((_, j) => j !== i))}
+                aria-label={`Remove attachment ${i + 1}`}
+                className={removeBtn}
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {uploads.length < UPLOAD_SLOTS_MAX && (
+        <button type="button" onClick={() => onChange([...uploads, { id: newId(), label: "" }])} className={addBtn}>
+          <PlusIcon className="h-4 w-4" />
+          Add attachment
+        </button>
+      )}
     </section>
   );
 }

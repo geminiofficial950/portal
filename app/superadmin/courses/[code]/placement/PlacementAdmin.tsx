@@ -7,6 +7,7 @@ import { FileIcon, TrashIcon } from "../../../../dashboard/_components/icons";
 import UploadButton from "../../../../dashboard/_components/UploadButton";
 import { DOC_TITLE_MAX, PLACEMENT_DOC_TYPES, PLACEMENT_TEXT_MAX, sortPlacementDocs, type PlacementDocDTO } from "@/lib/document-meta";
 import { FILE_RULES } from "@/lib/submission-meta";
+import FileActions from "../../../../dashboard/_components/FileActions";
 
 const card = "space-y-4 rounded-[1.5rem] border border-ink/10 bg-white p-5 sm:p-6";
 
@@ -139,10 +140,9 @@ export default function PlacementAdmin({
                 <FileIcon className="h-5 w-5 shrink-0 text-plum" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-ink">{d.title}</span>
-                  <a href={`/api/files/${d.file.id}`} className="block truncate text-xs text-plum underline">
-                    {d.file.name}
-                  </a>
+                  <span className="block truncate text-xs text-ink">{d.file.name}</span>
                 </span>
+                <FileActions file={d.file} title={d.title} size="sm" />
                 <span className="rounded-full bg-lilac px-3 py-1 text-xs font-medium text-ink">
                   {signedCounts[d.docId] ?? 0} signed cop{(signedCounts[d.docId] ?? 0) === 1 ? "y" : "ies"} uploaded
                 </span>

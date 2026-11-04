@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { logout } from "../../actions/auth";
+import ThemeToggle from "../../components/ThemeToggle";
 import {
   BookIcon,
   BoxIcon,
@@ -19,6 +20,7 @@ import {
   UserPlusIcon,
   ShieldIcon,
   UsersIcon,
+  VideoIcon,
 } from "./icons";
 
 export type PortalVariant = "student" | "trainer" | "admin";
@@ -32,6 +34,7 @@ const variants = {
     nav: [
       { label: "Dashboard", href: "/dashboard", icon: HomeIcon },
       { label: "Course", href: "/dashboard/course", icon: BoxIcon },
+      { label: "Classroom", href: "/dashboard/classroom", icon: VideoIcon },
       { label: "Tickets", href: "/dashboard/tickets", icon: TicketIcon },
       { label: "User Guide", href: "/dashboard/user-guide", icon: BookIcon },
       { label: "Support", href: "/dashboard/support", icon: ChatIcon },
@@ -46,9 +49,11 @@ const variants = {
   trainer: {
     home: "/trainer",
     nav: [
-      { label: "My tickets", href: "/trainer", icon: TicketIcon },
+      { label: "Dashboard", href: "/trainer", icon: HomeIcon },
+      { label: "My tickets", href: "/trainer/tickets", icon: TicketIcon },
       { label: "Marking", href: "/trainer/marking", icon: ClipboardIcon },
       { label: "Students", href: "/trainer/students", icon: UsersIcon },
+      { label: "Classroom", href: "/trainer/classroom", icon: VideoIcon },
     ],
     help: {
       title: "Trainer",
@@ -65,6 +70,7 @@ const variants = {
       { label: "Trainers", href: "/superadmin/trainers", icon: UserPlusIcon },
       { label: "Admins", href: "/superadmin/admins", icon: ShieldIcon, superOnly: true },
       { label: "Courses", href: "/superadmin/courses", icon: BoxIcon },
+      { label: "Classroom", href: "/superadmin/classroom", icon: VideoIcon },
       { label: "Tickets", href: "/superadmin/tickets", icon: TicketIcon },
       { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon },
     ],
@@ -211,10 +217,11 @@ export default function Sidebar({ variant = "student", superAdmin = false }: { v
           <SofaIllustration />
         </div>
 
+        <ThemeToggle look="menu" className="mt-4" />
         <form action={logout}>
           <button
             type="submit"
-            className="mt-4 flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white/75 transition hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white/75 transition hover:text-white"
           >
             <LogoutIcon className="h-5 w-5" />
             Logout

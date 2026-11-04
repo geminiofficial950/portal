@@ -10,6 +10,7 @@ import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { getStudentDueDate } from "@/lib/due-dates";
 import { isUnitHidden } from "@/lib/hidden-units";
+import { isUnitUnlocked } from "@/lib/unit-unlocks";
 import { deleteUploads, ownedUploads } from "@/lib/files";
 import { scoreQuiz } from "@/lib/quiz";
 import { logStudent } from "@/lib/student-logs";
@@ -39,6 +40,7 @@ async function load(courseCode: string, unitCode: string) {
   if (!course || !unit || (await isUnitHidden(student.studentId, course.code, unit.code))) {
     return { error: "This unit isn’t in your course." } as const;
   }
+  if (!(await isUnitUnlocked(student.studentId, course.code, unit.code))) return { error: "This unit is locked. Your trainer will unlock it." } as const;
   const outcome = await getUnitResult(student.studentId, course.code, unit.code);
   if (outcome) return { error: `This unit is finalised (${outcome.label}), so it can’t be changed.` } as const;
   const [assessment, ownDue] = await Promise.all([
@@ -55,14 +57,21 @@ const refresh = (unitCode: string) => {
   revalidatePath("/trainer", "layout");
 };
 
-export async function submitQuizAction(courseCode: string, unitCode: string, answers: number[], photoId?: string | null): Promise<Result> {
+// `answers`: an option index for each multiple-choice question, the typed text for each written one
+export async function submitQuizAction(
+  courseCode: string,
+  unitCode: string,
+  answers: (number | string)[],
+  photoId?: string | null,
+): Promise<Result> {
   const ctx = await load(courseCode, unitCode);
   if ("error" in ctx) return { ok: false, error: ctx.error! };
   const { student, course, unit, assessment } = ctx;
   const marked = scoreQuiz(assessment.quiz.questions, answers, assessment.quiz.passMark);
   if (!marked.ok) return marked;
-  // The score is saved for staff; Trainer / Admin / Super Admin set the status
-  const { correct, total, percent } = marked.score;
+  // The score (multiple-choice questions only) and the written answers are saved for staff, who set the status
+  const { score, choices, written } = marked;
+  const scored = score ? `scored ${score.correct}/${score.total} (${score.percent}%)` : "written answers";
   const snap = await submitPhoto(photoId, student.studentId);
   if ("error" in snap) return { ok: false, error: snap.error! };
 
@@ -72,20 +81,24 @@ export async function submitQuizAction(courseCode: string, unitCode: string, ans
       { studentName: student.name, unitTitle: unit.title },
       {
         status: "Submitted",
-        content: { quizAnswers: answers, score: { correct, total, percent } },
+        content: {
+          quizAnswers: choices,
+          ...(score && { score: { correct: score.correct, total: score.total, percent: score.percent } }),
+          ...(written.length > 0 && { quizWritten: written }),
+        },
         files: [],
         photo: snap.photo,
       },
     );
     if (previousPhoto && previousPhoto.id !== snap.photo?.id) await deleteUploads([previousPhoto.id]);
-    await logActivity(student.name, `submitted the ${unit.code} quiz (scored ${percent}%)`, "student");
+    await logActivity(student.name, `submitted the ${unit.code} quiz (${scored})`, "student");
     await logStudent({
       studentId: student.studentId,
       studentName: student.name,
       courseCode: course.code,
       unitCode: unit.code,
       action: saved.attempt > 1 ? "Resubmitted" : "Submitted",
-      detail: `Quiz and Activities · scored ${correct}/${total} (${percent}%)`,
+      detail: `Quiz and Activities · ${scored}`,
     });
     refresh(unit.code);
     return { ok: true, submission: saved };
@@ -105,6 +118,7 @@ export async function saveWorkAction(
     supervisor?: string;
     evidence?: { evidenceId: string; fileIds?: string[] }[];
     fileIds: string[];
+    slots?: { slotId: string; fileIds: string[] }[]; // when the task asks for named attachments
   },
   mode: "draft" | "submit",
   photoId?: string | null,
@@ -120,10 +134,30 @@ export async function saveWorkAction(
   const task = part === "theory" ? assessment.theory.files : assessment.workplace.files;
   if (!task.length) return { ok: false, error: `${label} isn’t set up for this unit yet.` };
 
-  const ids = Array.isArray(input?.fileIds) ? input.fileIds.slice(0, FILE_RULES.maxFiles).map(String) : [];
-  const files = await ownedUploads(ids, student.studentId);
+  // Named attachments Super Admin asked for: one upload box each, all filled before submitting.
+  // Without them the student uploads any files (up to FILE_RULES.maxFiles).
+  const asked = part === "theory" ? assessment.theory.uploads : assessment.workplace.uploads;
   const content: SubmissionContent = {};
-  if (mode === "submit" && files.length === 0) return { ok: false, error: "Upload your completed work first." };
+  let files;
+  if (asked.length) {
+    const sent = Array.isArray(input?.slots) ? input.slots : [];
+    const picked = asked.map((slot) => ({
+      slot,
+      ids: [...new Set((sent.find((x) => x?.slotId === slot.id)?.fileIds ?? []).map(String))].slice(0, FILE_RULES.maxPerSlot),
+    }));
+    files = await ownedUploads(
+      picked.flatMap((p) => p.ids),
+      student.studentId,
+    );
+    const owned = new Set(files.map((f) => f.id));
+    content.slots = picked.map(({ slot, ids }) => ({ slotId: slot.id, label: slot.label, fileIds: ids.filter((i) => owned.has(i)) }));
+    const missing = content.slots.find((s) => !s.fileIds.length);
+    if (mode === "submit" && missing) return { ok: false, error: `Upload “${missing.label}” before you submit.` };
+  } else {
+    const ids = Array.isArray(input?.fileIds) ? input.fileIds.slice(0, FILE_RULES.maxFiles).map(String) : [];
+    files = await ownedUploads(ids, student.studentId);
+    if (mode === "submit" && files.length === 0) return { ok: false, error: "Upload your completed work first." };
+  }
   if (mode === "submit") {
     if (declared !== true) return { ok: false, error: "Tick the declaration before you submit." };
     content.declaration = { agreedAt: new Date().toISOString(), ...(await getDeclaration()) };
