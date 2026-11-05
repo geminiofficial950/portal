@@ -35,7 +35,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       return { error: adminLogin.reason === "inactive" ? "Your admin access is switched off. Please contact Super Admin." : "Wrong ID or password.", username };
     }
     await createSession({ sub: adminLogin.admin.adminId, role: "admin", name: adminLogin.admin.name });
-    redirect("/superadmin");
+    redirect("/admin"); // Admin accounts see the admin pages under /admin (proxy.ts)
   }
 
   let trainer, result;

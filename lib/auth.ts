@@ -27,7 +27,7 @@ export async function isAdminRequest() {
 // Only the .env Super Admin: managing Admin accounts
 export async function requireSuperAdmin() {
   const admin = await requireAdmin();
-  if (!admin.isSuper) redirect("/superadmin");
+  if (!admin.isSuper) redirect("/admin");
   return admin;
 }
 
