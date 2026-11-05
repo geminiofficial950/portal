@@ -9,7 +9,7 @@ import ThemeToggle from "../../components/ThemeToggle";
 import {
   BookIcon,
   BoxIcon,
-  ChatIcon,
+  // ChatIcon, // used by the Support menu item (switched off for now)
   ClipboardIcon,
   CloseIcon,
   HomeIcon,
@@ -37,7 +37,8 @@ const variants = {
       { label: "Classroom", href: "/dashboard/classroom", icon: VideoIcon },
       { label: "Tickets", href: "/dashboard/tickets", icon: TicketIcon },
       { label: "User Guide", href: "/dashboard/user-guide", icon: BookIcon },
-      { label: "Support", href: "/dashboard/support", icon: ChatIcon },
+      // Support is switched off for now — uncomment to bring it back
+      // { label: "Support", href: "/dashboard/support", icon: ChatIcon },
     ],
     help: {
       title: "Need Help?",
@@ -104,7 +105,7 @@ function SofaIllustration() {
   );
 }
 
-type NavItem = (typeof variants)[PortalVariant]["nav"][number];
+type NavItem = Omit<(typeof variants)[PortalVariant]["nav"][number], "href"> & { href: string }; // href may be /admin/… for Admin accounts
 type NavLinksProps = { nav: readonly NavItem[]; home: string; onNavigate: () => void };
 
 // Reading the URL suspends during prerender, so the plain list doubles as the fallback.
@@ -142,14 +143,17 @@ function NavLinks({ nav, home, onNavigate, pathname = null }: NavLinksProps & { 
 }
 
 // superAdmin: the .env Super Admin (vs an Admin account) — only they get "Admins"
-export default function Sidebar({ variant = "student", superAdmin = false }: { variant?: PortalVariant; superAdmin?: boolean }) {
+// `superAdmin` is unknown (undefined) while the admin layout is still loading; links stay on /superadmin until it's known
+export default function Sidebar({ variant = "student", superAdmin }: { variant?: PortalVariant; superAdmin?: boolean }) {
   const base = variants[variant];
-  const { home } = base;
-  const nav = base.nav.filter((item) => superAdmin || !("superOnly" in item));
-  const help =
-    variant === "admin" && !superAdmin
-      ? { ...base.help, title: "Admin", text: "You can manage students, trainers, courses and settings. Only Super Admin can change dates." }
-      : base.help;
+  // Admin accounts see the admin pages under /admin instead of /superadmin (proxy.ts)
+  const asAdmin = variant === "admin" && superAdmin === false;
+  const href = (h: string) => (asAdmin ? h.replace(/^\/superadmin/, "/admin") : h);
+  const home = href(base.home);
+  const nav = base.nav.filter((item) => !!superAdmin || !("superOnly" in item)).map((item) => ({ ...item, href: href(item.href) }));
+  const help = asAdmin
+    ? { ...base.help, title: "Admin", text: "You can manage students, trainers, courses and settings. Only Super Admin can change dates.", href: href(base.help.href) }
+    : base.help;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
