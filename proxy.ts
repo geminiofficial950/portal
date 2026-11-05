@@ -27,8 +27,10 @@ export default async function proxy(req: NextRequest) {
     if (session.sub === SUPER_ADMIN_ID) {
       return under(path, "/admin") ? NextResponse.redirect(to(`/superadmin${rest}`)) : NextResponse.next();
     }
-    // an Admin account: never show "superadmin" in the address bar; /admin/… serves the /superadmin/… page
-    return under(path, "/superadmin") ? NextResponse.redirect(to(`/admin${rest}`)) : NextResponse.rewrite(to(`/superadmin${rest}`));
+    // an Admin account: never show "superadmin" in the address bar. /admin/… itself is served by the
+    // /superadmin/… page through the rewrite in next.config.ts (not here: a proxy rewrite carries the host,
+    // which can break behind nginx)
+    return under(path, "/superadmin") ? NextResponse.redirect(to(`/admin${rest}`)) : NextResponse.next();
   }
 
   const needs = under(path, "/trainer") ? "trainer" : under(path, "/dashboard") ? "student" : null;
