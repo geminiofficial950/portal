@@ -18,6 +18,16 @@ export const COURSE_STATUSES = [
 
 export type CourseStatus = (typeof COURSE_STATUSES)[number];
 
+// Student-log action for a course status change; its detail reads "<from> → <to> · <reason> · by <staff>"
+export const COURSE_STATUS_LOG = "Course status changed";
+export const COURSE_STATUS_REASON_MAX = 500;
+export const parseStatusChange = (detail: string) => {
+  const parts = detail.split(" · ");
+  const by = parts.length > 2 && parts.at(-1)!.startsWith("by ") ? parts.pop()!.slice(3) : "";
+  const [change = "", ...reason] = parts;
+  return { change, reason: reason.join(" · "), by };
+};
+
 // Only the four choices can be set
 export const isCourseStatus = (v: unknown): v is CourseStatus => STATUS_CHOICES.includes(v as (typeof STATUS_CHOICES)[number]);
 

@@ -276,3 +276,16 @@ export const ActivityIcon = (p: P) => (
     <path d="M3 12h4l3-8 4 16 3-8h4" />
   </svg>
 );
+
+export const DownloadIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </svg>
+);
+
+export const InfoIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </svg>
+);

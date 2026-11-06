@@ -41,9 +41,10 @@ export default async function ({ check, get, strip, db }) {
     createdAt: now,
   });
   const t = strip((await get("/dashboard/course", "student")).html);
-  const order = ["Learn to support people in aged care and disability.", "Course documents", "Placement pack", "Your training plan", "Provide individualised support"].map((x) => t.indexOf(x));
-  const ok = order.every((i) => i >= 0) && order.every((i, k) => k === 0 || i > order[k - 1]);
-  console.log(`${ok ? "PASS" : "FAIL"}  student: course page order — description → course documents → placement pack → training plan (units)${ok ? "" : `\n      positions ${order.join(", ")}`}`);
+  // The page streams, so parts can arrive out of order in the HTML; the on-screen order is checked in the browser run
+  const parts = ["Learn to support people in aged care and disability.", "Enrolled date", "Course status", "Course documents", "Placement pack"];
+  const ok = parts.every((x) => t.includes(x)) && t.indexOf("Learn to support") < t.indexOf("Enrolled date") && !t.includes("Your training plan") && !t.includes("Other Requested Documents");
+  console.log(`${ok ? "PASS" : "FAIL"}  student: course page has description, enrolled date, course status, course documents, placement pack (plan on My classes, requests on Requests)${ok ? "" : `\n      missing ${parts.filter((x) => !t.includes(x)).join(", ")}`}`);
   if (!ok) process.exitCode = 1;
 
   // Kami 4 — the old Pass / Fail "Final result options" screen is gone (results are unit statuses now)
@@ -61,6 +62,12 @@ export default async function ({ check, get, strip, db }) {
   await db.collection("unitContent").updateOne({ courseCode: "CHC33021", unitCode: "CHCCCS031" }, { $set: { resources: [res("Care plan template v2")], updatedAt: new Date() } });
   await check("student (Jan batch): after the update sees only the current file", R, "student", { has: ["Care plan template v2"], hasNot: ["Care plan template v1", "Version history", "Previous versions"] });
   await check("student (Feb batch): the same current file, no old one", R, "student2", { has: ["Care plan template v2"], hasNot: ["Care plan template v1"] });
+
+  // Settings is Super Admin only (menu, page and actions)
+  await check("admin account: no Settings in the menu", "/admin/students", "admin", { hasNotRaw: ['href="/admin/settings"'] });
+  // streamed page: the refusal arrives as a redirect inside the stream, so the status stays 200 and no settings content is sent
+  await check("admin account: Settings page refused", "/admin/settings", "admin", { hasNot: ["Declaration", "Portal switches"], hasRaw: ["NEXT_REDIRECT"] });
+  await check("Super Admin: Settings in the menu and the page opens", "/superadmin/settings", "superadmin", { has: ["Declaration"], hasRaw: ['href="/superadmin/settings"'] });
 
   // Students table: the name opens the progress page (no separate Progress button)
   await check("admin: student name links to progress; no Progress button", "/superadmin/students", "superadmin", { hasRaw: ['href="/superadmin/students/S9001"'], hasNotRaw: ['>Progress</a>'] });

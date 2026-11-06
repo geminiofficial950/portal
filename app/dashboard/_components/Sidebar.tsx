@@ -42,8 +42,8 @@ const variants = {
       { label: "My classes", href: "/dashboard/classroom", icon: VideoIcon },
       { label: "Requests", href: "/dashboard/requests", icon: ClipboardIcon },
       { label: "Feedback", href: "/dashboard/feedback", icon: ChatIcon },
-      { label: "Help", href: "/dashboard/user-guide", icon: BookIcon },
-      { label: "Support", href: "/dashboard/tickets", icon: TicketIcon },
+      { label: "Student support", href: "/dashboard/tickets", icon: TicketIcon },
+      { label: "Portal help", href: "/dashboard/user-guide", icon: BookIcon },
     ],
   },
   trainer: {
@@ -70,11 +70,12 @@ const variants = {
       { label: "Students", href: "/superadmin/students", icon: UsersIcon },
       { label: "Trainers", href: "/superadmin/trainers", icon: UserPlusIcon },
       { label: "Batches", href: "/superadmin/batches", icon: CalendarIcon },
-      { label: "Classes", href: "/superadmin/classroom", icon: VideoIcon },
+      // Hidden for now (asked 6 Nov 2026) — the page still works at /superadmin/classroom; uncomment to bring the menu item back
+      // { label: "Classes", href: "/superadmin/classroom", icon: VideoIcon },
       { label: "Requests", href: "/superadmin/requests", icon: ClipboardIcon },
       { label: "Admins", href: "/superadmin/admins", icon: ShieldIcon, superOnly: true },
       { label: "Support", href: "/superadmin/tickets", icon: TicketIcon },
-      { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon },
+      { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon, superOnly: true },
     ],
   },
 } as const;

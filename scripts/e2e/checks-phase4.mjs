@@ -18,9 +18,9 @@ export default async function ({ check, db }) {
   const U = "/dashboard/assessment/CHCCCS040?course=CHC33021";
 
   // ---- portals
-  await check("admin portal title and navigation", "/superadmin", "superadmin", { has: ["Admin Portal", "Courses", "Batches", "Classes", "Requests", "Settings"] });
+  await check("admin portal title and navigation", "/superadmin", "superadmin", { has: ["Admin Portal", "Courses", "Batches", "Requests", "Settings"], hasNotRaw: ['href="/superadmin/classroom"'] });
   await check("trainer portal title and navigation", "/trainer", "trainer", { has: ["Trainer Portal", "My batches", "Assigned units", "Submissions", "Feedback reviews", "Extension requests"] });
-  await check("student portal title and navigation", "/dashboard", "student", { has: ["Student Portal", "Courses", "My classes", "Requests", "Feedback", "Help"] });
+  await check("student portal title and navigation", "/dashboard", "student", { has: ["Student Portal", "Courses", "My classes", "Requests", "Feedback", "Student support Portal help"], hasNot: ["Help Support"] });
 
   // ---- marking screen
   await check("trainer: marking screen has manual status, publish, marked copy and due date", "/trainer/marking/sub-mcq", "trainer", {
