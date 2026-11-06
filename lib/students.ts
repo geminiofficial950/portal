@@ -19,7 +19,8 @@ type StudentDoc = {
   course: string;
   status: StudentStatus;
   progress: number;
-  groupId?: string | null; // Super Admin group, see lib/groups.ts
+  batchIds?: string[]; // batches the student is in, at most one per course (lib/groups.ts, lib/batch-meta.ts)
+  groupId?: string | null; // older records: the one group (now a batch) they were in
   courseStatuses?: Record<string, CourseStatus>; // standing per course, set by Super Admin (missing = Active)
   courseEnrolledAt?: Record<string, Date>; // when each course was added (missing = createdAt)
   courseStatus?: CourseStatus; // older records: status of `course`
@@ -37,9 +38,12 @@ export type StudentDTO = {
   courses: StudentCourse[];
   status: StudentStatus;
   progress: number;
-  groupId: string | null;
+  batchIds: string[];
   enrolled: string;
 };
+
+// The batches a record lists, older single `groupId` included
+const batchIdsOf = (d: Pick<StudentDoc, "batchIds" | "groupId">) => [...new Set([...(d.batchIds ?? []), ...(d.groupId ? [d.groupId] : [])])];
 
 const courseCodes = (d: Pick<StudentDoc, "courses" | "course">) => (d.courses?.length ? d.courses : d.course ? [d.course] : []);
 
@@ -54,7 +58,7 @@ const toDTO = (d: StudentDoc): StudentDTO => ({
   })),
   status: d.status,
   progress: d.progress,
-  groupId: d.groupId ?? null,
+  batchIds: batchIdsOf(d),
   enrolled: formatDate(d.createdAt),
 });
 
@@ -94,6 +98,11 @@ export async function listStudents() {
 export async function getStudent(studentId: string) {
   const doc = await (await collection()).findOne({ studentId });
   return doc ? toDTO(doc) : null;
+}
+
+// How many students are enrolled in this course (any status)
+export async function countStudentsInCourse(courseCode: string) {
+  return (await collection()).countDocuments({ $or: [{ courses: courseCode }, { course: courseCode }] });
 }
 
 export async function countStudents() {
@@ -137,7 +146,6 @@ export async function createStudent(input: {
   courses: string[];
   password: string;
   studentId?: string;
-  groupId?: string | null;
 }) {
   const col = await collection();
   const doc: StudentDoc = {
@@ -149,7 +157,7 @@ export async function createStudent(input: {
     courseEnrolledAt: Object.fromEntries(input.courses.map((c) => [c, new Date()])),
     status: "Active",
     progress: 0,
-    groupId: input.groupId ?? null,
+    batchIds: [],
     passwordHash: await hash(input.password, 10),
     createdAt: new Date(),
   };
@@ -188,9 +196,19 @@ export async function setStudentCourses(studentId: string, courses: string[]) {
   return true;
 }
 
-export async function setStudentGroup(studentId: string, groupId: string | null) {
-  const res = await (await collection()).updateOne({ studentId }, { $set: { groupId } });
+// Replaces the student's batch list (worked out with placeInBatch); the older `groupId` is folded in
+export async function setStudentBatches(studentId: string, batchIds: string[]) {
+  const res = await (await collection()).updateOne({ studentId }, { $set: { batchIds }, $unset: { groupId: "" } });
   return res.matchedCount === 1;
+}
+
+// Everyone in one batch, A–Z
+export async function listStudentsInBatch(batchId: string) {
+  const docs = await (await collection())
+    .find({ $or: [{ batchIds: batchId }, { groupId: batchId }] })
+    .sort({ name: 1 })
+    .toArray();
+  return docs.map(toDTO);
 }
 
 export async function resetStudentPassword(studentId: string, password: string) {

@@ -44,6 +44,12 @@ export async function ownedUploads(ids: string[], ownerId: string) {
   return docs.map((d) => ({ id: d._id.toString(), name: d.filename, size: d.length }));
 }
 
+// Changes the name a file downloads as (already cleaned with lib/file-names.ts)
+export async function renameUpload(id: string, name: string) {
+  if (!ObjectId.isValid(id)) return;
+  await (await bucket()).rename(new ObjectId(id), name).catch(() => undefined);
+}
+
 export async function deleteUploads(ids: string[]) {
   const b = await bucket();
   await Promise.all(

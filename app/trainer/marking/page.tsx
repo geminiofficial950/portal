@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "../../dashboard/_components/icons";
 import MarkingInbox, { type InboxRow } from "./MarkingInbox";
-import { ASSESSMENT_PARTS } from "@/lib/assessment-meta";
-import { listAssessmentSummaries } from "@/lib/assessments";
+import { partLabel, partsOf } from "@/lib/assessment-meta";
+import { listAllAssessments } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
 import { getSettings } from "@/lib/settings";
 import { listAllHandedIn } from "@/lib/submissions";
+import { trainerScope } from "@/lib/trainer-access";
 
 const DAY = 86_400_000;
 // The request time; this page is rendered per request (it reads the session), so "now" is that moment
@@ -16,11 +17,13 @@ const daysSince = (iso: string | null, now: number) => (iso ? Math.max(0, Math.f
 // Trainer marking: one inbox for everything handed in (to mark / sent back / marked) with filters,
 // and the course → unit browse kept underneath
 export default async function MarkingPage() {
-  await requireTrainer();
+  const trainer = await requireTrainer();
   const now = requestTime();
-  const [work, courses, settings, assessed] = await Promise.all([listAllHandedIn(), listCourses(), getSettings(), listAssessmentSummaries()]);
-  // units with an assessment — the only ones a trainer can mark
-  const assessedUnits = (code: string) => courses.find((c) => c.code === code)?.units.filter((u) => assessed[`${code}/${u.code}`]).length ?? 0;
+  const [allWork, courses, settings, assessed, scope] = await Promise.all([listAllHandedIn(), listCourses(), getSettings(), listAllAssessments(), trainerScope(trainer.trainerId)]);
+  // only work of students currently in the trainer's batches, in the units assigned to them
+  const work = allWork.filter((s) => scope.can(s.studentId, s.unitCode));
+  // units with marked modules — the only ones a trainer can mark
+  const assessedUnits = (code: string) => courses.find((c) => c.code === code)?.units.filter((u) => partsOf(assessed[`${code}/${u.code}`]).length > 0).length ?? 0;
   const unitTitle = (code: string, unit: string) => courses.find((c) => c.code === code)?.units.find((u) => u.code === unit)?.title ?? unit;
 
   const rows: InboxRow[] = work.map((s) => ({
@@ -31,7 +34,7 @@ export default async function MarkingPage() {
     unitCode: s.unitCode,
     unitTitle: unitTitle(s.courseCode, s.unitCode),
     part: s.part,
-    partLabel: ASSESSMENT_PARTS.find((p) => p.key === s.part)?.label ?? s.part,
+    partLabel: partLabel(assessed[`${s.courseCode}/${s.unitCode}`], s.part),
     attempt: s.attempt,
     status: s.status,
     submittedAt: s.submittedAt,

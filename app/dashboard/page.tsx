@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
 import { ArrowRightIcon, ClipboardIcon, BoxIcon, TicketIcon } from "./_components/icons";
+import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
@@ -10,8 +11,8 @@ import { listStudentDueDates } from "@/lib/due-dates";
 import { listHiddenUnits } from "@/lib/hidden-units";
 import { getStudent } from "@/lib/students";
 import { listTickets } from "@/lib/tickets";
-import { listUnlockedUnits } from "@/lib/unit-unlocks";
-import { listStudentResults } from "@/lib/unit-results";
+import { listUnitRecords } from "@/lib/unit-records";
+import { unitAccess } from "@/lib/unit-status-meta";
 
 // The three cards at the top, counted for the logged-in student
 async function QuickLinks() {
@@ -40,9 +41,9 @@ async function QuickLinks() {
     },
     {
       href: "/dashboard/tickets",
-      label: "Open tickets",
+      label: "Open support requests",
       value: open.length,
-      hint: open.length ? `${inProgress} in progress` : "No open tickets",
+      hint: open.length ? `${inProgress} in progress` : "No open support requests",
       icon: TicketIcon,
       tone: "bg-[#e8f3ff]",
     },
@@ -59,19 +60,19 @@ async function DueCalendar() {
   const dues: CalendarDue[] = (
     await Promise.all(
       (student?.courses ?? []).map(async ({ code }) => {
-        const [course, assessments, ownDue, hidden, unlocked, results] = await Promise.all([
+        const [course, assessments, ownDue, hidden, records] = await Promise.all([
           getCourse(code),
           listCourseAssessments(code),
           listStudentDueDates(session.sub, code),
           listHiddenUnits(session.sub, code),
-          listUnlockedUnits(session.sub, code),
-          listStudentResults(session.sub, code),
+          listUnitRecords(session.sub, code),
         ]);
         return (course?.units ?? []).flatMap((u) => {
-          const iso = ownDue[u.code] ?? assessments[u.code]?.dueAt ?? null;
-          const open = !hidden.has(u.code) && !results.some((r) => r.unitCode === u.code);
+          const iso = ownDue[u.code] ?? unitDueAt(assessments[u.code]);
+          const rec = records[u.code] ?? null;
+          const open = !hidden.has(u.code) && (rec?.status ?? "Active") === "Active";
           return iso && open
-            ? [{ id: `${code}/${u.code}`, iso, label: `Due: ${u.code} – ${u.title}`, note: unlocked.has(u.code) ? undefined : "Locked" }]
+            ? [{ id: `${code}/${u.code}`, iso, label: `Due: ${u.code} – ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
             : [];
         });
       }),
@@ -110,7 +111,7 @@ function Cards({ links }: { links: Card[] }) {
 const placeholder: Card[] = [
   { href: "/dashboard/course", label: "My courses", value: "–", hint: "Loading…", icon: BoxIcon, tone: "bg-[#ffe8d6]" },
   { href: "/dashboard/course", label: "Active courses", value: "–", hint: "Loading…", icon: ClipboardIcon, tone: "bg-lilac" },
-  { href: "/dashboard/tickets", label: "Open tickets", value: "–", hint: "Loading…", icon: TicketIcon, tone: "bg-[#e8f3ff]" },
+  { href: "/dashboard/tickets", label: "Open support requests", value: "–", hint: "Loading…", icon: TicketIcon, tone: "bg-[#e8f3ff]" },
 ];
 
 export default function DashboardPage() {

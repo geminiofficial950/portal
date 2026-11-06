@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { adminActor, requireAdmin } from "@/lib/auth";
+import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
 import { unassignTrainerTickets } from "@/lib/tickets";
 import type { TrainerDTO } from "@/lib/trainer-meta";
 import {
@@ -59,8 +59,10 @@ export async function resetTrainerPasswordAction(trainerId: string, password: st
   return { ok: true };
 }
 
+// Super Admin only — an Admin switches the trainer off instead
 export async function deleteTrainerAction(trainerId: string): Promise<Result> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  if (!admin.isSuper) return { ok: false, error: DELETE_SUPER_ADMIN_ONLY };
   const doc = await deleteTrainer(trainerId);
   if (!doc) return { ok: false, error: "Trainer not found." };
   await unassignTrainerTickets(trainerId);

@@ -65,7 +65,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (!result.ok) {
     const error =
       result.reason === "Suspended"
-        ? "Your account is suspended. Please contact admin."
+        ? "Your account is disabled. Please contact admin."
         : result.reason === "Pending"
           ? "Your account isn’t active yet. Please contact admin."
           : "Wrong ID or password.";

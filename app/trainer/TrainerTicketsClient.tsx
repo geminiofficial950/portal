@@ -55,12 +55,12 @@ export default function TrainerTicketsClient({
     <div className="animate-fade-up space-y-8">
       <div>
         <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Hi {name.split(" ")[0]} 👋</h1>
-        <p className="mt-1 text-sm text-ink/55">These are the student tickets assigned to you.</p>
+        <p className="mt-1 text-sm text-ink/55">These are the student support requests assigned to you.</p>
       </div>
 
       {!canHandle && (
         <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          Super Admin has turned off ticket handling for trainers — you can read tickets but not reply or change them.
+          Super Admin has turned off support handling for trainers — you can read requests but not reply or change them.
         </p>
       )}
 
@@ -137,7 +137,7 @@ export default function TrainerTicketsClient({
           <li className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
             <TicketIcon className="h-8 w-8 text-plum/40" />
             <p className="mt-3 text-sm text-ink/45">
-              {filter === "Active" ? "Nothing assigned to you right now." : "No resolved tickets yet."}
+              {filter === "Active" ? "Nothing assigned to you right now." : "No resolved requests yet."}
             </p>
           </li>
         )}
@@ -149,7 +149,7 @@ export default function TrainerTicketsClient({
           onClose={() => setOpenId(null)}
           onUpdate={replace}
           onSend={canHandle ? replyAsTrainerAction : undefined}
-          readOnlyNote="Ticket handling is turned off for trainers."
+          readOnlyNote="Support handling is turned off for trainers."
         />
       )}
     </div>

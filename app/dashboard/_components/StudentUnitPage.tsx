@@ -1,33 +1,25 @@
 import { notFound } from "next/navigation";
 import UnitWork, { type OutlineUnit } from "../assessment/[unit]/UnitWork";
-import { ASSESSMENT_PARTS, emptyAssessment, forStudent, isPastDue, summarise, type AssessmentPart } from "@/lib/assessment-meta";
+import { emptyAssessment, forStudent } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { getDeclaration } from "@/lib/declaration-store";
-import { getStudentDueDate } from "@/lib/due-dates";
+import { listExtensionRequests, studentModuleDues } from "@/lib/deadlines";
 import { listHiddenUnits } from "@/lib/hidden-units";
-import { listUnlockedUnits } from "@/lib/unit-unlocks";
+import { liveModules, markableModules, needsSubmission } from "@/lib/module-meta";
 import { getSettings } from "@/lib/settings";
-import type { SubmissionDTO } from "@/lib/submission-meta";
+import { forStudentSub, type SubmissionDTO } from "@/lib/submission-meta";
 import { getStudent, hasCourse } from "@/lib/students";
 import { listStudentSubmissions } from "@/lib/submissions";
 import { getUnitContent, listCourseOutline } from "@/lib/unit-content";
-import { getUnitResult } from "@/lib/unit-results";
+import { listUnitRecords } from "@/lib/unit-records";
+import { unitAccess } from "@/lib/unit-status-meta";
 
-// One unit of one of the signed-in student's courses, in a course-player layout:
-// the selected item on the left, every unit of the course on the right. Each unit is:
-// 1. Quiz and Activities  2. Resources  3. Theory Task  4. Workplacement Task.
-// `courseCode` comes from the link; without it, the first of their courses that has the unit. `item` picks what to open.
-export default async function StudentUnitPage({
-  unitCode,
-  courseCode,
-  item,
-}: {
-  unitCode: string;
-  courseCode?: string;
-  item?: string;
-}) {
+// One unit of one of the signed-in student's courses: an overview of its modules, Resources, then each module,
+// with every unit of the course on the right. `courseCode` comes from the link; without it, the first of their
+// courses that has the unit. `item` picks what to open.
+export default async function StudentUnitPage({ unitCode, courseCode, item }: { unitCode: string; courseCode?: string; item?: string }) {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
   if (!student) notFound();
@@ -37,50 +29,57 @@ export default async function StudentUnitPage({
   const unit = course?.units.find((u) => u.code === unitCode);
   if (!course || !unit) notFound();
 
-  const [hidden, unlocked, assessments, outline, submissions, settings, content, outcome, ownDue, declaration] = await Promise.all([
+  const [hidden, records, assessments, outline, submissions, settings, content, allDues, declaration, extensions] = await Promise.all([
     listHiddenUnits(student.studentId, course.code),
-    listUnlockedUnits(student.studentId, course.code),
+    listUnitRecords(student.studentId, course.code),
     listCourseAssessments(course.code),
     listCourseOutline(course.code),
     listStudentSubmissions(student.studentId, course.code),
     getSettings(),
     getUnitContent(course.code, unit.code),
-    getUnitResult(student.studentId, course.code, unit.code),
-    getStudentDueDate(student.studentId, course.code, unit.code),
+    studentModuleDues(student.studentId, course.code),
     getDeclaration(),
+    listExtensionRequests({ studentId: student.studentId, courseCode: course.code }),
   ]);
   if (hidden.has(unit.code)) notFound();
 
-  const statusOf = (u: string, p: AssessmentPart) => submissions.find((s) => s.unitCode === u && s.part === p)?.status;
+  const statusOf = (u: string, p: string) => submissions.find((s) => s.unitCode === u && s.part === p)?.status;
+  // Unit status is the highest access rule: Active AND opened by admin (or released). Anything else hides every module.
+  const accessOf = (u: string) => unitAccess(records[u] ?? null);
 
-  // Every unit the student can see, with what's inside it, for the sidebar
+  // Every unit the student can see, with its modules, for the sidebar
   const units: OutlineUnit[] = course.units
     .filter((u) => !hidden.has(u.code))
-    .map((u) => {
-      const set = assessments[u.code] ? summarise(assessments[u.code]) : null;
-      return {
-        code: u.code,
-        title: u.title,
-        hasOverview: outline[u.code]?.hasOverview ?? false,
-        resources: outline[u.code]?.resources ?? [],
-        parts: ASSESSMENT_PARTS.filter((p) => set?.[p.key]).map((p) => ({ key: p.key, status: statusOf(u.code, p.key) ?? "Not started" })),
-        unlocked: unlocked.has(u.code),
-      };
-    });
+    .map((u) => ({
+      code: u.code,
+      title: u.title,
+      hasOverview: outline[u.code]?.hasOverview ?? false,
+      resources: outline[u.code]?.resources ?? [],
+      parts: liveModules(assessments[u.code]?.modules ?? []).map((m) => ({
+        key: m.id,
+        label: m.title,
+        status: statusOf(u.code, m.id) ?? "Not started",
+        marked: needsSubmission(m),
+      })),
+      unlocked: accessOf(u.code).open,
+      note: accessOf(u.code).reason,
+    }));
 
-  // A locked unit shows only the "locked" notice: none of its content, tasks or due date is sent
-  const locked = !unlocked.has(unit.code);
+  // A unit that isn't open shows only its name, its status and why — none of its content, modules or dates is sent
+  const access = accessOf(unit.code);
+  const locked = !access.open;
+  const record = records[unit.code] ?? null;
 
-  // Course progress: assessment parts marked Satisfactory out of all parts set up
-  const allParts = units.flatMap((u) => u.parts);
-  const percent = allParts.length ? Math.round((allParts.filter((p) => p.status === "Accepted").length / allParts.length) * 100) : 0;
+  // Course progress: marked modules Satisfactory out of all marked modules
+  const marked = units.flatMap((u) => u.parts.filter((p) => p.marked));
+  const percent = marked.length ? Math.round((marked.filter((p) => p.status === "Accepted").length / marked.length) * 100) : 0;
 
-  // A due date Super Admin set for this student replaces the unit's
-  const unitAssessment = assessments[unit.code] ?? emptyAssessment();
-  const assessment = { ...unitAssessment, dueAt: ownDue ?? unitAssessment.dueAt };
-  const byPart: Partial<Record<AssessmentPart, SubmissionDTO>> = Object.fromEntries(
-    submissions.filter((s) => s.unitCode === unit.code).map((s) => [s.part, s]),
-  );
+  const assessment = assessments[unit.code] ?? emptyAssessment();
+  // Each module's deadline for this student: their own (extension / request), else the module's
+  const dues = Object.fromEntries(markableModules(assessment.modules).map((m) => [m.id, allDues[`${unit.code}/${m.id}`] ?? null]));
+  // never the trainer's unpublished marking
+  const byPart: Record<string, SubmissionDTO> = Object.fromEntries(submissions.filter((s) => s.unitCode === unit.code).map((s) => [s.part, forStudentSub(s)]));
+  const myRequests = extensions.filter((r) => r.unitCode === unit.code);
 
   return (
     <div className="animate-fade-up">
@@ -93,13 +92,14 @@ export default async function StudentUnitPage({
         initialItem={item}
         assessment={forStudent(locked ? emptyAssessment() : assessment)}
         initialSubmissions={locked ? {} : byPart}
-        pastDue={!locked && isPastDue(assessment.dueAt)}
+        dues={locked ? {} : dues}
+        extensions={locked ? [] : myRequests}
         photoRequired={settings.switches.proctoring}
         declaration={declaration}
-        overview={locked ? "" : content.overview}
         resources={locked ? [] : content.resources}
-        outcome={locked ? null : outcome}
+        unitStatus={record && record.status !== "Active" ? record : null}
         locked={locked}
+        lockNote={locked ? `${access.reason}. ${access.next}` : null}
       />
     </div>
   );

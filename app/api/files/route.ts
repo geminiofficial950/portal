@@ -2,11 +2,11 @@ import type { NextRequest } from "next/server";
 import { saveUpload, UploadError } from "@/lib/files";
 import { getSession } from "@/lib/session";
 
-// Students upload their assessment work here, and Super Admin uploads unit reading resources.
+// Students upload their work here, Super Admin / Admins upload unit resources, and trainers upload marked copies.
 // The returned id is then attached to a submission or a resource.
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (session?.role !== "student" && session?.role !== "admin") {
+  if (session?.role !== "student" && session?.role !== "admin" && session?.role !== "trainer") {
     return Response.json({ error: "Please log in again." }, { status: 401 });
   }
 

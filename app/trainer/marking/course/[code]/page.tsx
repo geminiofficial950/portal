@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRightIcon, BackIcon, CheckIcon } from "../../../../dashboard/_components/icons";
-import { MARKED_PARTS, summarise } from "@/lib/assessment-meta";
+import { partsOf } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { listCourseWork } from "@/lib/submissions";
+import { trainerScope } from "@/lib/trainer-access";
 
 const SHOW = [
   { key: "all", label: "All units" },
@@ -13,24 +14,24 @@ const SHOW = [
 ] as const;
 
 // One row per unit, one column per part — like a gradebook
-const cols = "md:grid-cols-[2.5rem_minmax(0,1fr)_repeat(3,10rem)_1.25rem]";
+const cols = "md:grid-cols-[2.5rem_minmax(0,1fr)_14rem_1.25rem]";
 
 // Trainer marking, by course: the units that have an assessment, with the state of each part at a glance.
 // Units without one aren't shown — there's nothing a trainer can mark there.
 export default async function MarkingCoursePage(props: PageProps<"/trainer/marking/course/[code]">) {
-  await requireTrainer();
+  const trainer = await requireTrainer();
   const [{ code }, { show: showParam }] = await Promise.all([props.params, props.searchParams]);
   const course = await getCourse(decodeURIComponent(code));
   if (!course) notFound();
 
-  const [assessments, work] = await Promise.all([listCourseAssessments(course.code), listCourseWork(course.code)]);
+  const [assessments, work] = await Promise.all([listCourseAssessments(course.code), listCourseWork(course.code).then(async (w) => { const scope = await trainerScope(trainer.trainerId); return w.filter((s) => scope.can(s.studentId, s.unitCode)); })]);
   const waiting = (unit: string, part?: string) =>
     work.filter((s) => s.unitCode === unit && s.status === "Submitted" && (!part || s.part === part)).length;
   const handedIn = (unit: string, part: string) => work.some((s) => s.unitCode === unit && s.part === part);
   const total = work.filter((s) => s.status === "Submitted").length;
 
   const show = SHOW.find((s) => s.key === showParam)?.key ?? "all";
-  const assessed = course.units.map((u, i) => ({ ...u, n: i + 1 })).filter((u) => assessments[u.code]);
+  const assessed = course.units.map((u, i) => ({ ...u, n: i + 1 })).filter((u) => partsOf(assessments[u.code]).length > 0);
   const units = show === "todo" ? assessed.filter((u) => waiting(u.code) > 0) : assessed;
   const base = `/trainer/marking/course/${encodeURIComponent(course.code)}`;
 
@@ -81,9 +82,7 @@ export default async function MarkingCoursePage(props: PageProps<"/trainer/marki
         <div className={`hidden gap-4 border-b border-ink/10 px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-plum md:grid ${cols}`}>
           <span>#</span>
           <span>Unit</span>
-          {MARKED_PARTS.map((p) => (
-            <span key={p.key}>{p.label.replace(" and Activities", "")}</span>
-          ))}
+          <span>Modules</span>
           <span />
         </div>
 
@@ -91,7 +90,6 @@ export default async function MarkingCoursePage(props: PageProps<"/trainer/marki
           <ol>
             {units.map((u) => {
               const a = assessments[u.code];
-              const set = a ? summarise(a) : null;
               const todo = waiting(u.code) > 0;
               return (
                 <li key={u.code} className="border-t border-ink/10 first:border-t-0">
@@ -111,35 +109,24 @@ export default async function MarkingCoursePage(props: PageProps<"/trainer/marki
                       <span className="block font-medium leading-snug text-ink md:truncate">{u.title}</span>
                     </span>
 
-                    {/* one cell per part; on phones they wrap under the title. Only work to mark is coloured. */}
-                    <span className="col-span-3 col-start-1 flex flex-wrap gap-x-4 gap-y-2 md:contents">
-                      {MARKED_PARTS.map((p) => {
-                        const m = waiting(u.code, p.key);
-                        return (
-                          <span key={p.key} className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-plum md:hidden">{p.label.replace(" and Activities", "")}</span>
-                            {!set?.[p.key] ? (
-                              <span className="text-sm text-ink">—</span>
-                            ) : m ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-                                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                {m} to mark
-                              </span>
-                            ) : handedIn(u.code, p.key) ? (
-                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                                <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-100">
-                                  <CheckIcon className="h-3 w-3" />
-                                </span>
-                                Done
-                              </span>
-                            ) : (
-                              <span className="text-sm text-ink" title="No work handed in yet">
-                                —<span className="sr-only">No work yet</span>
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })}
+                    {/* modules: how many to mark, else how many are handed in. Only work to mark is coloured. */}
+                    <span className="col-span-3 col-start-1 md:col-span-1 md:col-start-auto">
+                      {waiting(u.code) ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                          {waiting(u.code)} pending marking
+                        </span>
+                      ) : (
+                        <span className="text-sm text-ink">
+                          {partsOf(a).length} module{partsOf(a).length === 1 ? "" : "s"}
+                          {partsOf(a).some((p) => handedIn(u.code, p.key)) && (
+                            <span className="ml-2 inline-flex items-center gap-1 font-medium text-emerald-800">
+                              <CheckIcon className="h-3.5 w-3.5" />
+                              nothing waiting
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </span>
 
                     <ArrowRightIcon className="col-start-3 row-start-1 h-4 w-4 justify-self-end text-ink transition group-hover:translate-x-0.5 group-hover:text-plum md:col-start-auto md:row-start-auto" />

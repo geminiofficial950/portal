@@ -30,7 +30,7 @@ export default function TrainerLayout({ children }: LayoutProps<"/trainer">) {
       className={`${dmSans.variable} flex min-h-dvh flex-1 bg-plum font-dm text-ink lg:p-2 lg:pl-0`}
     >
       <Sidebar variant="trainer" />
-      <div className="flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
+      <div className="portal-main flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
         <Suspense fallback={<Header variant="trainer" />}>
           <TrainerHeader />
         </Suspense>

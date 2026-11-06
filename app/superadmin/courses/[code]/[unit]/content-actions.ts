@@ -6,7 +6,9 @@ import { adminActor, requireAdmin } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { deleteUploads, ownedUploads } from "@/lib/files";
 import { cleanEditorHtml } from "@/lib/sanitize";
-import { addResource, addSupportingFiles, clearSupportingFiles, getUnitContent, removeResource, saveOverview, setSlotResource } from "@/lib/unit-content";
+import { renameInPath } from "@/lib/file-names";
+import { renameUpload } from "@/lib/files";
+import { addResource, addSupportingFiles, clearSupportingFiles, getUnitContent, removeResource, renameResource, saveOverview, setSlotResource } from "@/lib/unit-content";
 import { isResourceSlot, RESOURCE_LIMITS, RESOURCE_SLOTS, SUPPORTING_MAX, validateResource, type Resource, type ResourceInput, type ResourceSlot } from "@/lib/unit-meta";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -127,6 +129,20 @@ export async function addSupportingFilesAction(
   await logActivity(await adminActor(), `added ${resources.length} Supporting Document file${resources.length === 1 ? "" : "s"} to ${unitCode}`, "course");
   refresh(courseCode, unitCode);
   return { ok: true, resources };
+}
+
+// Renames one Supporting Document file (its folder and file type stay the same); students see and download the new name
+export async function renameSupportingFileAction(courseCode: string, unitCode: string, resourceId: string, name: string): Promise<Result<{ title: string }>> {
+  await requireAdmin();
+  const r = (await getUnitContent(courseCode, unitCode)).resources.find((x) => x.id === resourceId);
+  if (!r || r.kind !== "file" || r.slot !== "supporting") return { ok: false, error: "File not found." };
+  const title = renameInPath(r.title, name);
+  if (title === r.title) return { ok: true, title };
+  await renameResource(courseCode, unitCode, resourceId, title);
+  await renameUpload(r.file.id, title.slice(title.lastIndexOf("/") + 1));
+  await logActivity(await adminActor(), `renamed a Supporting Document file in ${unitCode} to “${title}”`, "course");
+  refresh(courseCode, unitCode);
+  return { ok: true, title };
 }
 
 // Empties the Supporting Document folder

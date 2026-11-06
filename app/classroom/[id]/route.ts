@@ -1,4 +1,5 @@
 import { getClassLink } from "@/lib/classroom";
+import { findBatchClass } from "@/lib/groups";
 import { getMeeting } from "@/lib/meetings";
 import { meetingEnd } from "@/lib/meetings-meta";
 import { getSession } from "@/lib/session";
@@ -12,7 +13,22 @@ export async function GET(req: Request, ctx: RouteContext<"/classroom/[id]">) {
   const session = await getSession();
   if (!session) return Response.redirect(new URL("/", req.url), 303);
 
-  const [link, meeting] = await Promise.all([getClassLink(id), getMeeting(id)]);
+  const [link, meeting, batchClass] = await Promise.all([getClassLink(id), getMeeting(id), findBatchClass(id)]);
+
+  // A class of the student's batch (Classroom section of the batch)
+  if (!link && !meeting && batchClass) {
+    const { batch, session: cls } = batchClass;
+    if (session.role === "student") {
+      const student = await getStudent(session.sub);
+      if (!(student?.status === "Active" && student.batchIds.includes(batch.batchId))) return new Response("This isn’t for you.", { status: 403 });
+      await logStudent(
+        { studentId: student.studentId, studentName: student.name, courseCode: batch.courseCode, action: "Joined class", detail: `${batch.name} · ${cls.day} ${cls.time}` },
+        60,
+      );
+    }
+    return new Response(null, { status: 303, headers: { Location: cls.link, "Cache-Control": "no-store" } });
+  }
+
   const target = link ?? meeting;
   if (!target) return new Response("This class or meeting was removed. Go back to Classroom for the current ones.", { status: 404 });
 

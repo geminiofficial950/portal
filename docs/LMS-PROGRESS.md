@@ -1,0 +1,161 @@
+# Stella College LMS — implementation progress
+
+Tracks the work against **“Stella College LMS core developer guide”** (Google Doc). Updated after each step is built **and tested**.
+Legend: ✅ done & tested end-to-end · 🟡 built, not fully tested yet (or partly built) · ⬜ not started · ❓ decision to confirm (default used is noted)
+
+Testing (none of these touch the real database in `.env`):
+- `npm test` — unit tests of the rules (181 passing)
+- `npm run test:int` — integration tests against a throw-away in-memory MongoDB (31 passing)
+- `npm run build` then `npm run test:e2e <phase1|phase2|phase4|phase7|courses|gaps>` — runs the real built app on a throw-away database and checks pages as Super Admin, Admin, trainers and students (79 checks passing: 13 + 16 + 18 + 17 + 6 + 9)
+
+**Status at a glance (2026-11-06):** all 45 items ✅ — built and tested end to end, then matched line by line against the guide (7 gaps found and fixed — see change log). All 18 acceptance scenarios pass (table below). Waiting only for the college: “Decisions to confirm” and the review sign-off.
+
+---
+
+## Phase 1 — Course, units, flexible modules, current resources
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1.1 | Create course with name, code, description, selected units (no hard-coded 15 units / 12 months) | ✅ | Courses → Add course: name, code, category, duration, description **and the course’s units** (rows of unit code + name, “Add unit”; more can be added later under View units). Description shows on the student’s course page. Nothing hard-coded. **2026-11-06:** “Release” removed; units chosen while creating the course (was missing before — fixed). |
+| 1.2 | Create/edit units inside the course (name, code, resources, modules) | ✅ | Course → View units → Open unit: Main unit, Resources, Modules tabs. **2026-11-06 (your review):** unit codes can be any format, different in every course (e.g. CHCCCS031, ICT-101, MOD.2) — letters, numbers, dashes, dots, up to 30 characters; only a duplicate code inside the same course is refused. Same rule for course codes. |
+| 1.3 | Flexible modules per unit: any number, named, ordered, configured; no empty placeholders | ✅ | “Add module” (Learning content / Online activities / Downloadable task), rename, move up/down, due date (Super Admin). Students see only configured modules. |
+| 1.4 | Activity types: image, matching columns, MCQ, short answer; responses saved for manual review | ✅ | MCQ “expected answer” is only a reference shown to the trainer — never used to mark. |
+| 1.5 | Several activities/tasks per module; downloadable task + student uploads | ✅ | A module can mix documents, activities and uploads (free or named uploads). |
+| 1.6 | Current resources only (no version history for students); replacing a template never touches submitted work | ✅ | Student files are stored separately from templates; replacing/removing a template deletes only the template. |
+| 1.7 | Removing a module with student work archives it (no silent erase) | ✅ | Server decides: module with any student work → archived (hidden, work kept, can be restored). |
+| 1.8 | Existing units migrate: Quiz / Theory / Workplacement become modules, all work kept | ✅ | Read-time conversion, same ids (quiz/theory/workplace) — no data script needed; existing submissions still attach. |
+
+## Phase 2 — Student course records, batches, trainer-to-unit assignments
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 2.1 | Batch: name, code, course, planned dates, timezone | ✅ | Batches → Add batch / Details tab: name, code (IS-2027-01), course, planned start/end, named timezone. |
+| 2.2 | Multiple trainers per batch, each assigned specific units | ✅ | Training plan → “Edit units & trainers”: tick trainers per unit; several trainers per batch. |
+| 2.3 | Only admin assigns / reassigns students and trainers (trainer reassign removed) | ✅ | All batch, trainer-assignment, transfer and opening actions are admin-only on the server; trainers see the batch read-only. |
+| 2.4 | Unit statuses per student: Active, Inactive, Withdrawn, Cancelled, Deferred, Competent, Not Yet Competent | ✅ | Per-student unit record; trainers/admin set it on the student’s Progress page (“Set unit status”). Older Pass/Fail results read as Competent / Not Yet Competent. |
+| 2.5 | Admin opens units for batch / selected students / one student; open now or scheduled release | ✅ | Training plan: tick units → whole batch or selected students → Open now / Schedule release / Close again. |
+| 2.6 | Open a missed unit later for one student | ✅ | Student Progress page: “Open for student” or a scheduled release, for one unit, any time. |
+| 2.7 | Preview affected students before bulk changes; keep explicit exceptions | ✅ | Preview lists who changes and who is kept; non-active students are kept unless “reset exceptions” is ticked. |
+
+## Phase 3 — Status and access checks
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 3.1 | Access = enrolled + unit Active + admin-opened + module unlocked (server + file routes) | ✅ | One rule (`unitAccess`) used by the unit page, submit action, file downloads and the ZIP route. |
+| 3.2 | Non-active unit hides & disables every module; only unit name + status shown | ✅ | Non-active unit page shows only name + status (+ unit feedback); modules, files and links refused. |
+| 3.3 | Trainer cannot set a non-active unit back to Active; warning before non-active | ✅ | Trainer cannot pick Active for a non-active unit (server + UI); confirmation warns that modules hide at once. |
+| 3.4 | Reactivation by admin restores saved module statuses and work | ✅ | Status change never touches work or module statuses; reactivating shows everything again (integration-tested). |
+| 3.5 | Trainer access = student currently in assigned batch AND trainer assigned to that unit (lists, submissions, downloads, URLs) | ✅ | Applied to marking inbox, course/unit marking, single submission, student list/progress, file downloads, declaration page + PDF, unit status, marking actions. |
+
+## Phase 4 — Submissions, photo / declaration / signature, manual marking
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 4.1 | Module statuses exactly: Active, Pending marking, Satisfactory, Not satisfactory, Additional information requested | ✅ | “Draft saved” is only a save indicator. |
+| 4.2 | No automatic marking (MCQ goes to Pending marking, no score/result) | ✅ | Quiz auto-scoring removed (lib/quiz.ts deleted). |
+| 4.3 | Drafts separate from submissions; upload progress & clear messages | ✅ | “Save draft” vs “Submit to trainer”; “Draft saved” indicator; upload progress and clear success/failure messages. |
+| 4.4 | Photo + declaration tick + signature on submission; receipt; attempts preserved | ✅ | Every module submission: declaration ticks + signature (+ photo when switched on); the declaration certificate is the receipt; earlier attempts kept in history. |
+| 4.5 | Trainer: view responses, download files, set module status, feedback, attach marked copy | ✅ | Trainer marking screen: responses (MCQ reference shown to staff only), files, declaration evidence (Signed / Photo captured), feedback, marked copy, module status. |
+| 4.6 | Unit-level feedback + status separate from module feedback | ✅ | Unit status + unit feedback on the student’s Progress page, separate from module feedback. |
+
+## Phase 5 — Feedback acceptance, review requests, additional information
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 5.1 | Student: Accept feedback with signature, or Request review with comment | ✅ | Under published feedback: “Accept feedback” (signature) or “Request review” (comment). Never changes the result. |
+| 5.2 | Trainer replies to review request; history kept | ✅ | Trainer “Feedback reviews” list; reply box on the marking screen; replies and original feedback both kept. |
+| 5.3 | Additional information requested: description + due date; student response returns module to Pending marking | ✅ | Status “Additional information requested” + description + due date; student resubmits → Pending marking. |
+| 5.4 | Request resubmission of one module with instructions + new deadline; others unchanged | ✅ | “Not satisfactory — request resubmission” + instructions + new deadline for that module only; other module results untouched (integration-tested). |
+
+## Phase 6 — Module deadlines, locks, extensions
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 6.1 | Module due date/time with timezone; overdue locks content + submission, keeps Request extension | ✅ | Module due date (Melbourne time shown); overdue unfinished work locks content and submitting; name, deadline and Request extension stay. |
+| 6.2 | Extension request (reason + proposed date); no duplicate pending requests | ✅ | Reason + proposed date; one pending request per student/module enforced by a unique database index (no duplicates on retry/double click). |
+| 6.3 | Admin / assigned trainer approve (new date) or decline (reason) | ✅ | Trainer “Extension requests” and admin “Requests”: Approve (new deadline) / Decline (reason shown to student). **The student gets a notification** with the decision (new date or reason). A trainer can decide only for students in their batch and unit (checked on the server). |
+| 6.4 | Individual / selected group / whole batch deadline changes; later joiners don't inherit | ✅ | Deadline change for one student, selected students or a whole batch (pass all its students); only those get an exception, later joiners keep the default. **Batch page → Deadlines tab:** unit, module, “Whole batch” or “Selected students (or one)”, new date and reason → **Preview change** shows each student’s old and new date, the module and the count → Confirm and save. Students are notified. A trainer sees only their assigned units. |
+| 6.5 | Audit log: who, role, reason, old date, new date | ✅ | Every change logged: who, role, reason, old date, new date (`deadlineLog`). **Changing a module’s default date** (unit page) now asks for a reason and is logged too; students’ own dates (extensions / exceptions) are kept unless admin ticks “Also reset students’ own dates” — each reset is logged per student. |
+| 6.6 | Extension never reactivates a non-active unit; never changes a result | ✅ | Unit access is checked first, so an approved extension never opens a non-active or unopened unit (end-to-end tested with a Withdrawn unit); results never touched. |
+
+## Phase 7 — Transfers, course documents, class scheduling
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 7.1 | Transfer preview (destination, trainer coverage); work follows student; old trainer loses access; internal record | ✅ | Before a transfer, admin sees the destination batch, which trainer covers each unit, units with no trainer, and units the student has work in that the destination doesn’t take. Work, results, deadlines and extensions follow the student; old trainer loses access at once; internal record in activity + student log. Transfer is admin-only (trainer page has no Transfer control). **Schedule conflicts** shown too: units open for the student that the destination hasn’t opened, and units the destination has open that the student hasn’t. Admin chooses: add the units to the destination plan or keep them as the student’s exception; open them for the student or leave them closed. The choice is logged. |
+| 7.2 | Course page: description, course documents, placement pack with matched upload slots | ✅ | Courses → enrolled course shows the description, **the course’s units with their status** (Open → “Open unit”; “Not open yet” / scheduled; or the unit status such as Competent, with no content button), then “Course documents” (download only, with instructions) and “Placement pack” (instructions, download, matched upload slots — several files, no Replace — and review status). **2026-11-06:** units list on the course page added (was missing before — fixed). **Order fixed to the guide:** description → Course documents → Placement pack → “Your training plan” (units). |
+| 7.3 | Named document requests with instructions, due date, approval status | ✅ | Requests have instructions + due date (“Needed by”); each upload is Submitted → Approved / Changes requested (comment required), shown to the student; a new upload resets to Submitted. Review on the admin student page, and (review-only) on the trainer’s student page for students in their current batch. |
+| 7.4 | Class sessions: batch + unit, title, trainer, date, start/end, timezone, Meet link, instructions | ✅ | Batch → Classes tab → “Class sessions”: title, unit, trainer, date, start/end (end must be after start), named timezone, optional Google Meet link, preparation instructions; Edit and Cancel class. Students of the batch are notified on add / change / cancel. Admin only (trainers see sessions read-only). |
+| 7.5 | Next class with Join Google Meet + Add to calendar; “Meeting link coming soon”; no Join for past/cancelled | ✅ | My classes → “Your next live class”: title, date/time with timezone, trainer, instructions, “Join Google Meet” (only with a link, never for past or cancelled), “Meeting link coming soon”, “Add to calendar” (.ics file; only for students of that batch). Upcoming and cancelled sessions listed below. |
+
+## Phase 8 — Portals, statuses, deletion, quality
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 8.1 | Portal titles: Admin Portal / Trainer Portal / Student Portal, with the guide's navigation | ✅ | Sidebar shows “Admin Portal / Trainer Portal / Student Portal” and the guide’s menu items for each. |
+| 8.2 | Student statuses: Active, Withdrawn, Cancelled, Completed, Deferred, Disabled | ✅ | Course statuses Active / Withdrawn / Cancelled / Completed / Deferred; “Disabled” is the account switch and blocks login for every course (integration-tested). Older values still display. |
+| 8.3 | Delete students/units: Super Admin only, affected records shown first, no silent cascade | ✅ | Delete is Super Admin only (an Admin account sees only Disable). Deleting a student first shows the affected records and keeps them — only the login/profile is removed (integration-tested). Removing a unit is refused while any student has work or a status in it. |
+| 8.4 | Loading / empty / error / permission-denied states; locks explain reason + next action | ✅ | Loading skeleton, error page with “Try again”, and “This page isn’t available to you” for each portal. Refused pages send a 404 and none of the student’s work; locked units/modules always say why and what happens next. |
+
+## End to end acceptance checklist (the guide’s 18 scenarios)
+Run with separate Super Admin, Admin, two trainer and two student test accounts on a throw-away database. Test date: 2026-11-06. Evidence = the automated test that proves it (`e2e` = real built app, `int` = database test, `unit` = rule test).
+
+| # | Scenario | Result | Evidence |
+|---|----------|--------|----------|
+| 1 | Two units with different module counts; each student sees only the configured modules | ✅ Pass | int “saves units with different numbers of modules”; e2e phase1 “unit overview lists only the configured, live modules” |
+| 2 | Update a unit resource; all batches see the current file and no resource history | ✅ Pass | e2e gaps: Jan-batch and Feb-batch students both see only “v2” after the update — no old file, no version history |
+| 3 | Assign a unit; modules default to Active but stay closed until admin opens the unit | ✅ Pass | int “an untouched unit is Active but not open”; e2e phase1 “a unit that isn’t open shows no modules” |
+| 4 | Each non-active status: all modules disappear and direct content links fail | ✅ Pass | unit “every non-active status hides the unit, even if it was opened”; e2e phase2 Deferred unit, and its task file can’t be downloaded |
+| 5 | Reactivation as trainer is rejected; as admin, previous results and evidence stay | ✅ Pass | unit “Only admin can reactivate a unit.”; int “admin reactivation restores it with work intact”; e2e phase2 trainer batch page is read-only |
+| 6 | Submit an MCQ activity → Pending marking, no automatic score or result | ✅ Pass | int “an MCQ submission goes to Pending marking with no score or result”; e2e phase1 activities module |
+| 7 | Manual marking + feedback; student can accept/sign or request review with comments | ✅ Pass | int accept-with-signature and review-request tests; e2e phase4 accept / review flow |
+| 8 | Additional information: the response attaches to the same module and returns it to Pending marking | ✅ Pass | int acceptance “the student's response attaches to the same module…” |
+| 9 | Resubmission of one module; other module results unchanged | ✅ Pass | int “resubmitting returns the module to Pending marking…” (other module stays Satisfactory) |
+| 10 | Deadline passes: content and submission lock, Request extension still there while Active | ✅ Pass | e2e phase4 “overdue module locks content and offers Request extension” |
+| 11 | Assigned trainer approves an extension: only that student/module unlocks, new date shows | ✅ Pass | e2e phase4 trainer list with Approve / Decline, “after approval the module is open again”, “other student keeps the module's own date”; server check: a trainer only for their batch + unit |
+| 12 | Approve an extension while the unit is non-active: it stays closed | ✅ Pass | e2e phase4 “an extension can't reopen a Withdrawn unit” |
+| 13 | Selected-group extension; students outside keep their dates | ✅ Pass | int “a selected-group change gives only those students their own date”; e2e gaps Deadlines tab |
+| 14 | Two trainers on different units in one batch; each sees only their unit records | ✅ Pass | e2e phase2 trainer A / trainer B checks; direct link refused |
+| 15 | Transfer: submissions, results, feedback, extensions stay; old trainer loses access | ✅ Pass | int acceptance “transfer… stay with the student”; e2e phase2 three after-transfer checks |
+| 16 | Open a missed unit later as admin; classmates unaffected, prior work stays | ✅ Pass | e2e phase2 “student B: the unit opened only for them is open” / “student A: the same unit stays closed” |
+| 17 | Placement-pack uploads against named requests; correct approval state and due date | ✅ Pass | e2e phase7 7.3 “requests show instructions, due date and approval status” + review controls |
+| 18 | Failed uploads, interrupted connections, duplicate clicks: nothing silently lost or duplicated | ✅ Pass | int robustness: two submits at once → one submission; a retry is refused and the first kept; a broken / .exe upload stores nothing. **Bug found and fixed here:** a resubmission used to delete the earlier attempt’s files — now kept (int acceptance test) |
+
+### Review record
+| | |
+|---|---|
+| Developer | Claude (AI developer) |
+| Test date | 2026-11-06 |
+| College reviewer | _to fill in_ |
+| Accepted / Changes required | _to fill in_ |
+
+## Decisions to confirm (defaults used until the college decides)
+| Decision | Default used |
+|---|---|
+| Feedback publication | ❓ Implemented as recommended: “Save marking” is private, “Publish feedback” releases it |
+| Assessment replacement during an attempt | ❓ Current resources update at once; submitted attempt keeps its own files |
+| Declaration capture scope | ❓ Photo + tick + signature on assessment submissions and resubmissions only |
+| Camera unavailable | ❓ Existing Settings switch (proctoring on/off) |
+| Course document approval | ❓ Labels Submitted / Approved / Changes requested; approver = admin, or a trainer who has the student in a current batch |
+| Multiple simultaneous batches | ❓ One batch per course per student |
+| Cross-course unit reuse | ❓ Separate course-specific content |
+| Student account status and deletion | ❓ “Disabled” blocks login for every course; deleting a student (Super Admin) removes login/profile but KEEPS academic records |
+| Class editing | ❓ Admin only |
+| Attempt limits | ❓ No limit |
+
+## Change log
+- 2026-11-05 — tracker created from the guide.
+- 2026-11-05 — **Phase 1 done.** Tests: 15 module-model + 4 module-save unit tests; 5 integration tests (old units read as modules, work kept, archiving); 13/13 end-to-end page checks (`npm run test:e2e phase1`). Also retired: automatic quiz scoring, and the earlier access-date windows (replaced by unit status + admin release + module deadlines in Phases 2–6).
+- 2026-11-05 — **Phases 2 and 3 done.** Tests: 13 unit-status + 6 batch rules unit tests; 5 unit-record integration tests; 16/16 end-to-end checks (`npm run test:e2e phase2`; earlier written as 19 — corrected): two trainers in one batch each see only their unit; direct links refused; Deferred unit hides modules and its files; missed unit opened for one student only; after a transfer the old trainer loses access and the work stays.
+- 2026-11-05 — **Phases 4, 5 and 6 done; portal navigation (8.1) done.** Tests: 9 deadline-rule unit tests; 6 marking + 3 deadline integration tests; 18/18 end-to-end checks (`npm run test:e2e phase4`; earlier written as 22 — corrected): unpublished marking hidden from student; accept/review flow; review reply; overdue lock + request extension; pending keeps it locked; approval unlocks only that student; a Withdrawn unit stays closed even with an approved extension.
+- 2026-11-05 — **Phase 7 / 8 work built, end-to-end tests pending** (paused here for review): transfer preview (7.1), course documents + placement pack + document review (7.2–7.3), class-session rules/storage/actions/calendar file (7.4–7.5, UI still to build), student statuses incl. Deferred + Disabled (8.2), deletion with affected-records preview and no cascade (8.3), loading/error/no-access pages (8.4). Typecheck clean; 170 unit + 19 integration tests pass.
+- 2026-11-06 — **Your review, round 1:** removed “Release” from courses; unit (and course) codes are no longer tied to one national pattern — each course has its own unit codes. Tests: 6 new code/course unit tests; new end-to-end suite `npm run test:e2e courses` (no Release shown; units with codes like ICT-101 and MOD.2 open for admin and student).
+- 2026-11-06 — **All remaining items done (7.1–7.5, 8.2–8.4).** Built the class-session form on the batch page, the “Your next live class” card on My classes, and review-only document controls on the trainer’s student page. Tests: 2 transfer-preview unit tests; 3 account/deletion integration tests; new end-to-end suite `npm run test:e2e phase7` (17/17). Full regression: lint clean, 175 unit + 22 integration tests, all 5 end-to-end suites (68 checks) pass.
+- 2026-11-06 — **Checked against the guide’s checklist text — 2 gaps found and fixed:** (1) a course is now created together with its units (code + name rows); (2) the student’s course page now lists the course’s units with their status. Tests: 2 unit-list rule tests; 1 integration test (course saved with its units); 2 new end-to-end checks in `npm run test:e2e courses`. Full regression: lint clean, 177 unit + 23 integration tests, all 5 end-to-end suites (70 checks, 0 failures).
+
+- 2026-11-06 — **Matched line by line against the guide — 7 gaps found and fixed:** (1) batch Deadlines tab for whole batch / selected students / one student, with a preview of old and new dates, count and reason; (2) students are notified of extension decisions and deadline changes; (3) course page order is now description → course documents → placement pack → units; (4) the old Pass/Fail “Final result options” screen removed from Settings (unit result = unit status); (5) changing a module’s default date asks for a reason, is logged, and can optionally reset students’ own dates; (6) the 18 acceptance scenarios are recorded above with evidence, and failed uploads / duplicate clicks are now tested; (7) the transfer preview shows schedule conflicts and admin chooses how to resolve them. **Bug found while testing scenario 18:** a resubmission after “Not satisfactory” / “Additional information requested” deleted the earlier attempt’s files — now every handed-in attempt keeps its files, answers and submit time (staff can still open them). Tests: 4 new unit tests; 7 new integration tests; new end-to-end suite `npm run test:e2e gaps` (8 checks). Full regression: typecheck and lint clean (0 errors), 181 unit + 30 integration tests, all 6 end-to-end suites (78 checks, 0 failures).
+- 2026-11-06 — **Your review, round 2 — Students table:** separate Progress button removed; clicking the student’s name opens their progress. Table redesigned (board style, idea from monday.com): group header with colour strip and count, column dividers, centred columns, course and account status as full coloured cells (full contrast), progress as a filled bar with the % inside. Tests: 1 new end-to-end check (`gaps` suite now 9); phase2 + phase7 suites re-run, all pass.
+- 2026-11-06 — **Your review, round 3 — Students table and portal frame:** course codes removed from the table (only the status; the code shows on hover); **batch can be changed right from the table** (one dropdown per course, with the same transfer checks as the batch page — destination, trainer coverage, schedule conflicts; “Choose batch” when none, “—” when the course has no batch yet); student column centred; rows made compact; “Added” column hidden on smaller screens so nothing is cut off; the “Students” group strip removed. **Sidebar card** (Need Help / Trainer / Admin / Super Admin with the sofa picture) removed from every portal — the student booking page is still reachable from Help. **Full screen:** a thin purple frame stays on all four sides with rounded white page. Checked with screenshots at 1440px, 1100px and full screen; e2e phase2 16/16, phase4 18/18, phase7 17/17, gaps 9/9.
+- 2026-11-06 — **Bug fixed — “Student or course not found” on Transfer:** older data can have a student in a batch of a course they aren’t enrolled in. Taking them out of the batch now always works; putting a student into a batch of a course they lack gives a clear message (add the course first). The batch Students tab shows such a student as “Not enrolled in this course” instead of “Active”. Tests: 1 new integration test (31 total); 181 unit tests; lint 0 errors.
+- 2026-11-06 — **Your review, round 4:** student unit page — “Your unit activities” is now a list (one row per item: number, title, type, due date, status and the Open button) instead of boxes; student Course page — no View buttons on course documents, placement pack and document requests (Download only). Tests: e2e 7.2 now also checks there is no View button; phase1 13/13, phase7 17/17.
+
+## Also changed along the way (not a numbered item in the guide)
+- **Bug fixed — earlier attempt’s evidence deleted on resubmission:** now kept, with files, answers and submit time in the attempt history.
+- **Bug fixed — old Theory/Workplacement files disappearing:** saving a unit no longer drops files uploaded by a different admin account.
+- **Removed by the guide’s rules:** trainers can no longer reassign batches or move students; automatic quiz scoring is gone; my earlier unit “access dates” were replaced by unit status + admin release + module deadlines.
+- **Earlier requests still in place:** Melbourne live clock, full-screen toggle, Tickets renamed Support, signature on declarations, Resources table with expandable Supporting Document, rename documents on upload.
+
+## Next steps
+- Nothing left from the guide’s checklists or acceptance scenarios. Waiting for: your review, the college reviewer’s sign-off in the Review record, and the college’s answers to the “Decisions to confirm” (each has a working default today).

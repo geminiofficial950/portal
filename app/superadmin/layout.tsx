@@ -31,7 +31,7 @@ export default function SuperAdminLayout({ children }: LayoutProps<"/superadmin"
       <Suspense fallback={<Sidebar variant="admin" />}>
         <AdminSidebar />
       </Suspense>
-      <div className="flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
+      <div className="portal-main flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
         <Header variant="admin" />
         <main className="flex-1 px-4 pb-6 sm:px-4 lg:px-4">
           <Suspense>{children}</Suspense>

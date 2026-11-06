@@ -6,28 +6,19 @@ import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { setSubmittedAtAction } from "../../actions/submissions";
 import { createPortal } from "react-dom";
-import FileList from "./FileList";
-import SubmittedFiles from "./SubmittedFiles";
 import LocalTime from "../assessment/_components/LocalTime";
 import { CheckIcon } from "./icons";
-import { ASSESSMENT_PARTS, isWritten, summarise, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
+import { partsOf, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
+import ModuleSubmission from "./ModuleSubmission";
 import type { Unit } from "@/lib/courses";
 import { toLocalInput } from "@/lib/format";
 import { needsRework, statusLabel, statusStyle, type SubmissionDTO } from "@/lib/submission-meta";
-import { toneStyle } from "@/lib/result-meta";
-import type { UnitResultDTO } from "@/lib/unit-meta";
+import type { FullUnitRecord } from "@/lib/unit-records";
+import { unitStatusStyle } from "@/lib/unit-status-meta";
 
 const card = "rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6";
 
-// Student HTML is sanitised on the server before it is stored (lib/sanitize.ts)
-const Html = ({ html, empty = "Nothing typed." }: { html?: string; empty?: string }) =>
-  html ? (
-    <div className="rich-text rounded-xl bg-lilac/50 px-4 py-3 text-sm leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: html }} />
-  ) : (
-    <p className="rounded-xl bg-lilac/30 px-4 py-3 text-xs text-ink/45">{empty}</p>
-  );
-
-// Everything a student handed in for one unit, one assessment part per tab.
+// Everything a student handed in for one unit, one module per tab.
 // Used by Super Admin (with submit photos and `canEditDate`) and trainers; `reviewBase` is where "Review & mark" goes.
 export default function UnitWorkReview({
   student,
@@ -35,7 +26,7 @@ export default function UnitWorkReview({
   unit,
   assessment,
   submissions,
-  outcome,
+  unitRecord: outcome,
   reviewBase,
   canEditDate = false,
 }: {
@@ -44,12 +35,17 @@ export default function UnitWorkReview({
   unit: Unit;
   assessment: UnitAssessment;
   submissions: Partial<Record<AssessmentPart, SubmissionDTO>>;
-  outcome: UnitResultDTO | null;
+  unitRecord: FullUnitRecord | null;
   reviewBase: string;
   canEditDate?: boolean; // Super Admin: change the date work counts as submitted
 }) {
-  const set = summarise(assessment);
-  const parts = ASSESSMENT_PARTS.filter((p) => set[p.key]);
+  // Marked modules, plus any module the student has work in that was later archived or removed
+  const parts = [
+    ...partsOf(assessment),
+    ...Object.keys(submissions)
+      .filter((k) => !partsOf(assessment).some((p) => p.key === k) && k !== "rolePlay")
+      .map((k) => ({ key: k, label: `${assessment.modules.find((m) => m.id === k)?.title ?? "Removed module"} (archived)` })),
+  ];
   const [photo, setPhoto] = useState<{ id: string; caption: string } | null>(null);
   // Open on the first part waiting to be marked, else the first part
   const [tab, setTab] = useState<AssessmentPart | undefined>(
@@ -66,18 +62,18 @@ export default function UnitWorkReview({
           {unit.code} – {unit.title}
         </h1>
         {outcome && (
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink/70">
-            Final result
-            <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${toneStyle[outcome.tone]}`}>{outcome.label}</span>
-            {outcome.feedback && <span className="text-ink/50">— {outcome.feedback}</span>}
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink">
+            Unit status
+            <span className={`rounded-full px-3 py-0.5 text-xs font-semibold ${unitStatusStyle[outcome.status]}`}>{outcome.status}</span>
+            {outcome.feedback && <span>— {outcome.feedback}</span>}
           </p>
         )}
       </div>
 
-      {parts.length === 0 && <p className={`${card} text-sm text-ink/55`}>No assessment is set up for this unit yet.</p>}
+      {parts.length === 0 && <p className={`${card} text-sm text-ink/55`}>No marked modules are set up for this unit yet.</p>}
 
       {parts.length > 0 && (
-        <div role="tablist" aria-label="Assessment parts" className={`grid gap-2 sm:grid-cols-2 ${parts.length >= 4 ? "xl:grid-cols-4" : parts.length === 3 ? "xl:grid-cols-3" : ""}`}>
+        <div role="tablist" aria-label="Modules" className={`grid gap-2 sm:grid-cols-2 ${parts.length >= 4 ? "xl:grid-cols-4" : parts.length === 3 ? "xl:grid-cols-3" : ""}`}>
           {parts.map((p, i) => {
             const active = tab === p.key;
             const status = submissions[p.key]?.status ?? "Not started";
@@ -149,7 +145,7 @@ export default function UnitWorkReview({
               </div>
             </div>
 
-            {s && <PartContent part={p.key} s={s} assessment={assessment} />}
+            {s && <ModuleSubmission module={assessment.modules.find((m) => m.id === p.key) ?? null} sub={s} />}
 
             {s && (s.status === "Accepted" || needsRework(s.status)) && (
               <div className={`rounded-xl px-4 py-3 text-sm ${s.status === "Accepted" ? "bg-emerald-50 text-emerald-900" : s.status === "MoreDocs" ? "bg-orange-50 text-orange-900" : "bg-rose-50 text-rose-900"}`}>
@@ -214,138 +210,6 @@ export default function UnitWorkReview({
           </div>,
           document.getElementById("portal-root") ?? document.body,
         )}
-    </div>
-  );
-}
-
-function PartContent({ part, s, assessment }: { part: AssessmentPart; s: SubmissionDTO; assessment: UnitAssessment }) {
-  // Task with named attachments: each one with the files the student put in it
-  if (s.content.slots?.length) return <SubmittedFiles sub={s} />;
-  if (part === "quiz") {
-    const answers = s.content.quizAnswers ?? [];
-    return (
-      <div className="space-y-3">
-        {s.content.score && (
-          <p className="text-sm text-ink">
-            Score <b>{s.content.score.correct}/{s.content.score.total}</b> ({s.content.score.percent}%) · pass mark {assessment.quiz.passMark}%
-          </p>
-        )}
-        <ol className="space-y-3">
-          {assessment.quiz.questions.map((q, i) => (
-            <li key={q.id} className="rounded-xl bg-lilac/30 p-4">
-              <p className="text-sm font-medium text-ink">
-                {i + 1}. {q.text}
-              </p>
-              {isWritten(q) ? (
-                <p className="mt-2 whitespace-pre-wrap rounded-lg bg-white/70 px-3 py-2 text-sm text-ink">
-                  {s.content.quizWritten?.find((w) => w.questionId === q.id)?.text || "No answer."}
-                </p>
-              ) : (
-                <ul className="mt-2 space-y-1 text-sm">
-                  {q.options.map((o, k) => {
-                    const chosen = answers[i] === k;
-                    const correct = q.answer === k;
-                    return (
-                      <li
-                        key={k}
-                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${
-                          chosen ? (correct ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800") : correct ? "text-emerald-700" : "text-ink/60"
-                        }`}
-                      >
-                        <span className="w-28 shrink-0 text-[10px] font-medium uppercase">
-                          {chosen && correct ? "Student ✓ correct" : chosen ? "Student’s answer" : correct ? "Correct answer" : ""}
-                        </span>
-                        {o}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ol>
-      </div>
-    );
-  }
-
-  if (part === "theory") {
-    return (
-      <ol className="space-y-4">
-        {assessment.theory.questions.map((q, i) => {
-          const a = s.content.theory?.find((t) => t.questionId === q.id);
-          return (
-            <li key={q.id} className="space-y-2">
-              <p className="text-sm font-medium text-ink">
-                {i + 1}. {q.text}
-              </p>
-              <Html html={a?.html} />
-              {!!a?.files?.length && <FileList files={a.files} />}
-            </li>
-          );
-        })}
-        {s.files.length > 0 && (
-          <li>
-            <p className="mb-2 text-[11px] font-medium text-ink/50">Documents for the whole part</p>
-            <FileList files={s.files} />
-          </li>
-        )}
-      </ol>
-    );
-  }
-
-  if (part === "rolePlay") {
-    return (
-      <div className="space-y-3">
-        <Html html={s.content.html} />
-        <FileList files={s.files} emptyText="No documents uploaded." />
-        {assessment.rolePlay.criteria.length > 0 && s.status !== "Submitted" && s.status !== "Draft" && (
-          <div className="rounded-xl bg-lilac/30 p-4">
-            <p className="text-[11px] font-medium text-ink/50">Observation checklist (ticked by the marker)</p>
-            <ul className="mt-2 space-y-1 text-sm">
-              {assessment.rolePlay.criteria.map((c) => (
-                <li key={c.id} className={s.criteriaMet.includes(c.id) ? "text-emerald-700" : "text-ink/45"}>
-                  {s.criteriaMet.includes(c.id) ? "✓" : "–"} {c.text}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // workplace
-  return (
-    <div className="space-y-3">
-      {assessment.workplace.supervisorSignOff && (
-        <p className="text-sm text-ink/70">
-          Workplace supervisor: <b className="text-ink">{s.content.supervisor || "—"}</b>
-        </p>
-      )}
-      {assessment.workplace.evidence.length > 0 && (
-        <ol className="space-y-3">
-          {assessment.workplace.evidence.map((e, i) => (
-            <li key={e.id} className="rounded-xl bg-lilac/30 p-4">
-              <p className="text-sm font-medium text-ink">
-                {i + 1}. {e.text}
-              </p>
-              <div className="mt-2">
-                <FileList files={s.content.evidence?.find((x) => x.evidenceId === e.id)?.files ?? []} emptyText="Nothing uploaded for this item." />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-      <div>
-        <p className="mb-2 text-[11px] font-medium text-ink/50">Workplace report</p>
-        <Html html={s.content.html} />
-      </div>
-      {s.files.length > 0 && (
-        <div>
-          <p className="mb-2 text-[11px] font-medium text-ink/50">Other documents</p>
-          <FileList files={s.files} />
-        </div>
-      )}
     </div>
   );
 }

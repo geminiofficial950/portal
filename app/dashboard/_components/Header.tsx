@@ -1,3 +1,4 @@
+import MelbourneClock from "../../components/MelbourneClock";
 import type { PortalVariant } from "./Sidebar";
 
 type HeaderUser = { initials: string; email: string };
@@ -16,7 +17,12 @@ export default function Header({
   user?: HeaderUser;
 }) {
   return (
-    // Spacer under the mobile top bar; on desktop just a little top padding (Dark mode is in the sidebar now)
-    <header aria-hidden className="h-16 shrink-0 lg:h-6" />
+    // Spacer under the mobile top bar, then the live Melbourne clock (Dark mode and full screen are in the sidebar)
+    <header className="shrink-0">
+      <div aria-hidden className="h-16 lg:hidden" />
+      <div className="flex justify-end px-4 pb-1 pt-3">
+        <MelbourneClock />
+      </div>
+    </header>
   );
 }

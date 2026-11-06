@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { BookIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, TicketIcon } from "../dashboard/_components/icons";
 import LocalTime from "../dashboard/assessment/_components/LocalTime";
 import WelcomeArt from "./WelcomeArt";
-import { ASSESSMENT_PARTS } from "@/lib/assessment-meta";
+import { partLabel as modulePartLabel } from "@/lib/assessment-meta";
 import { listUpcomingDue } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
@@ -11,6 +11,7 @@ import { getSettings } from "@/lib/settings";
 import { statusLabel, statusStyle } from "@/lib/submission-meta";
 import { countDecidedSince, listAllForMarking, listAwaitingRework } from "@/lib/submissions";
 import { listTickets } from "@/lib/tickets";
+import { trainerScope } from "@/lib/trainer-access";
 
 // Trainer home: date header, a welcome banner, four overview tiles, then the work waiting to be marked
 // (one row each, oldest first), students waiting on rework and due dates coming up.
@@ -19,7 +20,7 @@ const DAY = 86_400_000;
 const TZ = "Australia/Sydney";
 // The request time; this page is rendered per request (it reads the session), so "now" is that moment
 const requestTime = () => Date.now();
-const partLabel = (key: string) => ASSESSMENT_PARTS.find((p) => p.key === key)?.label ?? key;
+const partLabel = (key: string) => modulePartLabel(null, key);
 const daysSince = (iso: string | null, now: number) => (iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / DAY)) : 0);
 const dayWord = (n: number) => (n === 1 ? "1 day" : `${n} days`);
 
@@ -72,7 +73,7 @@ const loadingTiles: Tile[] = [
   { href: "/trainer/marking", label: "To mark", value: "–", icon: ClipboardIcon, ...TILE_STYLES.toMark },
   { href: "/trainer/marking", label: "Waiting over 7 days", value: "–", icon: ClockIcon, ...TILE_STYLES.overdue },
   { href: "/trainer/marking", label: "Marked this week", value: "–", icon: CheckIcon, ...TILE_STYLES.marked },
-  { href: "/trainer/tickets", label: "Open tickets", value: "–", icon: TicketIcon, ...TILE_STYLES.tickets },
+  { href: "/trainer/tickets", label: "Open support requests", value: "–", icon: TicketIcon, ...TILE_STYLES.tickets },
 ];
 
 export default function TrainerDashboard() {
@@ -89,15 +90,19 @@ async function DashboardBody() {
   const trainer = await requireTrainer();
   const me = `${trainer.name} · Trainer`; // how trainers' decisions are stored
   const now = requestTime();
-  const [queue, rework, markedWeek, tickets, upcoming, courses, settings] = await Promise.all([
+  const [allQueue, allRework, markedWeek, tickets, upcoming, courses, settings, scope] = await Promise.all([
     listAllForMarking(),
-    listAwaitingRework(5),
+    listAwaitingRework(50),
     countDecidedSince(me, new Date(now - 7 * DAY)),
     listTickets({ assigneeId: trainer.trainerId }),
     listUpcomingDue(14),
     listCourses(),
     getSettings(),
+    trainerScope(trainer.trainerId),
   ]);
+  // only students currently in the trainer's batches, in their assigned units
+  const queue = allQueue.filter((s) => scope.can(s.studentId, s.unitCode));
+  const rework = allRework.filter((s) => scope.can(s.studentId, s.unitCode)).slice(0, 5);
   const unitTitle = (code: string, unit: string) => courses.find((c) => c.code === code)?.units.find((u) => u.code === unit)?.title ?? unit;
   const openTickets = tickets.filter((t) => t.status !== "Resolved").length;
   const overdue = queue.filter((s) => daysSince(s.submittedAt, now) > 7).length;
@@ -138,7 +143,7 @@ async function DashboardBody() {
           { href: "/trainer/marking", label: "To mark", value: queue.length, icon: ClipboardIcon, ...TILE_STYLES.toMark },
           { href: "/trainer/marking", label: "Waiting over 7 days", value: overdue, icon: ClockIcon, ...TILE_STYLES.overdue },
           { href: "/trainer/marking", label: "Marked this week", value: markedWeek, icon: CheckIcon, ...TILE_STYLES.marked },
-          { href: "/trainer/tickets", label: "Open tickets", value: openTickets, icon: TicketIcon, ...TILE_STYLES.tickets },
+          { href: "/trainer/tickets", label: "Open support requests", value: openTickets, icon: TicketIcon, ...TILE_STYLES.tickets },
         ]}
       />
 

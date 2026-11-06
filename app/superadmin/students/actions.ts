@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { adminActor, requireAdmin } from "@/lib/auth";
+import { studentRecords, type AffectedRecords } from "@/lib/affected-records";
+import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
 import { isCourseStatus, type CourseStatus } from "@/lib/course-status";
 import { listCourses } from "@/lib/courses";
-import { checkStudentId, GROUP_NAME_MAX, type GroupDTO } from "@/lib/group-meta";
-import { createGroup, deleteGroup, DuplicateGroupError, groupExists, renameGroup } from "@/lib/groups";
+import { checkStudentId } from "@/lib/group-meta";
 import {
   createStudent,
   deleteStudent,
@@ -17,7 +17,6 @@ import {
   resetStudentPassword,
   setStudentCourseStatus,
   setStudentCourses,
-  setStudentGroup,
   updateStudentStatus,
   type StudentDTO,
   type StudentStatus,
@@ -43,7 +42,6 @@ export async function createStudentAction(input: {
   courses: string[];
   password: string;
   studentId?: string; // blank = next S-number
-  groupId?: string | null;
 }): Promise<Result<{ student: StudentDTO }>> {
   await requireAdmin();
 
@@ -61,11 +59,9 @@ export async function createStudentAction(input: {
     if ("error" in checked) return { ok: false, error: checked.error };
     studentId = checked.id;
   }
-  const groupId = input.groupId || null;
-  if (groupId && !(await groupExists(groupId))) return { ok: false, error: "That group no longer exists." };
 
   try {
-    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId, groupId });
+    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId });
     await logActivity(student.name, `was enrolled in ${courses.codes.join(", ")} (${student.studentId})`, "student");
     revalidatePath("/superadmin", "layout");
     return { ok: true, student };
@@ -94,8 +90,18 @@ export async function resetPasswordAction(studentId: string, password: string): 
   return found ? { ok: true } : { ok: false, error: "Student not found." };
 }
 
+// What deleting this student would affect (shown before confirming). Super Admin only.
+export async function previewStudentDeletionAction(studentId: string): Promise<Result<{ records: AffectedRecords }>> {
+  const admin = await requireAdmin();
+  if (!admin.isSuper) return { ok: false, error: DELETE_SUPER_ADMIN_ONLY };
+  return { ok: true, records: await studentRecords(String(studentId)) };
+}
+
+// Super Admin only — an Admin disables the account instead. Removes the login and profile; the student's academic
+// records (submissions, statuses, documents, logs) are kept, never deleted in a cascade.
 export async function deleteStudentAction(studentId: string): Promise<Result> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  if (!admin.isSuper) return { ok: false, error: DELETE_SUPER_ADMIN_ONLY };
   const found = await deleteStudent(studentId);
   if (found) await logActivity(await adminActor(), `deleted student ${studentId}`, "student");
   revalidatePath("/superadmin", "layout");
@@ -129,52 +135,4 @@ export async function setStudentCoursesAction(studentId: string, codesIn: string
   return { ok: true };
 }
 
-// ---------- Groups ----------
-
-const cleanGroupName = (raw: string) => String(raw ?? "").trim().replace(/s+/g, " ");
-
-export async function createGroupAction(rawName: string): Promise<Result<{ group: GroupDTO }>> {
-  await requireAdmin();
-  const name = cleanGroupName(rawName);
-  if (!name || name.length > GROUP_NAME_MAX) return { ok: false, error: `Group name must be 1–${GROUP_NAME_MAX} characters.` };
-  try {
-    const group = await createGroup(name);
-    await logActivity(await adminActor(), `created the group ${name}`, "student");
-    revalidatePath("/superadmin/students");
-    return { ok: true, group };
-  } catch (err) {
-    if (err instanceof DuplicateGroupError) return { ok: false, error: "A group with this name already exists." };
-    throw err;
-  }
-}
-
-export async function renameGroupAction(groupId: string, rawName: string): Promise<Result<{ name: string }>> {
-  await requireAdmin();
-  const name = cleanGroupName(rawName);
-  if (!name || name.length > GROUP_NAME_MAX) return { ok: false, error: `Group name must be 1–${GROUP_NAME_MAX} characters.` };
-  try {
-    if (!(await renameGroup(groupId, name))) return { ok: false, error: "Group not found." };
-  } catch (err) {
-    if (err instanceof DuplicateGroupError) return { ok: false, error: "A group with this name already exists." };
-    throw err;
-  }
-  revalidatePath("/superadmin/students");
-  return { ok: true, name };
-}
-
-// Students in the group are kept, just without a group
-export async function deleteGroupAction(groupId: string): Promise<Result> {
-  await requireAdmin();
-  if (!(await deleteGroup(groupId))) return { ok: false, error: "Group not found." };
-  await logActivity(await adminActor(), "deleted a student group", "student");
-  revalidatePath("/superadmin/students");
-  return { ok: true };
-}
-
-export async function setStudentGroupAction(studentId: string, groupId: string | null): Promise<Result> {
-  await requireAdmin();
-  if (groupId && !(await groupExists(groupId))) return { ok: false, error: "That group no longer exists." };
-  if (!(await setStudentGroup(studentId, groupId))) return { ok: false, error: "Student not found." };
-  revalidatePath("/superadmin/students");
-  return { ok: true };
-}
+// Batches are managed on their own page: app/superadmin/batches/actions.ts

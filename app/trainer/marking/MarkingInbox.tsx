@@ -32,12 +32,6 @@ const TABS: { key: Tab; label: string; match: (s: SubmissionStatus) => boolean }
   { key: "marked", label: "Marked", match: (s) => s === "Accepted" },
 ];
 
-const PARTS = [
-  { key: "all", label: "All parts" },
-  { key: "quiz", label: "Quiz and Activities" },
-  { key: "theory", label: "Theory Task" },
-  { key: "workplace", label: "Workplacement Task" },
-];
 
 // Thumbnail tile per part (same as the dashboard)
 const PART_TILE: Record<string, { tone: string; icon: typeof ClipboardIcon }> = {
@@ -69,6 +63,8 @@ export default function MarkingInbox({
 }) {
   const [tab, setTab] = useState<Tab>("toMark");
   const [part, setPart] = useState("all");
+  // filter by module name — modules differ per unit, so the choices come from the work itself
+  const modules = [{ key: "all", label: "All modules" }, ...[...new Set(rows.map((r) => r.partLabel))].sort().map((l) => ({ key: l, label: l }))];
   const [course, setCourse] = useState("all");
   const [query, setQuery] = useState("");
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -81,7 +77,7 @@ export default function MarkingInbox({
   const current = TABS.find((t) => t.key === tab)!;
   const shown = rows
     .filter((r) => current.match(r.status))
-    .filter((r) => part === "all" || r.part === part)
+    .filter((r) => part === "all" || r.partLabel === part)
     .filter((r) => course === "all" || r.courseCode === course)
     .filter((r) => !overdueOnly || r.waitDays > 7)
     .filter((r) => !q || r.studentName.toLowerCase().includes(q) || r.studentId.toLowerCase().includes(q) || r.unitCode.toLowerCase().includes(q))
@@ -151,7 +147,7 @@ export default function MarkingInbox({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {PARTS.map((p) => (
+          {modules.map((p) => (
             <button key={p.key} type="button" onClick={() => setPart(p.key)} aria-pressed={part === p.key} className={chip(part === p.key)}>
               {p.label}
             </button>

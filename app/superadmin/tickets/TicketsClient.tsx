@@ -69,7 +69,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
   return (
     <div className="animate-fade-up space-y-8">
       <div>
-        <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Support tickets</h1>
+        <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Support</h1>
         <p className="mt-1 text-sm text-ink/55">Every student request in one place. Assign it, reply, then move it to resolved.</p>
       </div>
 
@@ -187,7 +187,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
           <li className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
             <TicketIcon className="h-8 w-8 text-plum/40" />
             <p className="mt-3 text-sm text-ink/45">
-              {list.length === 0 ? "No tickets yet — they appear here when students ask for help." : "No tickets match."}
+              {list.length === 0 ? "No support requests yet — they appear here when students ask for help." : "No support requests match."}
             </p>
           </li>
         )}

@@ -9,7 +9,7 @@ import { getCourse } from "@/lib/courses";
 import type { SubmissionDTO } from "@/lib/submission-meta";
 import { getStudent, pickCourse } from "@/lib/students";
 import { listStudentSubmissions } from "@/lib/submissions";
-import { getUnitResult } from "@/lib/unit-results";
+import { getUnitRecord } from "@/lib/unit-records";
 
 // Super Admin: everything a student handed in for one unit
 export default async function AdminStudentUnitPage(props: PageProps<"/superadmin/students/[id]/[unit]">) {
@@ -24,7 +24,7 @@ export default async function AdminStudentUnitPage(props: PageProps<"/superadmin
   const [assessment, submissions, outcome] = await Promise.all([
     getAssessment(course.code, unit.code),
     listStudentSubmissions(student.studentId, course.code),
-    getUnitResult(student.studentId, course.code, unit.code),
+    getUnitRecord(student.studentId, course.code, unit.code),
   ]);
   const byPart: Partial<Record<AssessmentPart, SubmissionDTO>> = Object.fromEntries(
     submissions.filter((s) => s.unitCode === unit.code).map((s) => [s.part, s]),
@@ -42,7 +42,7 @@ export default async function AdminStudentUnitPage(props: PageProps<"/superadmin
         unit={unit}
         assessment={assessment}
         submissions={byPart}
-        outcome={outcome}
+        unitRecord={outcome}
         reviewBase="/superadmin/marking"
         canEditDate={admin.isSuper}
       />

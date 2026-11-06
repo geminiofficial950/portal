@@ -1,38 +1,35 @@
 import "server-only";
-import { ASSESSMENT_PARTS, summarise, type AssessmentPart, type AssessmentSummary } from "./assessment-meta";
+import { partLabel, partsOf, unitDueAt, type AssessmentPart } from "./assessment-meta";
 import { listCourseAssessments } from "./assessments";
 import { getCourse } from "./courses";
 import { listHiddenUnits } from "./hidden-units";
-import { listUnlockedUnits } from "./unit-unlocks";
 import { listStudentDueDates } from "./due-dates";
 import type { SubmissionStatus } from "./submission-meta";
 import { getStudent, listStudents, pickCourse } from "./students";
 import { listCourseWork, listStudentSubmissions } from "./submissions";
-import type { ResultOption } from "./result-meta";
-import { listResultOptions } from "./result-options";
-import type { UnitResultDTO } from "./unit-meta";
-import { listStudentResults } from "./unit-results";
+import { listUnitRecords, type FullUnitRecord } from "./unit-records";
+import { unitAccess, type UnitAccess } from "./unit-status-meta";
 
 export type UnitProgress = {
   code: string;
   title: string;
-  setUp: AssessmentSummary | null;
+  parts: { key: AssessmentPart; label: string }[]; // the unit's marked modules, in order
   statuses: Partial<Record<AssessmentPart, SubmissionStatus>>;
   dueAt: string | null; // what applies to this student
   unitDueAt: string | null; // the unit's own due date
   extended: boolean; // Super Admin set a different date for this student
-  outcome: UnitResultDTO | null;
+  record: FullUnitRecord; // unit status, admin opening, scheduled release, unit feedback
+  access: UnitAccess; // can the student open it now, and if not why
   // Photos taken at submit time (only passed to Super Admin pages)
-  photos: { part: AssessmentPart; fileId: string; submittedAt: string | null }[];
+  photos: { part: AssessmentPart; label: string; fileId: string; submittedAt: string | null }[];
   hidden: boolean; // Super Admin hid this unit from the student
-  unlocked: boolean; // staff unlocked it for the student (every unit starts locked)
+  unlocked: boolean; // admin opened it for the student
 };
 
 export type StudentProgressDTO = {
   student: { studentId: string; name: string; email: string; status: string };
   course: { code: string; name: string };
   units: UnitProgress[];
-  resultOptions: ResultOption[]; // what staff can pick as a final result
 };
 
 // One student's whole course: every unit, each part's status and the final result
@@ -43,34 +40,33 @@ export async function getStudentProgress(studentId: string, courseCode?: string 
   const course = picked ? await getCourse(picked.code) : null;
   if (!student || !course) return null;
 
-  const [assessments, submissions, results, ownDue, hidden, unlocked, resultOptions] = await Promise.all([
+  const [assessments, submissions, records, ownDue, hidden] = await Promise.all([
     listCourseAssessments(course.code),
     listStudentSubmissions(student.studentId, course.code),
-    listStudentResults(student.studentId, course.code),
+    listUnitRecords(student.studentId, course.code),
     listStudentDueDates(student.studentId, course.code),
     listHiddenUnits(student.studentId, course.code),
-    listUnlockedUnits(student.studentId, course.code),
-    listResultOptions(),
   ]);
+  const recordOf = (u: string): FullUnitRecord => records[u] ?? { status: "Active", opened: false, releaseAt: null, feedback: "", decidedBy: null, decidedAt: null };
 
   return {
     student: { studentId: student.studentId, name: student.name, email: student.email, status: student.status },
     course: { code: course.code, name: course.name },
-    resultOptions,
     units: course.units.map((u) => ({
       code: u.code,
       title: u.title,
-      setUp: assessments[u.code] ? summarise(assessments[u.code]) : null,
+      parts: partsOf(assessments[u.code]),
       statuses: Object.fromEntries(submissions.filter((s) => s.unitCode === u.code).map((s) => [s.part, s.status])),
-      dueAt: ownDue[u.code] ?? assessments[u.code]?.dueAt ?? null,
-      unitDueAt: assessments[u.code]?.dueAt ?? null,
+      dueAt: ownDue[u.code] ?? unitDueAt(assessments[u.code]),
+      unitDueAt: unitDueAt(assessments[u.code]),
       extended: !!ownDue[u.code],
-      outcome: results.find((r) => r.unitCode === u.code) ?? null,
+      record: recordOf(u.code),
+      access: unitAccess(recordOf(u.code)),
       hidden: hidden.has(u.code),
-      unlocked: unlocked.has(u.code),
+      unlocked: recordOf(u.code).opened,
       photos: submissions
         .filter((s) => s.unitCode === u.code && s.photo)
-        .map((s) => ({ part: s.part, fileId: s.photo!.id, submittedAt: s.submittedAt })),
+        .map((s) => ({ part: s.part, label: partLabel(assessments[u.code], s.part), fileId: s.photo!.id, submittedAt: s.submittedAt })),
     })),
   };
 }
@@ -82,8 +78,9 @@ export async function listStudentsWithResults() {
     students.map(async (s) => {
       const perCourse = await Promise.all(
         s.courses.map(async (c) => {
-          const [course, results] = await Promise.all([getCourse(c.code), listStudentResults(s.studentId, c.code)]);
-          return { units: course?.units.length ?? 0, passed: results.filter((r) => r.kind === "pass").length, graded: results.length };
+          const [course, records] = await Promise.all([getCourse(c.code), listUnitRecords(s.studentId, c.code)]);
+          const list = Object.values(records);
+          return { units: course?.units.length ?? 0, passed: list.filter((r) => r.status === "Competent").length, graded: list.filter((r) => r.status === "Competent" || r.status === "Not Yet Competent").length };
         }),
       );
       return {
@@ -108,9 +105,9 @@ export async function courseProgressAverages(courseCodes: string[]) {
     courseCodes.map(async (code) => {
       const enrolled = students.filter((s) => s.courses.some((c) => c.code === code));
       const [assessments, work] = await Promise.all([listCourseAssessments(code), listCourseWork(code)]);
-      const set = Object.fromEntries(Object.entries(assessments).map(([unit, a]) => [unit, summarise(a)]));
-      const partsSet = Object.values(set).reduce((n, sum) => n + ASSESSMENT_PARTS.filter((p) => sum[p.key]).length, 0);
-      const counts = (w: { unitCode: string; part: AssessmentPart }) => !!set[w.unitCode]?.[w.part];
+      const set = Object.fromEntries(Object.entries(assessments).map(([unit, a]) => [unit, new Set(partsOf(a).map((p) => p.key))]));
+      const partsSet = Object.values(set).reduce((n, keys) => n + keys.size, 0);
+      const counts = (w: { unitCode: string; part: AssessmentPart }) => !!set[w.unitCode]?.has(w.part);
       const avg =
         enrolled.length && partsSet
           ? enrolled.reduce((sum, st) => sum + work.filter((w) => w.studentId === st.studentId && w.status === "Accepted" && counts(w)).length / partsSet, 0) /

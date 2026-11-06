@@ -21,32 +21,43 @@ export default function FileActions({
   title = file.name,
   size = "md",
   downloadLabel = "Download",
+  view = true,
 }: {
   file: FileRef;
   title?: string;
   size?: keyof typeof SIZES;
   downloadLabel?: string;
+  view?: boolean; // false: only Download (e.g. the student's course documents and placement pack)
 }) {
   const [open, setOpen] = useState(false);
   const viewable = isPdf(file) || isImage(file);
   const btn = `inline-flex items-center font-semibold transition ${SIZES[size]}`;
   return (
     <span className="flex shrink-0 gap-2">
-      <button
-        type="button"
-        onClick={() =>
-          viewable
-            ? setOpen(true)
-            : toast(`This ${isSlides(file) ? "PowerPoint" : "Word"} file can’t open in the browser — use Download to open it on your device.`)
-        }
-        className={`${btn} border border-plum/30 bg-lilac text-plum hover:bg-plum hover:text-white`}
+      {view && (
+        <button
+          type="button"
+          onClick={() =>
+            viewable
+              ? setOpen(true)
+              : toast(
+                  `This ${isSlides(file) ? "PowerPoint" : "Word"} file can’t open in the browser — use Download to open it on your device.`,
+                )
+          }
+          className={`${btn} border border-plum/30 bg-lilac text-plum hover:bg-plum hover:text-white`}
+        >
+          View
+        </button>
+      )}
+      <a
+        href={`/api/files/${file.id}`}
+        className={`${btn} bg-plum text-white hover:bg-plum-light`}
       >
-        View
-      </button>
-      <a href={`/api/files/${file.id}`} className={`${btn} bg-plum text-white hover:bg-plum-light`}>
         {downloadLabel}
       </a>
-      {open && <BookViewer file={file} title={title} onClose={() => setOpen(false)} />}
+      {open && (
+        <BookViewer file={file} title={title} onClose={() => setOpen(false)} />
+      )}
     </span>
   );
 }

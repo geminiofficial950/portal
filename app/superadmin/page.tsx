@@ -129,7 +129,7 @@ export default async function SuperAdminOverview() {
         <div className="space-y-10">
           <section>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-ink">Tickets needing attention</h2>
+              <h2 className="text-lg font-medium text-ink">Support requests needing attention</h2>
               <Link href="/superadmin/tickets" className="text-xs text-peach hover:underline">
                 View all
               </Link>

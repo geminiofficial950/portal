@@ -9,29 +9,32 @@ type CourseDoc = {
   _id?: ObjectId;
   code: string;
   name: string;
-  release: string;
+  release?: string; // older courses only — no longer shown or asked for
   category: string;
   duration: string;
   units: Unit[];
   placementHours?: number | null; // work placement hours, set by Super Admin
   placementText?: string; // placement information for students, set by Super Admin
+  description?: string; // what the course is about, shown on the student's course page
+  deleted?: boolean; // deleted by Super Admin: hidden everywhere (kept so the starter courses aren't added back)
   createdAt: Date;
 };
 
-export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementText"> & {
+export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementText" | "description" | "deleted" | "release"> & {
   placementHours: number | null;
   placementText: string;
+  description: string;
 };
 
-const toDTO = ({ code, name, release, category, duration, units, placementHours, placementText }: CourseDoc): CourseDTO => ({
+const toDTO = ({ code, name, category, duration, units, placementHours, placementText, description }: CourseDoc): CourseDTO => ({
   code,
   name,
-  release,
   category,
   duration,
   units,
   placementHours: placementHours ?? null,
   placementText: placementText ?? "",
+  description: description ?? "",
 });
 
 let ready: Promise<unknown> | undefined;
@@ -58,18 +61,48 @@ async function collection() {
   return col;
 }
 
+const LIVE = { deleted: { $ne: true } };
+
 export async function listCourses() {
   const col = await collection();
-  return (await col.find().sort({ code: 1 }).toArray()).map(toDTO);
+  return (await col.find(LIVE).sort({ code: 1 }).toArray()).map(toDTO);
 }
 
 export async function getCourse(code: string) {
-  const doc = await (await collection()).findOne({ code });
+  const doc = await (await collection()).findOne({ code, ...LIVE });
   return doc ? toDTO(doc) : null;
 }
 
 export async function countCourses() {
-  return (await collection()).countDocuments();
+  return (await collection()).countDocuments(LIVE);
+}
+
+export class DuplicateCourseError extends Error {}
+
+// Super Admin / Admins add a course; its batches and units come after. A code that was deleted before can be used again.
+// `units`: the units chosen while creating the course (more can be added later)
+export async function createCourse(c: { code: string; name: string; category: string; duration: string; description: string }, units: Unit[] = []) {
+  const col = await collection();
+  const existing = await col.findOne({ code: c.code });
+  if (existing && !existing.deleted) throw new DuplicateCourseError();
+  if (existing) {
+    await col.updateOne({ code: c.code }, { $set: { ...c, units, deleted: false, createdAt: new Date() } });
+  } else {
+    await col.insertOne({ ...c, units, placementHours: null, placementText: "", createdAt: new Date() });
+  }
+  return toDTO({ ...c, units, createdAt: new Date() });
+}
+
+// Name, category, duration and description (not the code: students and work are filed under it)
+export async function updateCourseDetails(code: string, d: { name: string; category: string; duration: string; description: string }) {
+  const res = await (await collection()).updateOne({ code, ...LIVE }, { $set: d });
+  return res.matchedCount === 1;
+}
+
+// Super Admin only (checked by the caller)
+export async function deleteCourse(code: string) {
+  const res = await (await collection()).updateOne({ code, ...LIVE }, { $set: { deleted: true } });
+  return res.matchedCount === 1;
 }
 
 export async function setPlacementHours(code: string, hours: number | null) {

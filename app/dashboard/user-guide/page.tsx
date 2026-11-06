@@ -56,7 +56,7 @@ const guides: Guide[] = [
       },
       {
         title: "Ask for help if stuck",
-        detail: "Use Tickets for portal or assessment issues — Student Services replies there.",
+        detail: "Use Support for portal or assessment issues — Student Services replies there.",
       },
     ],
   },
@@ -82,7 +82,7 @@ const guides: Guide[] = [
       },
       {
         title: "Upload your file",
-        detail: "PDF, DOCX, or JPG under 10MB. Replace the file if you picked the wrong one.",
+        detail: "PDF, DOCX, or JPG under 10MB. Then tick the declaration and sign it with your mouse or a picture of your signature.",
       },
       {
         title: "Submit and wait",
@@ -134,7 +134,7 @@ const guides: Guide[] = [
     steps: [
       {
         title: "Tap Ask for help",
-        detail: "On the Tickets page, start a new request.",
+        detail: "On the Support page, start a new request.",
       },
       {
         title: "Pick a topic",
@@ -155,7 +155,7 @@ const guides: Guide[] = [
     category: "Help",
     title: "Contact support another way",
     howDoI: "Can I call or email instead?",
-    summary: "Phone, email, and booking options when a ticket isn’t enough.",
+    summary: "Phone, email, and booking options when a support request isn’t enough.",
     readTime: "2 min",
     href: "/dashboard/support",
     cta: "Open Support",

@@ -2,7 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
-import { ASSESSMENT_PARTS } from "./assessment-meta";
+
 import { agreedDeclaration, declarationRef, declarationTitle } from "./declaration";
 import { getUpload } from "./files";
 import { formatStamp } from "./format";
@@ -59,11 +59,12 @@ export async function buildDeclarationPdf(
     studentName: string;
     courseName: string;
     withPhoto: boolean;
+    moduleTitle: string;
     college: { name: string; rto: string; email: string; phone: string };
   },
 ) {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`${declarationTitle(sub.part)} - ${info.studentName} - ${sub.unitCode}`);
+  pdf.setTitle(`${declarationTitle(sub.part, info.moduleTitle)} - ${info.studentName} - ${sub.unitCode}`);
   pdf.setAuthor(info.college.name || "Stella College");
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -121,7 +122,7 @@ export async function buildDeclarationPdf(
   write(collegeName, divX + 12, 62, 13, bold);
   if (info.college.rto) write(`RTO ${info.college.rto}`, divX + 12, 77, 9.5, regular);
   writeRight("STUDENT DECLARATION", RIGHT, 54, 8, bold, GOLD_TEXT);
-  writeRight(declarationTitle(sub.part), RIGHT, 74, 17, bold, PLUM);
+  writeRight(declarationTitle(sub.part, info.moduleTitle), RIGHT, 74, 17, bold, PLUM);
   writeRight(`Reference ${declarationRef(sub.submissionId)}`, RIGHT, 89, 9, regular);
   page!.drawLine({ start: { x: M, y: y(102) }, end: { x: RIGHT, y: y(102) }, thickness: 0.8, color: GOLD });
 
@@ -137,7 +138,7 @@ export async function buildDeclarationPdf(
     [["Course name", info.courseName, 2]],
     [["Unit name", sub.unitTitle, 2]],
     [
-      ["Assessment part", ASSESSMENT_PARTS.find((p) => p.key === sub.part)?.label ?? sub.part, 1],
+      ["Module", info.moduleTitle, 1],
       ["Date and time of submission", sub.submittedAt ? formatStamp(new Date(sub.submittedAt)) : "-", 1],
     ],
   ];
@@ -217,6 +218,21 @@ export async function buildDeclarationPdf(
   rect(M, t - 4, RIGHT - M, boxH, { fill: LILAC, border: PLUM, bw: 0.9 });
   tick(M + 12, t + 1.5);
   agree.forEach((l, i) => write(l, M + 32, t + 10.5 + i * lead, 10.5, bold));
+  t += boxH + 10;
+
+  // The student's signature (drawn or uploaded), on a signing line
+  const signature = sub.content.declaration?.signature ? await readUpload(sub.content.declaration.signature.file.id) : null;
+  if (signature) {
+    const sigW = 170;
+    const sigH = 52;
+    room(sigH + 34);
+    write("STUDENT SIGNATURE", M, t + 6, 7, bold, PLUM);
+    const img = /png/i.test(signature.type) ? await pdf.embedPng(signature.bytes) : await pdf.embedJpg(signature.bytes);
+    const scale = Math.min(sigW / img.width, sigH / img.height);
+    page!.drawImage(img, { x: M, y: y(t + 12 + sigH), width: img.width * scale, height: img.height * scale });
+    page!.drawLine({ start: { x: M, y: y(t + 14 + sigH) }, end: { x: M + sigW + 20, y: y(t + 14 + sigH) }, thickness: 0.8, color: INK });
+    write(`${info.studentName} - ${sub.submittedAt ? formatStamp(new Date(sub.submittedAt)) : ""}`, M, t + 26 + sigH, 8.5, regular);
+  }
 
   return pdf.save();
 }

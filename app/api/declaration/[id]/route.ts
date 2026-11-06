@@ -1,3 +1,6 @@
+import { trainerCanSee } from "@/lib/trainer-access";
+import { partLabel } from "@/lib/assessment-meta";
+import { getAssessment } from "@/lib/assessments";
 import type { NextRequest } from "next/server";
 import { getCourse } from "@/lib/courses";
 import { buildDeclarationPdf } from "@/lib/declaration-pdf";
@@ -18,17 +21,24 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/declaration
   const allowed =
     session.role === "admin" ||
     (session.role === "student" && session.sub === sub.studentId) ||
-    (session.role === "trainer" && !!(await getTrainer(session.sub))?.active);
+    (session.role === "trainer" && !!(await getTrainer(session.sub))?.active && (await trainerCanSee(session.sub, sub.studentId, sub.unitCode)));
   if (!allowed) return new Response("You can’t open this declaration.", { status: 403 });
 
-  const [student, course, { college }] = await Promise.all([getStudent(sub.studentId), getCourse(sub.courseCode), getSettings()]);
+  const [student, course, { college }, assessment] = await Promise.all([
+    getStudent(sub.studentId),
+    getCourse(sub.courseCode),
+    getSettings(),
+    getAssessment(sub.courseCode, sub.unitCode),
+  ]);
+  const moduleTitle = partLabel(assessment, sub.part);
   const bytes = await buildDeclarationPdf(sub, {
     studentName: student?.name ?? sub.studentName,
     courseName: course?.name ?? sub.courseCode,
     withPhoto: true,
+    moduleTitle,
     college,
   });
-  const name = `${sub.part === "workplace" ? "Workplacement" : "Theory"} Declaration - ${sub.studentId} - ${sub.unitCode}.pdf`;
+  const name = `${moduleTitle} Declaration - ${sub.studentId} - ${sub.unitCode}.pdf`.replace(/[\/:*?"<>|]/g, "_");
   return new Response(Buffer.from(bytes), {
     headers: {
       "Content-Type": "application/pdf",

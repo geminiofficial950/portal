@@ -5,10 +5,10 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { ClipboardIcon, CloseIcon, PlusIcon, SearchIcon, TrashIcon } from "../../dashboard/_components/icons";
-import { ASSESSMENT_PARTS, type AssessmentSummary } from "@/lib/assessment-meta";
+import type { AssessmentSummary } from "@/lib/assessment-meta";
 import type { UnitContentSummary } from "@/lib/unit-content";
 import type { CourseDTO, Unit } from "@/lib/courses";
-import { addUnitAction, removeUnitAction } from "./actions";
+import { addUnitAction, previewUnitRemovalAction, removeUnitAction } from "./actions";
 
 export default function UnitsModal({
   course,
@@ -16,7 +16,9 @@ export default function UnitsModal({
   content,
   onClose,
   onUnitsChange,
+  canDelete,
 }: {
+  canDelete: boolean; // Super Admin only
   course: CourseDTO;
   summaries: Record<string, AssessmentSummary>;
   content: Record<string, UnitContentSummary>;
@@ -57,7 +59,14 @@ export default function UnitsModal({
   };
 
   const remove = async (unit: Unit) => {
-    if (!window.confirm(`Remove ${unit.code} – ${unit.title} from ${course.code}? Its overview, resources and assessment will be deleted too.`)) return;
+    // affected records first: a unit with any student work or status can't be removed
+    const preview = await previewUnitRemovalAction(course.code, unit.code);
+    if (!preview.ok) return void toast.error(preview.error);
+    const affected = preview.records.filter((r) => r.count);
+    if (affected.length) return void toast.error(`${unit.code} has student records (${affected.map((r) => `${r.count} ${r.label}`).join(", ")}), so it can’t be removed.`);
+    if (!window.confirm(`Remove ${unit.code} – ${unit.title} from ${course.code}?
+
+No student has work or a status in it. Its overview, resources and modules are deleted.`)) return;
     setRemoving(unit.code);
     try {
       const res = await removeUnitAction(course.code, unit.code);
@@ -93,7 +102,7 @@ export default function UnitsModal({
             <CloseIcon className="h-5 w-5" />
           </button>
           <p className="text-[11px] font-medium uppercase tracking-wide text-peach">
-            {course.code} · {course.release}
+            {course.code}
           </p>
           <h2 id="units-title" className="mt-1 pr-8 text-lg font-medium leading-snug">
             {course.name}
@@ -144,19 +153,14 @@ export default function UnitsModal({
                         </>
                       );
                     })()}
-                    {ASSESSMENT_PARTS.map((p) => {
-                      const done = summaries[`${course.code}/${u.code}`]?.[p.key];
+                    {(() => {
+                      const s = summaries[`${course.code}/${u.code}`];
                       return (
-                        <span
-                          key={p.key}
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            done ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink/40"
-                          }`}
-                        >
-                          {p.label}
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${s?.modules ? "bg-emerald-100 text-emerald-800" : "bg-lilac text-ink"}`}>
+                          {s?.modules ? `${s.modules} module${s.modules === 1 ? "" : "s"} · ${s.marked} marked` : "No modules yet"}
                         </span>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
                 <Link
@@ -166,14 +170,16 @@ export default function UnitsModal({
                   <ClipboardIcon className="h-3.5 w-3.5" />
                   Open unit
                 </Link>
-                <button
-                  onClick={() => remove(u)}
-                  disabled={removing !== null}
-                  aria-label={`Remove ${u.code}`}
-                  className="shrink-0 rounded-full p-2 text-ink/35 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
+                {canDelete && (
+                  <button
+                    onClick={() => remove(u)}
+                    disabled={removing !== null}
+                    aria-label={`Remove ${u.code}`}
+                    className="shrink-0 rounded-full p-2 text-ink transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                )}
               </li>
             );
           })}

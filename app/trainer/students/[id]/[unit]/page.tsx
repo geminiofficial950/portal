@@ -9,22 +9,24 @@ import { getCourse } from "@/lib/courses";
 import type { SubmissionDTO } from "@/lib/submission-meta";
 import { getStudent, pickCourse } from "@/lib/students";
 import { listStudentSubmissions } from "@/lib/submissions";
-import { getUnitResult } from "@/lib/unit-results";
+import { getUnitRecord } from "@/lib/unit-records";
+import { trainerCanSee } from "@/lib/trainer-access";
 
 // Trainer: a student's work for one unit, part by part (submit photos are Super Admin only)
 export default async function TrainerStudentUnitPage(props: PageProps<"/trainer/students/[id]/[unit]">) {
-  await requireTrainer();
+  const trainer = await requireTrainer();
   const [{ id, unit: unitParam }, { course: courseParam }] = await Promise.all([props.params, props.searchParams]);
   const student = await getStudent(decodeURIComponent(id));
   const picked = student ? pickCourse(student, typeof courseParam === "string" ? courseParam : null) : null;
   const course = picked ? await getCourse(picked.code) : null;
   const unit = course?.units.find((u) => u.code === decodeURIComponent(unitParam));
   if (!student || !course || !unit) notFound();
+  if (!(await trainerCanSee(trainer.trainerId, student.studentId, unit.code))) notFound();
 
   const [assessment, submissions, outcome] = await Promise.all([
     getAssessment(course.code, unit.code),
     listStudentSubmissions(student.studentId, course.code),
-    getUnitResult(student.studentId, course.code, unit.code),
+    getUnitRecord(student.studentId, course.code, unit.code),
   ]);
   const byPart: Partial<Record<AssessmentPart, SubmissionDTO>> = Object.fromEntries(
     submissions.filter((s) => s.unitCode === unit.code).map((s) => [s.part, { ...s, photo: null }]),
@@ -42,7 +44,7 @@ export default async function TrainerStudentUnitPage(props: PageProps<"/trainer/
         unit={unit}
         assessment={assessment}
         submissions={byPart}
-        outcome={outcome}
+        unitRecord={outcome}
         reviewBase="/trainer/marking"
       />
     </div>

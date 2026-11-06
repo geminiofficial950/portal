@@ -62,8 +62,8 @@ export function agreedDeclaration(saved: Partial<DeclarationText> | undefined): 
 }
 
 // Certificate heading per part
-export const declarationTitle = (part: AssessmentPart) =>
-  part === "workplace" ? "Workplacement Declaration" : part === "theory" ? "Theory Declaration" : "Assessment Declaration";
+export const declarationTitle = (part: AssessmentPart, moduleTitle?: string) =>
+  part === "workplace" ? "Workplacement Declaration" : part === "theory" ? "Theory Declaration" : moduleTitle ? `${moduleTitle} Declaration` : "Assessment Declaration";
 
 // Short reference printed on the certificate (first part of the submission id)
 export const declarationRef = (submissionId: string) => submissionId.replace(/-/g, "").slice(0, 8).toUpperCase();

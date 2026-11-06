@@ -5,19 +5,20 @@ import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import LocalTime from "../assessment/_components/LocalTime";
-import { clearUnitResultAction, setStudentDueAction, setUnitHiddenAction, setUnitResultAction, setUnitsUnlockedAction } from "../../actions/unit-results";
-import { ASSESSMENT_PARTS, isPastDue } from "@/lib/assessment-meta";
+import { setStudentDueAction, setUnitHiddenAction, setUnitOpeningAction, setUnitStatusAction } from "../../actions/unit-results";
+import { isPastDue } from "@/lib/assessment-meta";
 import { toLocalInput } from "@/lib/format";
 import type { StudentProgressDTO, UnitProgress } from "@/lib/progress";
 import { statusLabel, statusStyle } from "@/lib/submission-meta";
-import { RESULT_KINDS, toneStyle, type ResultOption } from "@/lib/result-meta";
+import { canSetUnitStatus, NON_ACTIVE_WARNING, UNIT_STATUSES, unitAccess, unitStatusStyle, type UnitStatus } from "@/lib/unit-status-meta";
 
-// A student's units with each part's status and the final result (Pass / Fail / Withdrawn or whatever options are set up).
-// Used by Super Admin (can also remove a result) and trainers.
+// A student's units: each module's status, the unit status (Active, Inactive, Withdrawn, Cancelled, Deferred, Competent,
+// Not Yet Competent) and whether admin opened it. Used by Super Admin / Admins and trainers (a trainer only gets
+// the units they're assigned to, and can't reactivate a unit).
 export default function StudentProgress({
   initial,
   canGrade,
-  canClear,
+  role = "admin",
   showPhotos = false,
   canChangeDue = false,
   canHide = false,
@@ -25,12 +26,12 @@ export default function StudentProgress({
   workHrefBase,
 }: {
   initial: StudentProgressDTO;
-  canGrade: boolean;
-  canClear: boolean;
+  canGrade: boolean; // may record unit statuses
+  role?: "admin" | "trainer";
   showPhotos?: boolean;
   canChangeDue?: boolean; // Super Admin: give this student their own due date per unit
   canHide?: boolean; // Super Admin: hide a unit from this student
-  canUnlock?: boolean; // Super Admin, Admin, trainer: unlock units for this student (they start locked)
+  canUnlock?: boolean; // admin: open units for this student now, schedule them, or close them
   workHrefBase?: string; // Super Admin: links each unit to everything the student handed in
 }) {
   const [data, setData] = useState(initial);
@@ -38,7 +39,7 @@ export default function StudentProgress({
   const setUnit = (code: string, patch: Partial<UnitProgress>) =>
     setData((d) => ({ ...d, units: d.units.map((u) => (u.code === code ? { ...u, ...patch } : u)) }));
 
-  const passed = data.units.filter((u) => u.outcome?.kind === "pass").length;
+  const passed = data.units.filter((u) => u.record.status === "Competent").length;
   const unlockedCount = data.units.filter((u) => u.unlocked).length;
   const [bulkBusy, startBulk] = useTransition();
 
@@ -46,12 +47,18 @@ export default function StudentProgress({
   const setAll = (unlocked: boolean) => {
     const codes = data.units.filter((u) => u.unlocked !== unlocked).map((u) => u.code);
     if (!codes.length) return;
-    if (!unlocked && !window.confirm(`Lock all ${codes.length} units for ${data.student.name}? They won’t be able to open them. Their work so far is kept.`)) return;
+    if (!unlocked && !window.confirm(`Close all ${codes.length} units for ${data.student.name}? They won’t be able to open them. Their work so far is kept.`)) return;
     startBulk(async () => {
-      const res = await setUnitsUnlockedAction(data.student.studentId, data.course.code, codes, unlocked);
+      const res = await setUnitOpeningAction(data.student.studentId, data.course.code, codes, { open: unlocked });
       if (!res.ok) return void toast.error(res.error);
-      setData((d) => ({ ...d, units: d.units.map((u) => ({ ...u, unlocked })) }));
-      toast.success(unlocked ? "All units unlocked for the student" : "All units locked");
+      setData((d) => ({
+        ...d,
+        units: d.units.map((u) => {
+          const record = res.records[u.code] ?? u.record;
+          return { ...u, record, unlocked: record.opened, access: unitAccess(record) };
+        }),
+      }));
+      toast.success(unlocked ? "All units opened for the student" : "All units closed");
     });
   };
 
@@ -72,21 +79,21 @@ export default function StudentProgress({
             {passed}
             <span className="text-base text-ink/40"> / {data.units.length}</span>
           </p>
-          <p className="mt-1 text-xs text-ink/50">units passed</p>
+          <p className="mt-1 text-xs text-ink">units Competent</p>
         </div>
       </div>
 
       {!canGrade && (
         <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          Super Admin has turned off assessment marking for trainers, so you can view results but not give them.
+          Super Admin has turned off assessment marking for trainers, so you can view statuses but not change them.
         </p>
       )}
 
       {canUnlock && (
         <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-ink/10 bg-white px-5 py-4">
           <p className="min-w-0 flex-1 text-sm font-medium text-ink">
-            <span className="font-semibold text-emerald-700">{unlockedCount} unlocked</span> · {data.units.length - unlockedCount} locked. Students can only
-            open unlocked units.
+            <span className="font-semibold text-emerald-700">{unlockedCount} opened</span> · {data.units.length - unlockedCount} not opened. Students see a
+            unit’s modules only when it’s opened and its status is Active.
           </p>
           <button
             type="button"
@@ -94,7 +101,7 @@ export default function StudentProgress({
             disabled={bulkBusy || unlockedCount === data.units.length}
             className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Unlock all units
+            Open all units
           </button>
           <button
             type="button"
@@ -102,7 +109,7 @@ export default function StudentProgress({
             disabled={bulkBusy || unlockedCount === 0}
             className="rounded-full border border-ink/20 bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:bg-lilac disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Lock all
+            Close all
           </button>
         </div>
       )}
@@ -116,11 +123,10 @@ export default function StudentProgress({
             courseCode={data.course.code}
             unit={u}
             canGrade={canGrade}
-            canClear={canClear}
+            role={role}
             canChangeDue={canChangeDue}
             canHide={canHide}
             canUnlock={canUnlock}
-            options={data.resultOptions}
             onChange={(patch) => setUnit(u.code, patch)}
             onViewPhoto={showPhotos ? setViewing : undefined}
             workHref={workHrefBase ? `${workHrefBase}/${encodeURIComponent(u.code)}?course=${encodeURIComponent(data.course.code)}` : undefined}
@@ -157,11 +163,10 @@ function UnitRow({
   courseCode,
   unit,
   canGrade,
-  canClear,
+  role,
   canChangeDue,
   canHide,
   canUnlock,
-  options,
   onChange,
   onViewPhoto,
   workHref,
@@ -171,19 +176,19 @@ function UnitRow({
   courseCode: string;
   unit: UnitProgress;
   canGrade: boolean;
-  canClear: boolean;
+  role: "admin" | "trainer";
   canChangeDue: boolean;
   canHide: boolean;
   canUnlock: boolean;
-  options: ResultOption[];
   onChange: (patch: Partial<UnitProgress>) => void;
   onViewPhoto?: (photo: { fileId: string; label: string }) => void;
   workHref?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [result, setResult] = useState(unit.outcome?.result ?? options[0]?.id ?? "");
-  const picked = options.find((o) => o.id === result);
-  const [feedback, setFeedback] = useState(unit.outcome?.feedback ?? "");
+  const [status, setStatus] = useState<UnitStatus>(unit.record.status);
+  const [feedback, setFeedback] = useState(unit.record.feedback);
+  const [releaseAt, setReleaseAt] = useState(toLocalInput(unit.record.releaseAt));
+  const done = unit.record.status !== "Active";
   const [saving, startSaving] = useTransition();
   const [dueOpen, setDueOpen] = useState(false);
 
@@ -197,14 +202,15 @@ function UnitRow({
       toast.success(hide ? `${unit.code} hidden from the student` : `${unit.code} shown to the student again`);
     });
   };
-  const toggleUnlocked = () => {
-    const unlock = !unit.unlocked;
-    if (!unlock && !window.confirm(`Lock ${unit.code} for this student? They won’t be able to open it. Their work so far is kept.`)) return;
+  // Admin: open now, schedule, or close again (opening never changes results)
+  const setOpening = (change: { open: boolean; releaseAt?: string | null }) => {
+    if (!change.open && !change.releaseAt && !window.confirm(`Close ${unit.code} for this student? Their work so far is kept.`)) return;
     startSaving(async () => {
-      const res = await setUnitsUnlockedAction(studentId, courseCode, [unit.code], unlock);
+      const res = await setUnitOpeningAction(studentId, courseCode, [unit.code], change);
       if (!res.ok) return void toast.error(res.error);
-      onChange({ unlocked: unlock });
-      toast.success(unlock ? `${unit.code} unlocked for the student` : `${unit.code} locked`);
+      const record = res.records[unit.code] ?? unit.record;
+      onChange({ record, unlocked: record.opened, access: unitAccess(record) });
+      toast.success(change.open ? `${unit.code} opened for the student` : change.releaseAt ? `${unit.code} scheduled` : `${unit.code} closed`);
     });
   };
   const [due, setDue] = useState(toLocalInput(unit.dueAt));
@@ -219,22 +225,14 @@ function UnitRow({
       toast.success(res.extended ? `${unit.code}: due date changed for this student` : `${unit.code}: back on the unit’s due date`);
     });
 
-  const save = () =>
+  const save = () => {
+    if (status !== "Active" && unit.record.status === "Active" && !window.confirm(`${NON_ACTIVE_WARNING}\n\nSet ${unit.code} to ${status}?`)) return;
     startSaving(async () => {
-      const res = await setUnitResultAction(studentId, courseCode, unit.code, result, feedback);
+      const res = await setUnitStatusAction(studentId, courseCode, unit.code, status, feedback);
       if (!res.ok) return void toast.error(res.error);
-      onChange({ outcome: res.outcome });
+      onChange({ record: res.record, access: unitAccess(res.record) });
       setOpen(false);
-      toast.success(`${unit.code}: ${res.outcome.label}`);
-    });
-
-  const clear = () => {
-    if (!window.confirm(`Remove the final result for ${unit.code}? The student can work on the unit again.`)) return;
-    startSaving(async () => {
-      const res = await clearUnitResultAction(studentId, courseCode, unit.code);
-      if (!res.ok) return void toast.error(res.error);
-      onChange({ outcome: null });
-      toast.success("Result removed — unit re-opened");
+      toast.success(`${unit.code}: ${res.record.status}`);
     });
   };
 
@@ -246,10 +244,10 @@ function UnitRow({
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="flex min-w-0 items-start gap-4">
-          {/* green = unlocked for the student, grey = locked */}
+          {/* green = the student can open it now, grey = closed */}
           <span
-            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-white ${unit.unlocked ? "bg-emerald-600" : "bg-zinc-400"}`}
-            title={unit.unlocked ? "Unlocked for the student" : "Locked"}
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-semibold text-white ${unit.access.open ? "bg-emerald-600" : "bg-zinc-500"}`}
+            title={unit.access.open ? "Open for the student" : (unit.access.reason ?? "Closed")}
           >
             {n}
           </span>
@@ -257,16 +255,16 @@ function UnitRow({
             <p className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-plum">
               {unit.code}
               {unit.hidden && <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-medium text-white">Hidden from student</span>}
-              {unit.unlocked ? (
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Unlocked</span>
+              {unit.access.open ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Open</span>
               ) : (
-                <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-800">Locked</span>
+                <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-800">{unit.access.reason}</span>
               )}
             </p>
             <p className="font-medium leading-snug text-ink">{unit.title}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {ASSESSMENT_PARTS.map((p) => {
-                const s = unit.setUp?.[p.key] ? (unit.statuses[p.key] ?? "Not started") : null;
+              {unit.parts.map((p) => {
+                const s = unit.statuses[p.key] ?? "Not started";
                 return (
                   <span
                     key={p.key}
@@ -278,18 +276,18 @@ function UnitRow({
                 );
               })}
             </div>
-            {unit.setUp && (
+            {unit.parts.length > 0 && (
               <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-ink/50">
                 {unit.dueAt ? (
-                  <span className={isPastDue(unit.dueAt) && !unit.outcome ? "text-rose-600" : ""}>
+                  <span className={isPastDue(unit.dueAt) && !done ? "text-rose-600" : ""}>
                     Due <LocalTime iso={unit.dueAt} />
-                    {isPastDue(unit.dueAt) && !unit.outcome && " · passed"}
+                    {isPastDue(unit.dueAt) && !done && " · passed"}
                   </span>
                 ) : (
                   <span>No due date</span>
                 )}
                 {unit.extended && <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">Own date for this student</span>}
-                {canChangeDue && !unit.outcome && (
+                {canChangeDue && !done && (
                   <button onClick={() => setDueOpen((v) => !v)} className="font-medium text-plum hover:underline">
                     Change due date
                   </button>
@@ -299,11 +297,7 @@ function UnitRow({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          {unit.outcome ? (
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneStyle[unit.outcome.tone]}`}>Final: {unit.outcome.label}</span>
-          ) : (
-            <span className="text-xs text-ink/40">No final result</span>
-          )}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${unitStatusStyle[unit.record.status]}`}>Unit: {unit.record.status}</span>
           {workHref && (
             <Link
               href={workHref}
@@ -317,18 +311,18 @@ function UnitRow({
               onClick={() => setOpen((v) => !v)}
               className="rounded-full bg-plum px-4 py-2 text-xs font-medium text-white transition hover:bg-plum-light"
             >
-              {unit.outcome ? "Change result" : "Give result"}
+              Set unit status
             </button>
           )}
           {canUnlock && (
             <button
-              onClick={toggleUnlocked}
+              onClick={() => setOpening({ open: !unit.record.opened })}
               disabled={saving}
               className={`rounded-full px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
-                unit.unlocked ? "border border-ink/20 bg-white text-ink hover:bg-lilac" : "bg-emerald-600 text-white hover:bg-emerald-700"
+                unit.record.opened ? "border border-ink/20 bg-white text-ink hover:bg-lilac" : "bg-emerald-600 text-white hover:bg-emerald-700"
               }`}
             >
-              {unit.unlocked ? "Lock again" : "Unlock for student"}
+              {unit.record.opened ? "Close again" : "Open for student"}
             </button>
           )}
           {canHide && (
@@ -342,17 +336,28 @@ function UnitRow({
               {unit.hidden ? "Show to student" : "Hide from student"}
             </button>
           )}
-          {canClear && unit.outcome && (
-            <button
-              onClick={clear}
-              disabled={saving}
-              className="rounded-full bg-lilac px-4 py-2 text-xs font-medium text-ink/70 transition hover:bg-rose-50 hover:text-rose-700"
-            >
-              Remove result
-            </button>
-          )}
         </div>
       </div>
+
+      {canUnlock && !unit.record.opened && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink">
+          <span className="font-semibold">Scheduled release:</span>
+          <input
+            type="datetime-local"
+            value={releaseAt}
+            onChange={(e) => setReleaseAt(e.target.value)}
+            aria-label={`Release ${unit.code} on`}
+            className="rounded-lg bg-white px-2.5 py-1.5 text-xs text-ink outline-none ring-1 ring-ink/15 focus:ring-plum/40"
+          />
+          <button
+            onClick={() => releaseAt && setOpening({ open: false, releaseAt: new Date(releaseAt).toISOString() })}
+            disabled={saving || !releaseAt}
+            className="rounded-full border border-plum px-3 py-1 font-semibold text-plum hover:bg-lilac disabled:opacity-50"
+          >
+            Schedule
+          </button>
+        </div>
+      )}
 
       {dueOpen && (
         <div className="mt-4 space-y-3 rounded-2xl bg-lilac/60 p-4">
@@ -398,7 +403,7 @@ function UnitRow({
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-lilac/40 px-4 py-3">
           <span className="text-[11px] font-medium text-ink/50">Photos at submit</span>
           {unit.photos.map((p) => {
-            const label = `${ASSESSMENT_PARTS.find((x) => x.key === p.part)?.label ?? p.part} · ${unit.code}`;
+            const label = `${p.label} · ${unit.code}`;
             return (
               <button
                 key={p.fileId}
@@ -408,7 +413,7 @@ function UnitRow({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route */}
                 <img src={`/api/files/${p.fileId}`} alt={`Photo for ${label}`} className="h-10 w-10 rounded-lg object-cover" />
-                {ASSESSMENT_PARTS.find((x) => x.key === p.part)?.label}
+                {p.label}
                 {p.submittedAt && (
                   <span className="text-ink/40">
                     · <LocalTime iso={p.submittedAt} />
@@ -420,47 +425,48 @@ function UnitRow({
         </div>
       )}
 
-      {unit.outcome && !open && (
-        <div className="mt-4 rounded-xl bg-lilac/50 px-4 py-3 text-sm text-ink/80">
-          {unit.outcome.feedback ? <p className="whitespace-pre-wrap">{unit.outcome.feedback}</p> : <p className="text-ink/45">No feedback written.</p>}
-          <p className="mt-1 text-[11px] text-ink/45">
-            {unit.outcome.decidedBy} · <LocalTime iso={unit.outcome.decidedAt} />
+      {unit.record.decidedBy && !open && (
+        <div className="mt-4 rounded-xl bg-lilac/50 px-4 py-3 text-sm text-ink">
+          {unit.record.feedback ? <p className="whitespace-pre-wrap">{unit.record.feedback}</p> : <p>No unit feedback written.</p>}
+          <p className="mt-1 text-[11px]">
+            {unit.record.decidedBy}
+            {unit.record.decidedAt && <> · <LocalTime iso={unit.record.decidedAt} /></>}
           </p>
         </div>
       )}
 
       {open && (
         <div className="mt-4 space-y-3 rounded-2xl bg-lilac/60 p-4">
-          <div role="radiogroup" aria-label={`Final result for ${unit.code}`} className="flex flex-wrap gap-2">
-            {options.map((o) => (
-              <button
-                key={o.id}
-                role="radio"
-                aria-checked={result === o.id}
-                onClick={() => setResult(o.id)}
-                className={`rounded-full px-5 py-2 text-sm font-medium transition ${result === o.id ? toneStyle[o.tone] + " ring-2 ring-current" : "bg-white text-ink hover:bg-white/70"}`}
-              >
-                {o.label}
-              </button>
-            ))}
-            {canClear && (
-              <Link href="/superadmin/settings#result-options" className="self-center px-2 text-xs font-medium text-plum hover:underline">
-                Edit options
-              </Link>
-            )}
+          <div role="radiogroup" aria-label={`Unit status for ${unit.code}`} className="flex flex-wrap gap-2">
+            {UNIT_STATUSES.map((o) => {
+              const blocked = canSetUnitStatus(role, unit.record.status, o);
+              return (
+                <button
+                  key={o}
+                  role="radio"
+                  aria-checked={status === o}
+                  disabled={!!blocked}
+                  title={blocked ?? undefined}
+                  onClick={() => setStatus(o)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${status === o ? `${unitStatusStyle[o]} ring-2 ring-current` : "bg-white text-ink hover:bg-white/70"}`}
+                >
+                  {o}
+                </button>
+              );
+            })}
           </div>
           <textarea
             rows={3}
             value={feedback}
             maxLength={4000}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder={picked?.kind === "fail" ? `Why the result is ${picked.label} (required)` : "Overall feedback for the student"}
+            placeholder={status === "Not Yet Competent" ? "Why the unit is Not Yet Competent (required)" : "Unit feedback for the student (separate from module feedback)"}
             aria-label={`Feedback for ${unit.code}`}
             className="w-full resize-y rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/35 focus:ring-plum/40"
           />
           <p className="text-xs text-ink">
-            {picked ? `${picked.label}: ${RESULT_KINDS.find((k) => k.key === picked.kind)?.hint}. ` : ""}
-            The student can’t change this unit once a final result is given.
+            {status !== "Active" ? NON_ACTIVE_WARNING : "Active: the student can use the unit when it’s opened."}{" "}
+            {role === "trainer" ? "Only admin can bring a non-active unit back to Active." : "Reactivating restores the student’s saved work and module statuses."}
           </p>
           <div className="flex gap-2">
             <button
@@ -468,7 +474,7 @@ function UnitRow({
               disabled={saving}
               className="rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Save final result"}
+              {saving ? "Saving…" : "Save unit status"}
             </button>
             <button onClick={() => setOpen(false)} className="rounded-full px-4 py-2.5 text-sm text-ink/60 hover:bg-white/60">
               Cancel

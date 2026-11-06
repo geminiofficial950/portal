@@ -2,13 +2,23 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { ObjectId } from "mongodb";
 import { getDb } from "./db";
-import type { DocumentRequestDTO, PlacementDocDTO, SignedDocDTO } from "./document-meta";
+import { signedUploads, SIGNED_UPLOADS_MAX, submittedReview, type CourseDocSection, type DocReview, type DocumentRequestDTO, type PlacementDocDTO, type SignedDocDTO } from "./document-meta";
 import { deleteUploads } from "./files";
 import type { FileRef } from "./submission-meta";
 
-type PlacementDoc = Omit<PlacementDocDTO, "createdAt"> & { _id?: ObjectId; createdAt: Date };
-type SignedDoc = Omit<SignedDocDTO, "uploadedAt"> & { _id?: ObjectId; courseCode: string; uploadedAt: Date };
-type RequestDoc = Omit<DocumentRequestDTO, "createdAt" | "uploadedAt"> & { _id?: ObjectId; createdAt: Date; uploadedAt: Date | null };
+type PlacementDoc = Omit<PlacementDocDTO, "createdAt" | "section" | "instructions"> & { _id?: ObjectId; createdAt: Date; section?: CourseDocSection; instructions?: string };
+// One record per student and form; `uploads` grows with each file (older records have a single `file`)
+type SignedDoc = {
+  _id?: ObjectId;
+  docId: string;
+  studentId: string;
+  courseCode: string;
+  file?: FileRef;
+  uploadedAt?: Date;
+  uploads?: { file: FileRef; uploadedAt: Date }[];
+  review?: DocReview;
+};
+type RequestDoc = Omit<DocumentRequestDTO, "createdAt" | "uploadedAt" | "dueAt" | "review"> & { _id?: ObjectId; createdAt: Date; uploadedAt: Date | null; dueAt?: Date | null; review?: DocReview | null };
 
 const iso = (d: Date) => d.toISOString();
 
@@ -31,14 +41,17 @@ async function cols() {
   return { placement, signed, requests };
 }
 
-const placementDTO = ({ docId, courseCode, title, file, createdAt }: PlacementDoc): PlacementDocDTO => ({
+const placementDTO = ({ docId, courseCode, title, file, createdAt, section, instructions }: PlacementDoc): PlacementDocDTO => ({
   docId,
   courseCode,
   title,
   file,
   createdAt: iso(createdAt),
+  section: section ?? "placement",
+  instructions: instructions ?? "",
 });
-const signedDTO = ({ docId, studentId, file, uploadedAt }: SignedDoc): SignedDocDTO => ({ docId, studentId, file, uploadedAt: iso(uploadedAt) });
+const signedDTO = (d: SignedDoc): SignedDocDTO => ({ docId: d.docId, studentId: d.studentId, uploads: signedUploads(d), review: d.review ?? submittedReview() });
+const filesOf = (d: SignedDoc) => signedUploads(d).map((u) => u.file);
 const requestDTO = (d: RequestDoc): DocumentRequestDTO => ({
   requestId: d.requestId,
   studentId: d.studentId,
@@ -47,6 +60,8 @@ const requestDTO = (d: RequestDoc): DocumentRequestDTO => ({
   file: d.file,
   uploadedAt: d.uploadedAt ? iso(d.uploadedAt) : null,
   createdAt: iso(d.createdAt),
+  dueAt: d.dueAt ? iso(d.dueAt) : null,
+  review: d.file ? (d.review ?? submittedReview()) : null,
 });
 
 // ---------- Placement documents (per course) ----------
@@ -62,8 +77,8 @@ export async function getPlacementDoc(docId: string) {
   return doc ? placementDTO(doc) : null;
 }
 
-export async function addPlacementDoc(courseCode: string, title: string, file: FileRef) {
-  const doc: PlacementDoc = { docId: randomUUID(), courseCode, title, file, createdAt: new Date() };
+export async function addPlacementDoc(courseCode: string, title: string, file: FileRef, extra: { section: CourseDocSection; instructions: string } = { section: "placement", instructions: "" }) {
+  const doc: PlacementDoc = { docId: randomUUID(), courseCode, title, file, createdAt: new Date(), ...extra };
   await (await cols()).placement.insertOne(doc);
   return placementDTO(doc);
 }
@@ -75,7 +90,7 @@ export async function removePlacementDoc(docId: string) {
   if (!doc) return false;
   const copies = await signed.find({ docId }).toArray();
   await Promise.all([placement.deleteOne({ docId }), signed.deleteMany({ docId })]);
-  await deleteUploads([doc.file.id, ...copies.map((c) => c.file.id)]);
+  await deleteUploads([doc.file.id, ...copies.flatMap((c) => filesOf(c).map((f) => f.id))]);
   return true;
 }
 
@@ -93,18 +108,29 @@ export async function listSignedDocs(studentId: string) {
   return docs.map(signedDTO);
 }
 
-// Saves (or replaces) the student's signed copy; returns the file it replaced
-export async function saveSignedDoc(studentId: string, doc: PlacementDocDTO, file: FileRef) {
+export class TooManySignedError extends Error {}
+
+// Adds a signed copy to the student's list for this form (nothing is replaced). Returns the whole list.
+export async function addSignedDoc(studentId: string, doc: PlacementDocDTO, file: FileRef) {
   const { signed } = await cols();
   const prev = await signed.findOne({ studentId, docId: doc.docId });
-  const uploadedAt = new Date();
+  const have = prev ? signedUploads(prev) : [];
+  if (have.length >= SIGNED_UPLOADS_MAX) throw new TooManySignedError();
+  // An older single-file record is turned into the list on its first new upload
+  const uploads = [...have.map((u) => ({ file: u.file, uploadedAt: new Date(u.uploadedAt) })), { file, uploadedAt: new Date() }];
   await signed.updateOne(
     { studentId, docId: doc.docId },
-    { $set: { courseCode: doc.courseCode, file, uploadedAt } },
+    // a new upload goes back to "Submitted" for review
+    { $set: { courseCode: doc.courseCode, uploads, review: submittedReview() }, $unset: { file: "", uploadedAt: "" } },
     { upsert: true },
   );
-  if (prev && prev.file.id !== file.id) await deleteUploads([prev.file.id]);
-  return signedDTO({ studentId, docId: doc.docId, courseCode: doc.courseCode, file, uploadedAt });
+  return signedDTO({ studentId, docId: doc.docId, courseCode: doc.courseCode, uploads });
+}
+
+// Staff review of a student's signed placement form
+export async function reviewSignedDoc(studentId: string, docId: string, review: Omit<DocReview, "at">) {
+  const res = await (await cols()).signed.findOneAndUpdate({ studentId, docId }, { $set: { review: { ...review, at: new Date().toISOString() } } }, { returnDocument: "after" });
+  return res ? signedDTO(res) : null;
 }
 
 // The placement form a file belongs to, if it is one (for download permission)
@@ -125,8 +151,8 @@ export async function getRequest(requestId: string) {
   return doc ? requestDTO(doc) : null;
 }
 
-export async function createRequest(studentId: string, name: string, note: string) {
-  const doc: RequestDoc = { requestId: randomUUID(), studentId, name, note, file: null, uploadedAt: null, createdAt: new Date() };
+export async function createRequest(studentId: string, name: string, note: string, dueAt: Date | null = null) {
+  const doc: RequestDoc = { requestId: randomUUID(), studentId, name, note, file: null, uploadedAt: null, createdAt: new Date(), dueAt, review: null };
   await (await cols()).requests.insertOne(doc);
   return requestDTO(doc);
 }
@@ -146,7 +172,13 @@ export async function fulfilRequest(requestId: string, file: FileRef) {
   const prev = await requests.findOne({ requestId });
   if (!prev) return null;
   const uploadedAt = new Date();
-  await requests.updateOne({ requestId }, { $set: { file, uploadedAt } });
+  await requests.updateOne({ requestId }, { $set: { file, uploadedAt, review: submittedReview() } });
   if (prev.file && prev.file.id !== file.id) await deleteUploads([prev.file.id]);
-  return requestDTO({ ...prev, file, uploadedAt });
+  return requestDTO({ ...prev, file, uploadedAt, review: submittedReview() });
+}
+
+// Staff review of a requested document
+export async function reviewRequest(requestId: string, review: Omit<DocReview, "at">) {
+  const res = await (await cols()).requests.findOneAndUpdate({ requestId, file: { $ne: null } }, { $set: { review: { ...review, at: new Date().toISOString() } } }, { returnDocument: "after" });
+  return res ? requestDTO(res) : null;
 }

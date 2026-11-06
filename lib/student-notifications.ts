@@ -4,7 +4,7 @@ import { getDb } from "./db";
 
 // What a student sees under "Notification" on their dashboard: changes staff made to their units
 // (unlocked, locked, hidden, shown again). Newest first; the oldest are dropped past KEEP per student.
-export type StudentNotificationKind = "unlocked" | "locked" | "hidden" | "shown";
+export type StudentNotificationKind = "unlocked" | "locked" | "hidden" | "shown" | "class";
 export type StudentNotificationDTO = { id: string; kind: StudentNotificationKind; text: string; at: string };
 
 type NotificationDoc = { _id?: ObjectId; studentId: string; courseCode: string; kind: StudentNotificationKind; text: string; at: Date };
@@ -24,6 +24,7 @@ const VERB: Record<StudentNotificationKind, string> = {
   locked: "locked",
   hidden: "removed from your course for now",
   shown: "added back to your course",
+  class: "changed",
 };
 const VERB_MANY: Record<StudentNotificationKind, string> = { ...VERB, unlocked: "unlocked — you can start them now" };
 
@@ -54,4 +55,16 @@ export async function notifyUnitChange(
 export async function listStudentNotifications(studentId: string) {
   const docs = await (await collection()).find({ studentId }).sort({ at: -1 }).limit(KEEP).toArray();
   return docs.map((d): StudentNotificationDTO => ({ id: d._id!.toString(), kind: d.kind, text: d.text, at: d.at.toISOString() }));
+}
+
+// A free-text notice to many students at once (class session added, changed or cancelled). Sent once per call,
+// so a retried action can't double-notify for the same change.
+export async function notifyStudents(studentIds: string[], courseCode: string, text: string) {
+  if (!studentIds.length) return;
+  try {
+    const at = new Date();
+    await (await collection()).insertMany(studentIds.map((studentId) => ({ studentId, courseCode, kind: "class" as const, text, at })));
+  } catch (err) {
+    console.error("student notification failed:", err);
+  }
 }

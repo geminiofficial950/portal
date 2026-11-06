@@ -113,6 +113,15 @@ export async function removeResource(courseCode: string, unitCode: string, resou
   return removed;
 }
 
+// Changes the title (the name students see) of one resource
+export async function renameResource(courseCode: string, unitCode: string, resourceId: string, title: string) {
+  const res = await (await collection()).updateOne(
+    { courseCode, unitCode, "resources.id": resourceId },
+    { $set: { "resources.$.title": title, updatedAt: new Date() } },
+  );
+  return res.matchedCount === 1;
+}
+
 export async function deleteUnitContent(courseCode: string, unitCode: string) {
   const col = await collection();
   const doc = await col.findOneAndDelete({ courseCode, unitCode });

@@ -38,6 +38,8 @@ export async function adminActor() {
 
 // Admins can do everything except change dates
 export const DATES_SUPER_ADMIN_ONLY = "Only Super Admin can change dates.";
+// …and except deleting (students, trainers, batches, courses, units). Admins deactivate instead.
+export const DELETE_SUPER_ADMIN_ONLY = "Only Super Admin can delete. You can disable the account instead.";
 
 export async function requireStudent() {
   const session = await getSession();

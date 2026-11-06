@@ -10,7 +10,8 @@ import { generatePassword } from "@/lib/password";
 import type { TrainerDTO } from "@/lib/trainer-meta";
 import { addTrainerAction, deleteTrainerAction, resetTrainerPasswordAction, setTrainerActiveAction } from "./actions";
 
-export default function TrainersClient({ initialTrainers }: { initialTrainers: TrainerDTO[] }) {
+// canDelete: Super Admin only; Admins switch a trainer off instead
+export default function TrainersClient({ initialTrainers, canDelete }: { initialTrainers: TrainerDTO[]; canDelete: boolean }) {
   const [list, setList] = useState(initialTrainers);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -171,7 +172,7 @@ export default function TrainersClient({ initialTrainers }: { initialTrainers: T
                     <p className="text-[11px] text-ink/45">
                       {t.trainerId} · added {t.added}
                     </p>
-                    <button
+                    {canDelete && <button
                       onClick={() => {
                         if (!window.confirm(`Remove ${t.name}?`)) return;
                         run(t.trainerId, () => deleteTrainerAction(t.trainerId), () => {
@@ -183,7 +184,7 @@ export default function TrainersClient({ initialTrainers }: { initialTrainers: T
                       className="rounded-full p-1.5 text-ink/35 transition hover:bg-rose-50 hover:text-rose-600"
                     >
                       <TrashIcon className="h-4 w-4" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </li>

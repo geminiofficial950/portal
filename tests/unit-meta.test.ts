@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { AssessmentSummary } from "@/lib/assessment-meta";
 import { DEFAULT_RESULT_OPTIONS, type ResultOption } from "@/lib/result-meta";
 import { canEditWork, checkUnitResult, cleanUrl, validateResource } from "@/lib/unit-meta";
 
 const opt = (id: string) => DEFAULT_RESULT_OPTIONS.find((o) => o.id === id);
 
-const allParts: AssessmentSummary = { quiz: true, theory: true, rolePlay: true, workplace: true, quizCount: 2, theoryCount: 1, workplaceCount: 1 };
-const allAccepted = { quiz: "Accepted", theory: "Accepted", rolePlay: "Accepted", workplace: "Accepted" } as const;
+const allParts = [
+  { key: "quiz", label: "Quiz and Activities" },
+  { key: "theory", label: "Theory Task" },
+  { key: "workplace", label: "Workplacement Task" },
+];
+const allAccepted = { quiz: "Accepted", theory: "Accepted", workplace: "Accepted" } as const;
 
 describe("checkUnitResult — final result options", () => {
   it("allows Pass when every part is accepted", () => {
@@ -15,12 +18,12 @@ describe("checkUnitResult — final result options", () => {
 
   it("blocks Pass and lists the parts not accepted yet", () => {
     expect(checkUnitResult(opt("Pass"), "", allParts, { ...allAccepted, theory: "Rejected", workplace: "Submitted" })).toBe(
-      "Can’t pass yet — not accepted: Theory Task, Workplacement Task.",
+      "Can’t pass yet — not Satisfactory: Theory Task, Workplacement Task.",
     );
   });
 
   it("only counts parts the college set up", () => {
-    const quizOnly: AssessmentSummary = { ...allParts, theory: false, rolePlay: false, workplace: false };
+    const quizOnly = [allParts[0]];
     expect(checkUnitResult(opt("Pass"), "", quizOnly, { quiz: "Accepted" })).toBeNull();
   });
 
@@ -114,12 +117,16 @@ describe("validateResource", () => {
 });
 
 describe("part statuses — Satisfactory / Not Yet Satisfactory / Request More Documents", () => {
-  it("shows the college's names", async () => {
-    const { statusLabel } = await import("@/lib/submission-meta");
-    expect([statusLabel.Accepted, statusLabel.Rejected, statusLabel.MoreDocs]).toEqual([
+  it("uses the exact module statuses from the LMS guide", async () => {
+    const { statusLabel, MODULE_STATUSES } = await import("@/lib/submission-meta");
+    expect(MODULE_STATUSES).toEqual(["Active", "Pending marking", "Satisfactory", "Not satisfactory", "Additional information requested"]);
+    expect(["Not started", "Draft", "Submitted", "Accepted", "Rejected", "MoreDocs"].map((s) => statusLabel[s as keyof typeof statusLabel])).toEqual([
+      "Active",
+      "Active", // a draft is only a save indicator, not a status
+      "Pending marking",
       "Satisfactory",
-      "Not Yet Satisfactory",
-      "Request More Documents",
+      "Not satisfactory",
+      "Additional information requested",
     ]);
   });
 

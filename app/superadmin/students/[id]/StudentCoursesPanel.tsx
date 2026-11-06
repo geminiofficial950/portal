@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { setCourseStatusAction, setStudentCoursesAction } from "../actions";
-import { COURSE_STATUSES, courseStatusStyle, type CourseStatus } from "@/lib/course-status";
+import { courseStatusStyle, statusOptions, type CourseStatus } from "@/lib/course-status";
 
 type Enrolment = { code: string; name: string; status: CourseStatus };
 
@@ -85,7 +85,7 @@ export default function StudentCoursesPanel({
               aria-label={`Course status for ${c.code}`}
               className="rounded-xl bg-lilac px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-plum/30 disabled:opacity-60"
             >
-              {COURSE_STATUSES.map((s) => (
+              {statusOptions(c.status).map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

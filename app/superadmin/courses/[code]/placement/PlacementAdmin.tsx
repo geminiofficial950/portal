@@ -29,6 +29,8 @@ export default function PlacementAdmin({
   const free = PLACEMENT_DOC_TYPES.filter((t) => !docs.some((d) => d.title === t));
   const [type, setType] = useState<string>(free[0] ?? "Other");
   const [otherName, setOtherName] = useState("");
+  const [section, setSection] = useState<"placement" | "course">("placement");
+  const [instructions, setInstructions] = useState("");
   const pickedType = free.includes(type as (typeof free)[number]) || type === "Other" ? type : (free[0] ?? "Other");
   const title = pickedType === "Other" ? otherName.trim() : pickedType;
   const [saving, startSaving] = useTransition();
@@ -43,11 +45,12 @@ export default function PlacementAdmin({
     });
 
   const addDoc = async (file: { id: string }) => {
-    const res = await addPlacementDocAction(courseCode, title, file.id);
+    const res = await addPlacementDocAction(courseCode, title, file.id, { section, instructions });
     if (!res.ok) return void toast.error(res.error);
     const next = sortPlacementDocs([...docs, res.doc]);
     setDocs(next);
     setOtherName("");
+    setInstructions("");
     setType(PLACEMENT_DOC_TYPES.find((t) => !next.some((d) => d.title === t)) ?? "Other");
     toast.success(`“${res.doc.title}” added`);
   };
@@ -94,13 +97,31 @@ export default function PlacementAdmin({
 
       <section className={card}>
         <div>
-          <h2 className="text-base font-medium text-ink">Placement documents</h2>
+          <h2 className="text-base font-medium text-ink">Course documents &amp; placement pack</h2>
           <p className="mt-0.5 text-sm text-ink">
-            Upload the forms students must sign. They download each one, sign it and upload it back. ({FILE_RULES.label})
+            Course documents are for students to download. Placement-pack forms are downloaded, completed and uploaded back into a matching
+            slot; staff then approve them or ask for changes. ({FILE_RULES.label})
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-lilac p-3">
+          <select
+            value={section}
+            onChange={(e) => setSection(e.target.value as "placement" | "course")}
+            aria-label="Section"
+            className="rounded-xl bg-white px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
+          >
+            <option value="placement">Placement pack (students upload it back)</option>
+            <option value="course">Course document (download only)</option>
+          </select>
+          <input
+            value={instructions}
+            maxLength={300}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Instructions for students (optional)"
+            aria-label="Instructions"
+            className="min-w-0 basis-full rounded-xl bg-white px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/40"
+          />
           <select
             value={pickedType}
             onChange={(e) => setType(e.target.value)}
@@ -139,7 +160,11 @@ export default function PlacementAdmin({
               <li key={d.docId} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <FileIcon className="h-5 w-5 shrink-0 text-plum" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-ink">{d.title}</span>
+                  <span className="block text-sm font-medium text-ink">
+                    {d.title}{" "}
+                    <span className="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-plum">{d.section === "course" ? "Course document" : "Placement pack"}</span>
+                  </span>
+                  {d.instructions && <span className="block text-xs text-ink">{d.instructions}</span>}
                   <span className="block truncate text-xs text-ink">{d.file.name}</span>
                 </span>
                 <FileActions file={d.file} title={d.title} size="sm" />

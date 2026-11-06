@@ -3,7 +3,8 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getCourse } from "@/lib/courses";
-import { ASSESSMENT_PARTS } from "@/lib/assessment-meta";
+import { partLabel as moduleLabel } from "@/lib/assessment-meta";
+import { getAssessment } from "@/lib/assessments";
 import { agreedDeclaration, declarationRef, declarationTitle } from "@/lib/declaration";
 import { formatStamp } from "@/lib/format";
 import { getSession } from "@/lib/session";
@@ -11,6 +12,7 @@ import { getSettings } from "@/lib/settings";
 import { getStudent } from "@/lib/students";
 import { getSubmission } from "@/lib/submissions";
 import { getTrainer } from "@/lib/trainers";
+import { trainerCanSee } from "@/lib/trainer-access";
 
 export const metadata: Metadata = { title: "Declaration | Stella College" };
 
@@ -33,10 +35,11 @@ async function Certificate({ params }: { params: Promise<{ id: string }> }) {
 
   const isOwner = session.role === "student" && session.sub === sub.studentId;
   const isAdmin = session.role === "admin";
-  const isTrainer = session.role === "trainer" && !!(await getTrainer(session.sub))?.active;
+  // a trainer: only while the student is in their batch and the unit is assigned to them
+  const isTrainer = session.role === "trainer" && !!(await getTrainer(session.sub))?.active && (await trainerCanSee(session.sub, sub.studentId, sub.unitCode));
   if (!isOwner && !isAdmin && !isTrainer) notFound();
   const text = agreedDeclaration(sub.content.declaration);
-  const partLabel = ASSESSMENT_PARTS.find((p) => p.key === sub.part)?.label ?? sub.part;
+  const partLabel = moduleLabel(await getAssessment(sub.courseCode, sub.unitCode), sub.part);
   const submittedAt = sub.submittedAt ? formatStamp(new Date(sub.submittedAt)) : "—";
 
   const [student, course, { college }] = await Promise.all([getStudent(sub.studentId), getCourse(sub.courseCode), getSettings()]);
@@ -76,7 +79,7 @@ async function Certificate({ params }: { params: Promise<{ id: string }> }) {
             </div>
             <div className="text-left sm:text-right">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8a6a1f]">Student declaration</p>
-              <h1 className="mt-1 text-2xl font-bold text-[#5b3f99] sm:text-[1.75rem]">{declarationTitle(sub.part)}</h1>
+              <h1 className="mt-1 text-2xl font-bold text-[#5b3f99] sm:text-[1.75rem]">{declarationTitle(sub.part, partLabel)}</h1>
               <p className="mt-1 text-sm font-medium">Reference {declarationRef(sub.submissionId)}</p>
             </div>
           </header>
@@ -92,7 +95,7 @@ async function Certificate({ params }: { params: Promise<{ id: string }> }) {
               {detail("Unit code", sub.unitCode)}
               {detail("Course name", course?.name ?? "", true)}
               {detail("Unit name", sub.unitTitle, true)}
-              {detail("Assessment part", partLabel)}
+              {detail("Module", partLabel)}
               {detail("Date and time of submission", submittedAt)}
             </div>
             <figure className="flex flex-col rounded-lg border border-[#e2dcf2] p-2.5 sm:max-md:w-56">
@@ -129,6 +132,22 @@ async function Certificate({ params }: { params: Promise<{ id: string }> }) {
               </span>
               <p className="text-[15px] font-bold">{text.agree}</p>
             </div>
+            {sub.content.declaration.signature && (
+              <div className="mt-4 flex flex-wrap items-end gap-6">
+                <div>
+                  <p className={label}>Student signature</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route */}
+                  <img
+                    src={`/api/files/${sub.content.declaration.signature.file.id}?inline=1`}
+                    alt={`Signature of ${sub.studentName}`}
+                    className="mt-1 h-20 w-64 border-b-2 border-[#1d1b33] object-contain object-left-bottom"
+                  />
+                </div>
+                <p className="pb-1 text-sm font-medium">
+                  {student?.name ?? sub.studentName} · {submittedAt}
+                </p>
+              </div>
+            )}
           </section>
 
           {(college.email || college.phone) && (

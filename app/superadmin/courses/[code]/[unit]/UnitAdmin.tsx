@@ -21,7 +21,7 @@ import FileActions from "../../../../dashboard/_components/FileActions";
 const SECTIONS = [
   { key: "overview", label: "1. Main unit", hint: "What the unit is about" },
   { key: "resources", label: "2. Resources", hint: "Things to read first" },
-  { key: "assessment", label: "3. Assessment", hint: "Quiz and Activities, Theory Task, Workplacement Task" },
+  { key: "assessment", label: "3. Modules", hint: "Activities and tasks — any number, in your order" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 

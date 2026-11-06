@@ -3,15 +3,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { logout } from "../../actions/auth";
 import ThemeToggle from "../../components/ThemeToggle";
 import {
   BookIcon,
   BoxIcon,
-  // ChatIcon, // used by the Support menu item (switched off for now)
+  CalendarIcon,
+  ChatIcon,
   ClipboardIcon,
   CloseIcon,
+  CompressIcon,
+  ExpandIcon,
   HomeIcon,
   LogoutIcon,
   MenuIcon,
@@ -28,82 +31,80 @@ export type PortalVariant = "student" | "trainer" | "admin";
 // A unit page (/dashboard/assessment/…) is part of the student's Course
 const ALSO_ACTIVE: Record<string, string[]> = { "/dashboard/course": ["/dashboard/assessment"] };
 
+// Navigation per portal, as named in the LMS guide
 const variants = {
   student: {
+    title: "Student Portal",
     home: "/dashboard",
     nav: [
       { label: "Dashboard", href: "/dashboard", icon: HomeIcon },
-      { label: "Course", href: "/dashboard/course", icon: BoxIcon },
-      { label: "Classroom", href: "/dashboard/classroom", icon: VideoIcon },
-      { label: "Tickets", href: "/dashboard/tickets", icon: TicketIcon },
-      { label: "User Guide", href: "/dashboard/user-guide", icon: BookIcon },
-      // Support is switched off for now — uncomment to bring it back
-      // { label: "Support", href: "/dashboard/support", icon: ChatIcon },
+      { label: "Courses", href: "/dashboard/course", icon: BoxIcon },
+      { label: "My classes", href: "/dashboard/classroom", icon: VideoIcon },
+      { label: "Requests", href: "/dashboard/requests", icon: ClipboardIcon },
+      { label: "Feedback", href: "/dashboard/feedback", icon: ChatIcon },
+      { label: "Help", href: "/dashboard/user-guide", icon: BookIcon },
+      { label: "Support", href: "/dashboard/tickets", icon: TicketIcon },
     ],
-    help: {
-      title: "Need Help?",
-      text: "Book a meeting with our student support team anytime you need assistance.",
-      cta: "Book Now",
-      href: "/dashboard/support",
-    },
   },
   trainer: {
+    title: "Trainer Portal",
     home: "/trainer",
     nav: [
       { label: "Dashboard", href: "/trainer", icon: HomeIcon },
-      { label: "My tickets", href: "/trainer/tickets", icon: TicketIcon },
-      { label: "Marking", href: "/trainer/marking", icon: ClipboardIcon },
-      { label: "Students", href: "/trainer/students", icon: UsersIcon },
-      { label: "Classroom", href: "/trainer/classroom", icon: VideoIcon },
+      { label: "My batches", href: "/trainer/batches", icon: UsersIcon },
+      { label: "Assigned units", href: "/trainer/units", icon: BookIcon },
+      { label: "Submissions", href: "/trainer/marking", icon: ClipboardIcon },
+      { label: "Feedback reviews", href: "/trainer/reviews", icon: ChatIcon },
+      { label: "Extension requests", href: "/trainer/extensions", icon: CalendarIcon },
+      { label: "Students", href: "/trainer/students", icon: UserPlusIcon },
+      { label: "Classes", href: "/trainer/classroom", icon: VideoIcon },
+      { label: "Support", href: "/trainer/tickets", icon: TicketIcon },
     ],
-    help: {
-      title: "Trainer",
-      text: "Answer your assigned tickets and mark the assessments students submit.",
-      cta: "Contact admin",
-      href: "mailto:admin@stellacollege.edu.au",
-    },
   },
   admin: {
+    title: "Admin Portal",
     home: "/superadmin",
     nav: [
       { label: "Overview", href: "/superadmin", icon: HomeIcon },
+      { label: "Courses", href: "/superadmin/courses", icon: BoxIcon },
       { label: "Students", href: "/superadmin/students", icon: UsersIcon },
       { label: "Trainers", href: "/superadmin/trainers", icon: UserPlusIcon },
+      { label: "Batches", href: "/superadmin/batches", icon: CalendarIcon },
+      { label: "Classes", href: "/superadmin/classroom", icon: VideoIcon },
+      { label: "Requests", href: "/superadmin/requests", icon: ClipboardIcon },
       { label: "Admins", href: "/superadmin/admins", icon: ShieldIcon, superOnly: true },
-      { label: "Courses", href: "/superadmin/courses", icon: BoxIcon },
-      { label: "Classroom", href: "/superadmin/classroom", icon: VideoIcon },
-      { label: "Tickets", href: "/superadmin/tickets", icon: TicketIcon },
+      { label: "Support", href: "/superadmin/tickets", icon: TicketIcon },
       { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon },
     ],
-    help: {
-      title: "Super Admin",
-      text: "You have full access to students, trainers, courses and portal settings.",
-      cta: "Portal Settings",
-      href: "/superadmin/settings",
-    },
   },
 } as const;
 
-function SofaIllustration() {
-  return (
-    <svg viewBox="0 0 160 110" className="mx-auto mt-4 w-full max-w-[150px] [@media(max-height:760px)]:hidden" aria-hidden>
-      <ellipse cx="80" cy="104" rx="70" ry="5" fill="#000" opacity="0.12" />
-      <rect x="18" y="44" width="124" height="40" rx="10" fill="#6c5bd6" />
-      <rect x="10" y="58" width="24" height="38" rx="8" fill="#5a49c4" />
-      <rect x="126" y="58" width="24" height="38" rx="8" fill="#5a49c4" />
-      <rect x="30" y="70" width="100" height="24" rx="6" fill="#7b6be0" />
-      <rect x="22" y="94" width="6" height="8" rx="2" fill="#3e2f86" />
-      <rect x="132" y="94" width="6" height="8" rx="2" fill="#3e2f86" />
-      <circle cx="68" cy="22" r="8" fill="#f2b591" />
-      <path d="M60 20c0-9 16-9 16 0v14h-4V22c-3 2-8 2-12-2Z" fill="#1d1b33" />
-      <path d="M58 36c0-6 5-9 10-9s10 3 10 9v26H58Z" fill="#fdc580" />
-      <path d="M62 62h22l8 22h-6l-7-16H62Z" fill="#2e4f6e" />
-      <path d="M86 84h8v4h-9Z" fill="#1d1b33" />
-      <rect x="74" y="44" width="26" height="17" rx="2" fill="#e8e6f5" transform="rotate(-8 87 52)" />
-      <rect x="70" y="60" width="32" height="3" rx="1.5" fill="#cfcbe8" />
-    </svg>
-  );
-}
+// Full screen: hides the purple menu so the white page fills the screen (desktop). Remembered in this browser.
+const FULL_KEY = "portal-full";
+const FULL_EVENT = "portal-full-change";
+const subscribeFull = (cb: () => void) => {
+  window.addEventListener(FULL_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(FULL_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+};
+const readFull = () => {
+  try {
+    return localStorage.getItem(FULL_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const setFull = (on: boolean) => {
+  try {
+    localStorage.setItem(FULL_KEY, on ? "1" : "0");
+  } catch {
+    // private window: it still works until the page reloads
+  }
+  window.dispatchEvent(new Event(FULL_EVENT));
+};
 
 type NavItem = Omit<(typeof variants)[PortalVariant]["nav"][number], "href"> & { href: string }; // href may be /admin/… for Admin accounts
 type NavLinksProps = { nav: readonly NavItem[]; home: string; onNavigate: () => void };
@@ -151,10 +152,14 @@ export default function Sidebar({ variant = "student", superAdmin }: { variant?:
   const href = (h: string) => (asAdmin ? h.replace(/^\/superadmin/, "/admin") : h);
   const home = href(base.home);
   const nav = base.nav.filter((item) => !!superAdmin || !("superOnly" in item)).map((item) => ({ ...item, href: href(item.href) }));
-  const help = asAdmin
-    ? { ...base.help, title: "Admin", text: "You can manage students, trainers, courses and settings. Only Super Admin can change dates.", href: href(base.help.href) }
-    : base.help;
   const [open, setOpen] = useState(false);
+  const full = useSyncExternalStore(subscribeFull, readFull, () => false);
+
+  // The layout's #portal-root carries the flag; globals.css hides the menu and widens the page
+  useEffect(() => {
+    const root = document.getElementById("portal-root");
+    if (root) root.dataset.full = full ? "1" : "";
+  }, [full]);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -202,26 +207,22 @@ export default function Sidebar({ variant = "student", superAdmin }: { variant?:
           </button>
         </div>
 
-        <nav className="mt-12 flex-1">
+        <p className="mt-4 text-sm font-semibold tracking-wide text-white">{base.title}</p>
+        <nav className="mt-8 flex-1">
           <Suspense fallback={<NavLinks nav={nav} home={home} onNavigate={() => setOpen(false)} />}>
             <ActiveNavLinks nav={nav} home={home} onNavigate={() => setOpen(false)} />
           </Suspense>
         </nav>
 
-        <div className="mt-6 rounded-xl bg-plum-light/70 p-4 text-white">
-          <h3 className="text-base font-medium">{help.title}</h3>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-white/75">{help.text}</p>
-          <Link
-            href={help.href}
-            onClick={() => setOpen(false)}
-            className="mt-3 inline-block rounded-md bg-peach px-4 py-1.5 text-[11px] font-medium text-white transition hover:brightness-95"
-          >
-            {help.cta}
-          </Link>
-          <SofaIllustration />
-        </div>
-
-        <ThemeToggle look="menu" className="mt-4" />
+        <button
+          type="button"
+          onClick={() => setFull(true)}
+          className="mt-4 hidden w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white transition hover:text-peach lg:flex"
+        >
+          <ExpandIcon className="h-5 w-5" />
+          Full screen (hide menu)
+        </button>
+        <ThemeToggle look="menu" className="mt-1" />
         <form action={logout}>
           <button
             type="submit"
@@ -232,6 +233,18 @@ export default function Sidebar({ variant = "student", superAdmin }: { variant?:
           </button>
         </form>
       </aside>
+
+      {/* Full screen is on: one button brings the menu back */}
+      {full && (
+        <button
+          type="button"
+          onClick={() => setFull(false)}
+          className="fixed bottom-4 left-4 z-40 hidden items-center gap-2 rounded-full bg-plum px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:bg-plum-light lg:flex"
+        >
+          <CompressIcon className="h-4 w-4" />
+          Show menu
+        </button>
+      )}
     </>
   );
 }

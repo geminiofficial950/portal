@@ -2,77 +2,112 @@
 
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { CheckIcon, CloseIcon } from "../../../dashboard/_components/icons";
+import { changeDeadlineAction } from "../../../actions/deadlines";
 import FileList from "../../../dashboard/_components/FileList";
-import SubmittedFiles from "../../../dashboard/_components/SubmittedFiles";
+import ModuleSubmission from "../../../dashboard/_components/ModuleSubmission";
+import { CheckIcon, ClockIcon, FileIcon } from "../../../dashboard/_components/icons";
 import LocalTime from "../../../dashboard/assessment/_components/LocalTime";
-import { decideAction } from "../actions";
-import { ASSESSMENT_PARTS, type TheoryQuestion, type UnitAssessment } from "@/lib/assessment-meta";
+import { decideAction, replyToReviewAction, setMarkedFilesAction, setPendingAction } from "../actions";
+import type { Module } from "@/lib/module-meta";
 import { statusLabel, statusStyle, type Decision, type SubmissionDTO } from "@/lib/submission-meta";
+import { unitStatusStyle, type UnitStatus } from "@/lib/unit-status-meta";
 
-const DECISION_BUTTONS: { status: Decision; className: string }[] = [
-  { status: "Accepted", className: "bg-emerald-600 hover:bg-emerald-700" },
-  { status: "Rejected", className: "bg-rose-600 hover:bg-rose-700" },
-  { status: "MoreDocs", className: "bg-orange-600 hover:bg-orange-700" },
+const card = "rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6";
+const field = "w-full rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40";
+const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+
+const OPTIONS: { value: Decision | "Submitted"; label: string }[] = [
+  { value: "Submitted", label: "Pending marking" },
+  { value: "Accepted", label: "Satisfactory" },
+  { value: "Rejected", label: "Not satisfactory — request resubmission" },
+  { value: "MoreDocs", label: "Additional information requested" },
 ];
 
-const card = "rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6";
-
-// Student HTML is sanitised on the server before it is stored (lib/sanitize.ts)
-const Answer = ({ html }: { html: string | undefined }) =>
-  html ? (
-    <div className="rich-text rounded-xl bg-lilac/50 px-4 py-3 text-sm leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: html }} />
-  ) : (
-    <p className="rounded-xl bg-lilac/40 px-4 py-3 text-xs text-ink/45">Nothing typed — check the uploaded documents.</p>
-  );
-
+// Manual marking of one module (nothing is marked automatically). Save marking keeps it private; Publish feedback
+// releases the status, feedback and marked copy to the student.
 export default function ReviewClient({
   initialSubmission,
-  theory,
-  rolePlay,
-  workplace,
-  quiz,
+  module: mod,
   canMark,
+  due,
+  unitStatus,
 }: {
   initialSubmission: SubmissionDTO;
-  theory: TheoryQuestion[];
-  quiz: UnitAssessment["quiz"];
-  rolePlay: UnitAssessment["rolePlay"];
-  workplace: UnitAssessment["workplace"];
+  module: Module | null; // null when the module was later deleted
   canMark: boolean;
+  due: string | null; // this student's deadline for the module
+  unitStatus: UnitStatus;
 }) {
   const [s, setS] = useState(initialSubmission);
-  const [feedback, setFeedback] = useState(initialSubmission.feedback);
-  const [criteria, setCriteria] = useState<string[]>(initialSubmission.criteriaMet);
-  const [saving, startSaving] = useTransition();
-  const pending = s.status === "Submitted";
-  const label = ASSESSMENT_PARTS.find((p) => p.key === s.part)!.label;
+  const [status, setStatus] = useState<Decision | "Submitted">(initialSubmission.draft?.status ?? (initialSubmission.status === "Draft" ? "Submitted" : initialSubmission.status));
+  const [feedback, setFeedback] = useState(initialSubmission.draft?.feedback ?? initialSubmission.feedback);
+  const [newDue, setNewDue] = useState("");
+  const [marked, setMarked] = useState(initialSubmission.markedFiles);
+  const [currentDue, setCurrentDue] = useState(due);
+  const [extend, setExtend] = useState<{ dueAt: string; reason: string } | null>(null);
+  const [reply, setReply] = useState("");
+  const [busy, start] = useTransition();
+  const label = mod?.title ?? "Module";
+  const asksForMore = status === "Rejected" || status === "MoreDocs";
 
-  const mark = (status: Decision) => {
-    if (status !== "Accepted" && !feedback.trim()) {
-      return void toast.error(status === "MoreDocs" ? "Write which documents the student needs to add." : "Write what the student needs to fix first.");
+  const save = (publish: boolean) => {
+    if (status === "Submitted") {
+      if (s.status === "Submitted") return void toast.error("Choose a result first.");
+      if (!window.confirm("Put this back to Pending marking? The student’s current result and feedback are taken back.")) return;
+      return start(async () => {
+        const res = await setPendingAction(s.submissionId);
+        if (!res.ok) return void toast.error(res.error);
+        setS(res.submission);
+        toast.success("Back to Pending marking");
+      });
     }
-    if (!window.confirm(`Mark this ${label} as “${statusLabel[status]}”? The student will see it.`)) return;
-    startSaving(async () => {
-      const res = await decideAction(s.submissionId, { status, feedback, criteriaMet: criteria });
+    if (publish && !window.confirm(`Publish “${statusLabel[status]}” for ${label}? The student sees the status, feedback and marked copy straight away.`)) return;
+    start(async () => {
+      const res = await decideAction(s.submissionId, { status, feedback, publish, dueAt: publish && asksForMore && newDue ? new Date(newDue).toISOString() : null });
       if (!res.ok) return void toast.error(res.error);
       setS(res.submission);
-      toast.success(`Marked ${statusLabel[status]} — the student can see it now`);
+      if (publish && asksForMore && newDue) setCurrentDue(new Date(newDue).toISOString());
+      toast.success(publish ? "Published — the student can see it now" : "Marking saved (not yet visible to the student)");
     });
   };
+
+  const saveMarked = (files: typeof marked) =>
+    start(async () => {
+      const res = await setMarkedFilesAction(s.submissionId, files.map((f) => f.id));
+      if (!res.ok) return void toast.error(res.error);
+      setMarked(res.submission.markedFiles);
+      setS(res.submission);
+    });
+
+  const saveExtend = () =>
+    extend &&
+    start(async () => {
+      const res = await changeDeadlineAction({ courseCode: s.courseCode, unitCode: s.unitCode, moduleId: s.part, studentIds: [s.studentId], dueAt: new Date(extend.dueAt).toISOString(), reason: extend.reason });
+      if (!res.ok) return void toast.error(res.error);
+      setCurrentDue(new Date(extend.dueAt).toISOString());
+      setExtend(null);
+      toast.success("Due date changed for this student");
+    });
+
+  const sendReply = () =>
+    start(async () => {
+      const res = await replyToReviewAction(s.submissionId, reply);
+      if (!res.ok) return void toast.error(res.error);
+      setS(res.submission);
+      setReply("");
+      toast.success("Reply sent");
+    });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-plum">
-            {label} · {s.courseCode}
+          <p className="text-sm font-semibold text-plum">
+            {s.courseCode} / {s.unitCode} / {s.studentName}
           </p>
-          <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">
-            {s.unitCode} – {s.unitTitle}
-          </h1>
-          <p className="mt-1 text-sm text-ink/55">
-            {s.studentName} ({s.studentId}) · attempt {s.attempt}
+          <h1 className="mt-1 text-2xl font-semibold text-ink sm:text-[1.65rem]">{label}</h1>
+          <p className="mt-1 text-sm text-ink">
+            {s.unitTitle} · attempt {s.attempt}
             {s.submittedAt && (
               <>
                 {" "}· submitted <LocalTime iso={s.submittedAt} />
@@ -80,212 +115,167 @@ export default function ReviewClient({
             )}
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1.5 text-sm font-medium ${statusStyle[s.status]}`}>{statusLabel[s.status]}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${unitStatusStyle[unitStatus]}`}>Unit {unitStatus}</span>
+          <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${statusStyle[s.status]}`}>{statusLabel[s.status]}</span>
+        </div>
       </div>
 
-      {s.history.length > 0 && (
-        <div className="rounded-2xl bg-lilac/70 px-5 py-3 text-xs text-ink/70">
-          <p className="font-medium text-ink">Earlier attempts</p>
-          <ul className="mt-1 space-y-1">
-            {s.history.map((h) => (
-              <li key={h.attempt}>
-                Attempt {h.attempt} — {statusLabel[h.status]} by {h.decidedBy}: {h.feedback || "no comment"}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {s.part === "theory" &&
-        theory.map((q, i) => (
-          <div key={q.id} className={card}>
-            <p className="flex gap-3 text-sm font-medium text-ink">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-lilac text-[11px] text-plum">{i + 1}</span>
-              <span className="pt-1">{q.text}</span>
-            </p>
-            {q.wordLimit && <p className="mt-1 pl-10 text-[11px] text-ink/45">Word limit {q.wordLimit}</p>}
-            <div className="mt-3 space-y-2 sm:pl-10">
-              <Answer html={s.content.theory?.find((t) => t.questionId === q.id)?.html} />
-              {!!s.content.theory?.find((t) => t.questionId === q.id)?.files?.length && (
-                <FileList files={s.content.theory.find((t) => t.questionId === q.id)!.files!} />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-6">
+          <section className={`${card} space-y-4`}>
+            <h2 className="text-lg font-semibold text-ink">Student submission</h2>
+            <ModuleSubmission module={mod} sub={s} />
+            <div className="flex flex-wrap gap-3 border-t border-ink/10 pt-4 text-sm text-ink">
+              <span className="flex items-center gap-2">
+                Declaration
+                {s.content.declaration?.signature ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    <CheckIcon className="h-3.5 w-3.5" /> Signed
+                  </span>
+                ) : s.content.declaration ? (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">Ticked</span>
+                ) : (
+                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-800">None</span>
+                )}
+              </span>
+              <span className="flex items-center gap-2">
+                Photo
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.photo ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-800"}`}>{s.photo ? "Captured" : "None"}</span>
+              </span>
+              {s.content.declaration && (
+                <a href={`/declaration/${s.submissionId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-semibold text-plum underline">
+                  <FileIcon className="h-4 w-4" />
+                  Declaration evidence
+                </a>
               )}
             </div>
-          </div>
-        ))}
-
-      {s.part === "rolePlay" && (
-        <>
-          <div className={`${card} space-y-2 text-sm text-ink/80`}>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Scenario</p>
-            <p className="whitespace-pre-wrap">{rolePlay.scenario}</p>
-          </div>
-          <div className={card}>
-            <p className="mb-2 text-[11px] font-medium text-ink/50">Student’s response</p>
-            <Answer html={s.content.html} />
-          </div>
-          {rolePlay.criteria.length > 0 && (
-            <div className={card}>
-              <h2 className="text-sm font-medium text-ink">Observation checklist</h2>
-              <p className="mt-0.5 text-xs text-ink/50">Tick what the student showed.</p>
-              <ul className="mt-3 space-y-2">
-                {rolePlay.criteria.map((c) => (
-                  <li key={c.id}>
-                    <label className={`flex items-center gap-3 rounded-xl bg-lilac/60 px-4 py-2.5 text-sm text-ink ${pending && canMark ? "cursor-pointer" : ""}`}>
-                      <input
-                        type="checkbox"
-                        disabled={!pending || !canMark}
-                        checked={criteria.includes(c.id)}
-                        onChange={(e) => setCriteria((list) => (e.target.checked ? [...list, c.id] : list.filter((x) => x !== c.id)))}
-                        className="h-4 w-4 accent-plum"
-                      />
-                      {c.text}
-                    </label>
+            <details className="rounded-xl bg-lilac/50 px-4 py-3 text-sm text-ink">
+              <summary className="cursor-pointer font-semibold">Previous attempts ({s.history.length})</summary>
+              <ul className="mt-2 space-y-2">
+                {s.history.map((h) => (
+                  <li key={h.attempt} className="rounded-lg bg-white px-3 py-2">
+                    <p className="font-semibold">
+                      Attempt {h.attempt} — {statusLabel[h.status]} · {h.decidedBy}
+                    </p>
+                    <p className="whitespace-pre-wrap">{h.feedback || "No feedback"}</p>
+                    {h.response && <p className="mt-1">Student {h.response.state === "accepted" ? "accepted it" : `asked for a review: “${h.response.comment}”`}</p>}
                   </li>
                 ))}
+                {!s.history.length && <li>None.</li>}
               </ul>
-              <p className="mt-2 text-[11px] text-ink/45">
-                {criteria.length} of {rolePlay.criteria.length} met
-              </p>
-            </div>
-          )}
-        </>
-      )}
+            </details>
+          </section>
 
-      {s.part === "workplace" && (
-        <>
-          <div className={`${card} space-y-3 text-sm text-ink/80`}>
+          <section className={`${card} space-y-3`}>
+            <h2 className="text-lg font-semibold text-ink">Feedback</h2>
+            <textarea
+              rows={5}
+              value={feedback}
+              disabled={!canMark}
+              maxLength={4000}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Feedback for the student (required unless Satisfactory)"
+              aria-label="Feedback"
+              className={`${field} resize-y`}
+            />
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-ink/45">Task</p>
-              <p className="mt-1 whitespace-pre-wrap">{workplace.task}</p>
+              <p className="mb-2 text-sm font-semibold text-ink">Marked copy</p>
+              <FileList files={marked} onChange={canMark ? (f) => (setMarked(f), saveMarked(f)) : undefined} emptyText="No marked copy." uploadLabel="Attach marked copy" />
             </div>
-            {workplace.supervisorSignOff && (
-              <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs text-amber-800">
-                Supervisor sign-off required · student named: <b>{s.content.supervisor || "—"}</b>
-              </p>
-            )}
-          </div>
-          {workplace.evidence.length > 0 && (
-            <div className={card}>
-              <h2 className="text-sm font-medium text-ink">Evidence uploaded</h2>
-              <ol className="mt-3 space-y-3">
-                {workplace.evidence.map((e, i) => {
-                  const files = s.content.evidence?.find((x) => x.evidenceId === e.id)?.files ?? [];
-                  return (
-                    <li key={e.id} className="rounded-2xl bg-lilac/40 p-4">
-                      <p className="text-sm font-medium text-ink">
-                        {i + 1}. {e.text}
-                      </p>
-                      <div className="mt-2">
-                        <FileList files={files} emptyText="Nothing uploaded for this item." />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
+          </section>
+        </div>
+
+        <aside className={`${card} space-y-4`}>
+          <h2 className="text-lg font-semibold text-ink">Module status</h2>
+          {s.draft && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Saved, not published: {statusLabel[s.draft.status]} · {s.draft.savedBy}
+            </p>
           )}
-          <div className={card}>
-            <p className="mb-2 text-[11px] font-medium text-ink/50">Student’s workplace report</p>
-            <Answer html={s.content.html} />
+          <select value={status} disabled={!canMark} onChange={(e) => setStatus(e.target.value as Decision | "Submitted")} aria-label="Module status" className={field}>
+            {OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {asksForMore && (
+            <label className="block space-y-1 text-sm font-semibold text-ink">
+              {status === "MoreDocs" ? "Due date for the information" : "New deadline for the resubmission"}
+              <input type="datetime-local" value={newDue} onChange={(e) => setNewDue(e.target.value)} className={`${field} font-normal`} />
+              <span className="block text-xs font-normal">Only this module reopens, for this student — and only while the unit is Active and open.</span>
+            </label>
+          )}
+
+          <div className="space-y-2 border-t border-ink/10 pt-4 text-sm text-ink">
+            <p className="flex items-center gap-2">
+              <ClockIcon className="h-4 w-4 text-plum" />
+              Due date: {currentDue ? <LocalTime iso={currentDue} /> : "none"}
+            </p>
+            {canMark &&
+              (extend ? (
+                <div className="space-y-2">
+                  <input type="datetime-local" value={extend.dueAt} onChange={(e) => setExtend({ ...extend, dueAt: e.target.value })} aria-label="New due date" className={field} />
+                  <input value={extend.reason} onChange={(e) => setExtend({ ...extend, reason: e.target.value })} placeholder="Reason (goes in the log)" aria-label="Reason" className={field} />
+                  <div className="flex gap-2">
+                    <button onClick={saveExtend} disabled={busy || !extend.dueAt || !extend.reason.trim()} className={`${btn} bg-plum text-white`}>
+                      Save due date
+                    </button>
+                    <button onClick={() => setExtend(null)} className={`${btn} text-ink hover:bg-lilac`}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setExtend({ dueAt: "", reason: "" })} className={`${btn} border border-plum text-plum hover:bg-lilac`}>
+                  Extend due date
+                </button>
+              ))}
           </div>
-        </>
-      )}
 
-      {(s.part !== "theory" || s.files.length > 0) && (
-        <div className={card}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-medium text-ink">Uploaded documents</h2>
-            {s.content.declaration && (
-              <a href={`/declaration/${s.submissionId}`} target="_blank" rel="noopener noreferrer" className="rounded-full border border-plum/40 px-4 py-2 text-sm font-medium text-plum transition hover:bg-lilac">
-                Declaration certificate
-              </a>
-            )}
-            {s.content.declaration && (
-              <a href={`/api/declaration/${s.submissionId}`} className="rounded-full bg-plum px-4 py-2 text-sm font-medium text-white transition hover:bg-plum-light">
-                Download declaration (PDF)
-              </a>
-            )}
-          </div>
-          <SubmittedFiles sub={s} emptyText="The student didn’t upload any documents." />
-        </div>
-      )}
-
-      {s.part === "quiz" && s.content.score && (
-        <div className={card}>
-          <h2 className="text-base font-medium text-ink">Quiz result</h2>
-          <p className="mt-1 text-lg font-semibold text-ink">
-            {s.content.score.correct} / {s.content.score.total} correct ({s.content.score.percent}%)
-          </p>
-          {!!s.content.quizWritten?.length && <p className="mt-1 text-sm text-ink">Multiple-choice questions only. Read the written answers below.</p>}
-        </div>
-      )}
-
-      {s.part === "quiz" && !!s.content.quizWritten?.length && (
-        <div className={`${card} space-y-4`}>
-          <h2 className="text-base font-medium text-ink">Written answers</h2>
-          {s.content.quizWritten.map((w) => {
-            const n = quiz.questions.findIndex((q) => q.id === w.questionId);
-            return (
-              <div key={w.questionId}>
-                <p className="text-sm font-semibold text-ink">
-                  {n >= 0 ? `${n + 1}. ${quiz.questions[n].text}` : "Question removed"}
-                </p>
-                <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-lilac/60 px-4 py-3 text-sm text-ink">{w.text}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!pending && s.decidedBy && (
-        <div
-          className={`rounded-2xl px-5 py-4 ${s.status === "Accepted" ? "bg-emerald-50 text-emerald-900" : s.status === "MoreDocs" ? "bg-orange-50 text-orange-900" : "bg-rose-50 text-rose-900"}`}
-        >
-          <p className="text-base font-semibold">
-            {statusLabel[s.status]} — {s.decidedBy}
-            {s.decidedAt && (
-              <span className="text-sm font-normal">
-                {" "}· <LocalTime iso={s.decidedAt} />
-              </span>
-            )}
-          </p>
-          {s.feedback && <p className="mt-1 whitespace-pre-wrap text-sm">{s.feedback}</p>}
-        </div>
-      )}
-
-      {canMark ? (
-        <div className={`${card} space-y-4`}>
-          <div>
-            <h2 className="text-base font-semibold text-ink">{pending ? "Set the status" : "Change the status"}</h2>
-            <p className="mt-0.5 text-sm text-ink">The student sees the status and your feedback straight away.</p>
-          </div>
-          <textarea
-            rows={4}
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            maxLength={4000}
-            placeholder="Feedback for the student — required for Not Yet Satisfactory and Request More Documents (say what to fix or which documents to add)."
-            aria-label="Feedback"
-            className="w-full resize-y rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40"
-          />
-          <div className="flex flex-wrap gap-3">
-            {DECISION_BUTTONS.map((d) => (
-              <button
-                key={d.status}
-                onClick={() => mark(d.status)}
-                disabled={saving || s.status === d.status}
-                className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition disabled:opacity-50 ${d.className}`}
-              >
-                {d.status === "Accepted" ? <CheckIcon className="h-4 w-4" /> : d.status === "Rejected" ? <CloseIcon className="h-4 w-4" /> : null}
-                {statusLabel[d.status]}
+          {canMark ? (
+            <div className="flex flex-col gap-2 border-t border-ink/10 pt-4">
+              <button onClick={() => save(false)} disabled={busy} className={`${btn} border border-ink/15 text-ink hover:bg-lilac`}>
+                Save marking
               </button>
+              <button onClick={() => save(true)} disabled={busy} className={`${btn} bg-plum py-3 text-white hover:bg-plum-light`}>
+                {busy ? "Saving…" : "Publish feedback"}
+              </button>
+            </div>
+          ) : (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Super Admin has turned off marking for trainers.</p>
+          )}
+        </aside>
+      </div>
+
+      {s.response && (
+        <section className={`${card} grid gap-5 md:grid-cols-2`}>
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-ink">Student feedback response</h2>
+            <p className="text-sm text-ink">
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${s.response.state === "accepted" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>
+                {s.response.state === "accepted" ? "Accepted and signed" : "Review requested"}
+              </span>{" "}
+              <LocalTime iso={s.response.at} />
+            </p>
+            {s.response.comment && <p className="whitespace-pre-wrap rounded-xl bg-lilac/50 px-4 py-3 text-sm text-ink">{s.response.comment}</p>}
+            {s.response.replies.map((r, i) => (
+              <p key={i} className="rounded-xl bg-white px-4 py-2 text-sm text-ink ring-1 ring-ink/10">
+                <span className="font-semibold">{r.by}:</span> {r.text}
+              </p>
             ))}
           </div>
-        </div>
-      ) : (
-        <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          Super Admin has turned off assessment marking for trainers, so you can read this but not mark it.
-        </p>
+          {s.response.state === "review" && canMark && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-ink">Reply to student</h3>
+              <textarea rows={4} value={reply} maxLength={4000} onChange={(e) => setReply(e.target.value)} placeholder="Type your reply to the student…" aria-label="Reply to the student" className={`${field} resize-y`} />
+              <button onClick={sendReply} disabled={busy || !reply.trim()} className={`${btn} bg-plum text-white hover:bg-plum-light`}>
+                Send reply
+              </button>
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

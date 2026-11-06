@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { listHiddenUnits } from "@/lib/hidden-units";
-import { listUnlockedUnits } from "@/lib/unit-unlocks";
+import { listUnitRecords } from "@/lib/unit-records";
+import { unitAccess } from "@/lib/unit-status-meta";
 import { logStudent } from "@/lib/student-logs";
 import { getStudent, hasCourse } from "@/lib/students";
 
@@ -15,9 +16,9 @@ export default async function OpenCoursePage(props: PageProps<"/dashboard/course
   if (!student || !course) notFound();
 
   await logStudent({ studentId: student.studentId, studentName: student.name, courseCode: course.code, action: "Opened course", detail: course.name }, 30);
-  const [hidden, unlocked] = await Promise.all([listHiddenUnits(student.studentId, course.code), listUnlockedUnits(student.studentId, course.code)]);
+  const [hidden, records] = await Promise.all([listHiddenUnits(student.studentId, course.code), listUnitRecords(student.studentId, course.code)]);
   const visible = course.units.filter((u) => !hidden.has(u.code));
-  const first = visible.find((u) => unlocked.has(u.code)) ?? visible[0];
+  const first = visible.find((u) => unitAccess(records[u.code] ?? null).open) ?? visible[0];
   if (!first) redirect("/dashboard/course");
   redirect(
     `/dashboard/assessment/${encodeURIComponent(first.code)}?course=${encodeURIComponent(course.code)}`,

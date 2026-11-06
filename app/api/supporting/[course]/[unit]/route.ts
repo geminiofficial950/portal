@@ -1,6 +1,6 @@
 import { buffer } from "node:stream/consumers";
 import { isUnitHidden } from "@/lib/hidden-units";
-import { isUnitUnlocked } from "@/lib/unit-unlocks";
+import { isUnitOpenFor } from "@/lib/unit-records";
 import { getUpload } from "@/lib/files";
 import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
@@ -24,7 +24,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/supporting/[cou
       student?.status === "Active" &&
       hasCourse(student, course) &&
       !(await isUnitHidden(session.sub, course, unit)) &&
-      (await isUnitUnlocked(session.sub, course, unit));
+      (await isUnitOpenFor(session.sub, course, unit));
     studentName = student?.name ?? null;
   } else if (session.role === "trainer") {
     allowed = !!(await getTrainer(session.sub))?.active;

@@ -14,6 +14,7 @@ const LOOK: Record<StudentNotificationKind, { icon: typeof CheckIcon; tone: stri
   locked: { icon: LockIcon, tone: "bg-zinc-400 text-white" },
   hidden: { icon: CloseIcon, tone: "bg-amber-500 text-white" },
   shown: { icon: PlusIcon, tone: "bg-plum text-white" },
+  class: { icon: PlusIcon, tone: "bg-sky-600 text-white" },
 };
 
 function Row({ item }: { item: FeedItem }) {

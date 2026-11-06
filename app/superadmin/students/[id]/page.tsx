@@ -66,7 +66,7 @@ export default async function AdminStudentProgressPage(props: PageProps<"/supera
         key={progress.course.code}
         initial={progress}
         canGrade
-        canClear
+        role="admin"
         showPhotos
         canChangeDue={admin.isSuper}
         canHide

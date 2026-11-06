@@ -1,6 +1,6 @@
 // Shared by server code and client components (no server-only imports here).
 // Unit = overview + resources (Learner Guide, PowerPoint, Supporting Document) + the assessment + a final outcome per student.
-import { ASSESSMENT_PARTS, type AssessmentPart, type AssessmentSummary } from "./assessment-meta";
+import type { AssessmentPart } from "./assessment-meta";
 import type { ResultKind, ResultOption, ResultTone } from "./result-meta";
 import type { FileRef, SubmissionStatus } from "./submission-meta";
 
@@ -58,22 +58,22 @@ export type UnitResultDTO = {
 };
 
 /**
- * Can this final result be given? A "pass" result needs every part the college set up to be Accepted;
+ * Can this final result be given? A "pass" result needs every marked module of the unit to be Satisfactory
+ * (staff still choose it — nothing is set automatically);
  * a "fail" result needs feedback so the student knows why; any other result can be given any time.
  */
 export function checkUnitResult(
   option: ResultOption | undefined,
   feedback: string,
-  setUp: AssessmentSummary | null,
+  parts: { key: AssessmentPart; label: string }[] | null,
   statuses: Partial<Record<AssessmentPart, SubmissionStatus>>,
 ): string | null {
   if (!option) return "Choose a final result.";
   if (option.kind === "fail" && !feedback.trim()) return `Add feedback explaining why the result is ${option.label}.`;
   if (option.kind === "pass") {
-    const parts = ASSESSMENT_PARTS.filter((p) => setUp?.[p.key]);
-    if (!parts.length) return "This unit has no assessment set up yet, so it can’t be passed.";
+    if (!parts?.length) return "This unit has no assessment set up yet, so it can’t be passed.";
     const missing = parts.filter((p) => statuses[p.key] !== "Accepted").map((p) => p.label);
-    if (missing.length) return `Can’t pass yet — not accepted: ${missing.join(", ")}.`;
+    if (missing.length) return `Can’t pass yet — not Satisfactory: ${missing.join(", ")}.`;
   }
   return null;
 }

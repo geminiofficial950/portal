@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { BackIcon } from "../../../dashboard/_components/icons";
 import ReviewClient from "../../../trainer/marking/[id]/ReviewClient";
 import { getAssessment } from "@/lib/assessments";
+import { studentModuleDues } from "@/lib/deadlines";
+import { getUnitRecord } from "@/lib/unit-records";
 import { requireAdmin } from "@/lib/auth";
 import { getSubmission } from "@/lib/submissions";
 
@@ -25,10 +27,9 @@ export default async function AdminReviewPage(props: PageProps<"/superadmin/mark
       </Link>
       <ReviewClient
         initialSubmission={submission}
-        theory={assessment.theory.questions}
-        rolePlay={assessment.rolePlay}
-        workplace={assessment.workplace}
-        quiz={assessment.quiz}
+        module={assessment.modules.find((m) => m.id === submission.part) ?? null}
+        due={(await studentModuleDues(submission.studentId, submission.courseCode))[`${submission.unitCode}/${submission.part}`] ?? null}
+        unitStatus={(await getUnitRecord(submission.studentId, submission.courseCode, submission.unitCode)).status}
         canMark
       />
     </div>

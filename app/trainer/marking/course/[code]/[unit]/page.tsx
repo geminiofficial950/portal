@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackIcon, BookIcon, CheckIcon, ClipboardIcon, FileIcon } from "../../../../../dashboard/_components/icons";
 import LocalTime from "../../../../../dashboard/assessment/_components/LocalTime";
-import { MARKED_PARTS, summarise } from "@/lib/assessment-meta";
+import { partsOf } from "@/lib/assessment-meta";
 import { getAssessment } from "@/lib/assessments";
 import { requireTrainer } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { statusLabel, statusStyle } from "@/lib/submission-meta";
 import { listCourseWork } from "@/lib/submissions";
+import { trainerScope } from "@/lib/trainer-access";
 
 const ORDER = { Submitted: 0, MoreDocs: 1, Rejected: 2, Accepted: 3, Draft: 4 } as const;
 const DAY = 86_400_000;
@@ -31,16 +32,15 @@ function waitTone(days: number) {
 
 // Trainer marking, one unit: a tab per part, then every student's work for that part
 export default async function MarkingUnitPage(props: PageProps<"/trainer/marking/course/[code]/[unit]">) {
-  await requireTrainer();
+  const trainer = await requireTrainer();
   const { code, unit: unitParam } = await props.params;
   const course = await getCourse(decodeURIComponent(code));
   const unit = course?.units.find((u) => u.code === decodeURIComponent(unitParam));
   if (!course || !unit) notFound();
 
   const now = requestTime();
-  const [assessment, work] = await Promise.all([getAssessment(course.code, unit.code), listCourseWork(course.code, unit.code)]);
-  const set = summarise(assessment);
-  const parts = MARKED_PARTS.filter((p) => set[p.key]);
+  const [assessment, work] = await Promise.all([getAssessment(course.code, unit.code), listCourseWork(course.code, unit.code).then(async (w) => { const scope = await trainerScope(trainer.trainerId); return w.filter((s) => scope.can(s.studentId, s.unitCode)); })]);
+  const parts = partsOf(assessment);
   const toMark = (part: string) => work.filter((s) => s.part === part && s.status === "Submitted").length;
   const done = (part: string) => work.some((s) => s.part === part) && work.filter((s) => s.part === part).every((s) => s.status === "Accepted");
 
@@ -62,14 +62,14 @@ export default async function MarkingUnitPage(props: PageProps<"/trainer/marking
           {course.code} · {unit.code}
         </p>
         <h1 className="mt-0.5 text-2xl font-semibold text-ink">{unit.title}</h1>
-        <p className="mt-1 text-sm text-ink">Pick a part, then open a student’s work to give it a status.</p>
+        <p className="mt-1 text-sm text-ink">Pick a module, then open a student’s work to give it a status.</p>
       </div>
 
       {parts.length === 0 ? (
-        <p className="rounded-xl bg-[#f6f5fa] px-5 py-10 text-center text-sm font-medium text-ink">This unit has no assessment set up yet.</p>
+        <p className="rounded-xl bg-[#f6f5fa] px-5 py-10 text-center text-sm font-medium text-ink">This unit has no marked modules yet.</p>
       ) : (
         <>
-          <div role="tablist" aria-label="Assessment parts" className="flex flex-wrap gap-2">
+          <div role="tablist" aria-label="Modules" className="flex flex-wrap gap-2">
             {parts.map((p) => {
               const active = tab?.key === p.key;
               const n = toMark(p.key);

@@ -280,9 +280,6 @@ html[data-theme="dark"] body {
 html[data-theme="dark"] #portal-root .portal-sidebar {
   background-color: #191428;
 }
-html[data-theme="dark"] #portal-root .portal-sidebar [class~="bg-plum-light/70"] {
-  background-color: #2b2540;
-}
 
 /* Light mode: white surfaces in the portal use the off-white panel colour, a little darker under the mouse.
    Buttons that change background on hover (hover:bg-plum…) are left alone while hovered, so their hover colour shows. */
@@ -384,4 +381,18 @@ html[data-theme="dark"] #portal-root .soft-scroll::-webkit-scrollbar-thumb {
   background: rgba(205, 191, 255, 0.4);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+/* Full screen (sidebar button): the purple menu hides and the page fills the screen — desktop only.
+   A thin purple frame stays visible on all four sides. */
+@media (min-width: 1024px) {
+  #portal-root[data-full="1"] {
+    padding: 0.5rem;
+  }
+  #portal-root[data-full="1"] > aside.portal-sidebar {
+    display: none;
+  }
+  #portal-root[data-full="1"] > .portal-main {
+    border-radius: 1.5rem;
+  }
 }

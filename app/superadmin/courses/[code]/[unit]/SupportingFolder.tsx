@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { addSupportingFilesAction, clearSupportingFilesAction, removeResourceAction } from "./content-actions";
+import { addSupportingFilesAction, clearSupportingFilesAction, removeResourceAction, renameSupportingFileAction } from "./content-actions";
+import { FILE_NAME_MAX } from "@/lib/file-names";
 import { FILE_RULES, formatBytes, type FileRef } from "@/lib/submission-meta";
 import { SUPPORTING_MAX, type Resource } from "@/lib/unit-meta";
 import FileActions from "../../../../dashboard/_components/FileActions";
@@ -18,6 +19,7 @@ const pathOf = (f: File) => f.webkitRelativePath.split("/").slice(1).join("/") |
 export default function SupportingFolder({ courseCode, unitCode, initial }: { courseCode: string; unitCode: string; initial: FileResource[] }) {
   const [files, setFiles] = useState(initial);
   const [progress, setProgress] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
   const busy = progress !== null;
@@ -53,8 +55,11 @@ export default function SupportingFolder({ courseCode, unitCode, initial }: { co
       setProgress("Saving…");
       const res = await addSupportingFilesAction(courseCode, unitCode, done);
       if (!res.ok) return void toast.error(res.error);
-      setFiles((old) => [...old, ...(res.resources as FileResource[])]);
+      const added = res.resources as FileResource[];
+      setFiles((old) => [...old, ...added]);
       toast.success(`${done.length} file${done.length === 1 ? "" : "s"} added${skipped ? ` · ${skipped} skipped (not a supported file)` : ""}`);
+      // one file added: offer to name it straight away
+      if (added.length === 1) startRename(added[0]);
     } catch {
       toast.error("Upload failed. Check your connection.");
     } finally {
@@ -68,6 +73,21 @@ export default function SupportingFolder({ courseCode, unitCode, initial }: { co
     if (!res.ok) return void toast.error(res.error);
     setFiles((old) => old.filter((x) => x.id !== r.id));
     toast.success("File removed");
+  };
+
+  const fileName = (title: string) => title.slice(title.lastIndexOf("/") + 1);
+  const ext = (name: string) => (name.includes(".") ? name.slice(name.lastIndexOf(".")) : "");
+  const startRename = (r: FileResource) => {
+    const name = fileName(r.title);
+    setRenaming({ id: r.id, name: name.slice(0, name.length - ext(name).length) });
+  };
+  const saveRename = async (r: FileResource) => {
+    if (!renaming) return;
+    const res = await renameSupportingFileAction(courseCode, unitCode, r.id, renaming.name);
+    if (!res.ok) return void toast.error(res.error);
+    setFiles((old) => old.map((x) => (x.id === r.id ? { ...x, title: res.title } : x)));
+    setRenaming(null);
+    toast.success("File renamed");
   };
 
   const clear = async () => {
@@ -108,10 +128,44 @@ export default function SupportingFolder({ courseCode, unitCode, initial }: { co
       {sorted.length > 0 && (
         <ul className="divide-y divide-ink/10 rounded-xl border border-ink/10">
           {sorted.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.title}</span>
+            <li key={r.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
+              {renaming?.id === r.id ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveRename(r);
+                  }}
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+                >
+                  {r.title.includes("/") && <span className="text-sm text-ink">{r.title.slice(0, r.title.lastIndexOf("/") + 1)}</span>}
+                  <span className="flex min-w-48 flex-1 items-center rounded-lg bg-white pr-3 ring-1 ring-ink/15 focus-within:ring-plum/40">
+                    <input
+                      autoFocus
+                      value={renaming.name}
+                      maxLength={FILE_NAME_MAX}
+                      onChange={(e) => setRenaming({ id: r.id, name: e.target.value })}
+                      aria-label={`New name for ${fileName(r.title)}`}
+                      className="min-w-0 flex-1 bg-transparent px-3 py-1.5 text-sm text-ink outline-none"
+                    />
+                    <span className="text-sm text-ink">{ext(fileName(r.title))}</span>
+                  </span>
+                  <button type="submit" className="rounded-full bg-plum px-3 py-1.5 text-xs font-medium text-white hover:bg-plum-light">
+                    Save name
+                  </button>
+                  <button type="button" onClick={() => setRenaming(null)} className="rounded-full px-3 py-1.5 text-xs font-medium text-ink hover:bg-lilac">
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-sm text-ink">{r.title}</span>
+              )}
               <span className="shrink-0 text-xs text-ink">{formatBytes(r.file.size)}</span>
               <FileActions file={r.file} title={r.title} size="sm" />
+              {renaming?.id !== r.id && (
+                <button type="button" onClick={() => startRename(r)} className="shrink-0 rounded-full px-3 py-1 text-xs font-medium text-ink hover:bg-lilac">
+                  Rename
+                </button>
+              )}
               <button type="button" onClick={() => remove(r)} className="shrink-0 rounded-full px-3 py-1 text-xs font-medium text-ink hover:bg-rose-50 hover:text-rose-700">
                 Remove
               </button>

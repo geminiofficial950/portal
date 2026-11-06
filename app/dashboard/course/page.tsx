@@ -7,9 +7,12 @@ import { courseStatusStyle } from "@/lib/course-status";
 import { listPlacementDocs, listRequests, listSignedDocs } from "@/lib/documents";
 import { listHiddenUnits } from "@/lib/hidden-units";
 import { getStudent } from "@/lib/students";
+import { listUnitRecords } from "@/lib/unit-records";
+import { unitAccess, unitStatusStyle } from "@/lib/unit-status-meta";
 import StudentDocuments from "./StudentDocuments";
 
 // Every course the student is enrolled in, at a glance, then placement and requested documents.
+// Order (LMS guide): course description and details, then Course documents / Placement pack, then the training plan (units with status).
 // "Go to my course" opens the course details page (units + learning content).
 export default async function CoursePage() {
   const session = await requireStudent();
@@ -18,8 +21,11 @@ export default async function CoursePage() {
     ? (
         await Promise.all(
           student.courses.map(async (c) => {
-            const [course, hidden] = await Promise.all([getCourse(c.code), listHiddenUnits(student.studentId, c.code)]);
-            return course ? [{ course, status: c.status, enrolled: c.enrolled, visibleUnits: course.units.filter((u) => !hidden.has(u.code)).length }] : [];
+            const [course, hidden, records] = await Promise.all([getCourse(c.code), listHiddenUnits(student.studentId, c.code), listUnitRecords(student.studentId, c.code)]);
+            const units = (course?.units ?? [])
+              .filter((u) => !hidden.has(u.code))
+              .map((u) => ({ ...u, record: records[u.code] ?? null, access: unitAccess(records[u.code] ?? null) }));
+            return course ? [{ course, status: c.status, enrolled: c.enrolled, visibleUnits: units.length, units }] : [];
           }),
         )
       ).flat()
@@ -113,6 +119,7 @@ export default async function CoursePage() {
                       <span aria-hidden>·</span>
                       {course.category}
                     </p>
+                    {course.description && <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">{course.description}</p>}
                   </div>
 
                   <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
@@ -165,6 +172,54 @@ export default async function CoursePage() {
           initialRequests={requests}
         />
       </div>
+      {/* Training plan: every unit with its status — below the description and the course documents (LMS guide).
+          Only an open unit has a button; a unit with a non-active status (e.g. Competent) shows just its name and status. */}
+      <section aria-labelledby="plan-heading" className="space-y-4">
+        <h2 id="plan-heading" className="text-2xl font-semibold text-ink sm:text-3xl">
+          Your training plan
+        </h2>
+        {courses.map(({ course, units }) => (
+          <div key={course.code} className="space-y-2">
+            {courses.length > 1 && (
+              <p className="text-base font-semibold text-plum">
+                {course.code} · {course.name}
+              </p>
+            )}
+            <ol className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
+              {units.map((u, i) => {
+                const nonActive = u.record && u.record.status !== "Active";
+                return (
+                  <li key={u.code} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <span
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${u.access.open ? "bg-emerald-600 text-white" : "bg-lilac text-ink"}`}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-semibold text-ink">{u.title}</span>
+                      <span className="block text-sm text-ink">{u.code}</span>
+                    </span>
+                    {nonActive ? (
+                      <span className={`rounded-full px-3 py-1 text-sm font-semibold ${unitStatusStyle[u.record!.status]}`}>{u.record!.status}</span>
+                    ) : u.access.open ? (
+                      <Link
+                        href={`/dashboard/assessment/${encodeURIComponent(u.code)}?course=${encodeURIComponent(course.code)}`}
+                        className="rounded-xl bg-plum px-4 py-2 text-sm font-semibold text-white transition hover:bg-plum-light"
+                      >
+                        Open unit
+                      </Link>
+                    ) : (
+                      <span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-800">{u.access.reason}</span>
+                    )}
+                  </li>
+                );
+              })}
+              {!units.length && <li className="px-4 py-3 text-base text-ink">The college hasn’t added units yet.</li>}
+            </ol>
+          </div>
+        ))}
+      </section>
+
     </div>
   );
 }

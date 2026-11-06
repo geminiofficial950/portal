@@ -1,40 +1,37 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { emptyAssessment, forStudent, isPastDue, summarise, type UnitAssessment } from "@/lib/assessment-meta";
+import { emptyAssessment, forStudent, isPastDue, partsOf, summarise, type UnitAssessment } from "@/lib/assessment-meta";
+import { newModule } from "@/lib/module-meta";
 import { initials, timeAgo } from "@/lib/format";
 import { generatePassword } from "@/lib/password";
 import { decrypt, encrypt } from "@/lib/session-token";
 import { countWords, formatBytes } from "@/lib/submission-meta";
 
 describe("forStudent — what reaches the student's browser", () => {
-  it("never includes the correct quiz answers", () => {
+  it("never includes the trainer's reference answers, and hides archived modules", () => {
     const a: UnitAssessment = {
-      ...emptyAssessment(),
-      quiz: { passMark: 70, questions: [{ id: "q1", text: "Q", options: ["a", "b"], answer: 1 }] },
+      modules: [
+        { ...newModule("activities", "m1"), title: "Quiz", activities: [{ id: "q1", type: "mcq", prompt: "Q", options: ["a", "b"], answer: 1 }] },
+        { ...newModule("task", "m2"), title: "Old", archived: true },
+      ],
     };
     const view = forStudent(a);
-    expect(view.quiz.questions[0]).toEqual({ id: "q1", text: "Q", options: ["a", "b"] });
-    expect(JSON.stringify(view)).not.toContain('"answer"');
+    expect(view.modules.map((m) => m.id)).toEqual(["m1"]);
+    expect(view.modules[0].activities[0]).toEqual({ id: "q1", type: "mcq", prompt: "Q", options: ["a", "b"], answer: null });
   });
 });
 
-describe("summarise", () => {
-  it("marks which parts have content", () => {
-    const a = emptyAssessment();
-    a.workplace.files = [{ id: "6ae591d80e5ad0fc166bedee", name: "Task.pdf", size: 10 }];
-    expect(summarise(a)).toEqual({ quiz: false, theory: false, rolePlay: false, workplace: true, quizCount: 0, theoryCount: 0, workplaceCount: 1 });
-  });
-
-  it("only counts Theory / Workplacement Task when a task document is uploaded", () => {
-    const a = emptyAssessment();
-    a.theory.questions = [{ id: "t1", text: "Old typed question", guidance: "", wordLimit: null }];
-    a.workplace.task = "Old typed task";
-    expect(summarise(a)).toMatchObject({ theory: false, workplace: false });
-  });
-
-  it("never counts the retired role play part", () => {
-    const a = emptyAssessment();
-    a.rolePlay.scenario = "Scenario";
-    expect(summarise(a).rolePlay).toBe(false);
+describe("summarise / partsOf", () => {
+  it("counts live modules and the ones that are marked", () => {
+    const a: UnitAssessment = {
+      modules: [
+        { ...newModule("learning", "l"), title: "Read" },
+        { ...newModule("task", "t"), title: "Task" },
+        { ...newModule("task", "x"), title: "Gone", archived: true },
+      ],
+    };
+    expect(summarise(a)).toEqual({ modules: 2, marked: 1 });
+    expect(partsOf(a)).toEqual([{ key: "t", label: "Task" }]);
+    expect(summarise(emptyAssessment())).toEqual({ modules: 0, marked: 0 });
   });
 });
 

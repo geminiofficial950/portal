@@ -3,6 +3,6 @@ import { listTrainers } from "@/lib/trainers";
 import TrainersClient from "./TrainersClient";
 
 export default async function TrainersPage() {
-  await requireAdmin();
-  return <TrainersClient initialTrainers={await listTrainers()} />;
+  const admin = await requireAdmin();
+  return <TrainersClient initialTrainers={await listTrainers()} canDelete={admin.isSuper} />;
 }
