@@ -123,19 +123,20 @@ export default function StudentDocumentsPanel({
             aria-label="Requested document name"
             className="w-full rounded-xl bg-lilac px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/40"
           />
-          <div className="flex flex-wrap gap-2">
+          {/* own full-width row, so it never gets squeezed next to the date and button */}
+          <input
+            value={form.note}
+            maxLength={DOC_NOTE_MAX}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+            placeholder="Instructions for the student (optional)"
+            aria-label="Note for the student"
+            className="w-full rounded-xl bg-lilac px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/40"
+          />
+          <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-ink">
               Due
               <input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} aria-label="Due date" className="rounded-xl bg-lilac px-3 py-2 text-sm text-ink outline-none ring-1 ring-ink/10" />
             </label>
-            <input
-              value={form.note}
-              maxLength={DOC_NOTE_MAX}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              placeholder="Instructions for the student (optional)"
-              aria-label="Note for the student"
-              className="min-w-0 flex-1 rounded-xl bg-lilac px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/40"
-            />
             <button
               type="submit"
               disabled={saving}

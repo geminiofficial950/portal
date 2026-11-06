@@ -188,6 +188,13 @@ export default function ReviewClient({
 
         <aside className={`${card} space-y-4`}>
           <h2 className="text-lg font-semibold text-ink">Module status</h2>
+          {/* who recorded the current published result — kept after a transfer, so the new trainer can see it */}
+          {s.decidedBy && s.decidedAt && (
+            <p className="text-sm text-ink">
+              Marked by <span className="font-semibold">{s.decidedBy}</span> ·{" "}
+              {new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(s.decidedAt))}
+            </p>
+          )}
           {s.draft && (
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Saved, not published: {statusLabel[s.draft.status]} · {s.draft.savedBy}

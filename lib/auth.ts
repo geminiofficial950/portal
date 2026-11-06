@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { getAdmin } from "./admins";
-import { getSession } from "./session";
+import { getSession, readSessionCookie } from "./session";
 import { getTrainer } from "./trainers";
 
 export const SUPER_ADMIN_ID = "superadmin";
@@ -41,9 +41,10 @@ export const DATES_SUPER_ADMIN_ONLY = "Only Super Admin can change dates.";
 // …and except deleting (students, trainers, batches, courses, units). Admins deactivate instead.
 export const DELETE_SUPER_ADMIN_ONLY = "Only Super Admin can delete. You can disable the account instead.";
 
+// A disabled student still holding a cookie goes to /logout (which clears it); "/" would send them straight back here
 export async function requireStudent() {
   const session = await getSession();
-  if (session?.role !== "student") redirect("/");
+  if (session?.role !== "student") redirect((await readSessionCookie())?.role === "student" ? "/logout" : "/");
   return session;
 }
 
