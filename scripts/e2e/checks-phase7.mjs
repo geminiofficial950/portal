@@ -45,11 +45,11 @@ export default async function ({ check, get, db }) {
   ]);
   await check("7.2 student: course description, course documents and placement pack", "/dashboard/course", "student", {
     has: ["Learn to support people in aged care and disability.", "Course documents", "Student handbook", "Read before week 1", "Placement pack", "Workplace Agreement", "Sign page 3 and upload", "Upload another file", "Changes requested", "Supervisor signature missing"],
-    hasNot: ["Replace signed copy"],
-    hasNotRaw: [">View</button>"], // course page: Download only, no View buttons
+    hasNot: ["Replace signed copy", "Other Requested Documents"],
+    hasNotRaw: [">View</button>"], // course page: Download only, no View buttons; requested documents are on Requests
   });
-  await check("7.3 student: requests show instructions, due date and approval status", "/dashboard/course", "student", {
-    has: ["Police check", "Not older than 6 months", "Needed by", "Approved", "First aid certificate", "Needed"],
+  await check("7.3 student: Requests shows the requested documents with count, instructions, due date and approval status", "/dashboard/requests", "student", {
+    has: ["Other Requested Documents 2 1 needed", "Police check", "Not older than 6 months", "Needed by", "Approved", "First aid certificate", "Upload document"],
   });
   await check("7.3 admin: review controls on the student page", "/superadmin/students/S9001", "superadmin", { has: ["Approve", "Request changes", "Request document"] });
   await check("7.3 trainer of the batch: review controls only", "/trainer/students/S9001", "trainer", {
@@ -86,14 +86,11 @@ export default async function ({ check, get, db }) {
     has: ["Class sessions", "Supporting choice", "Wellbeing workshop", "Cancelled", "Add a class session", "Add session", "Cancel class", "Meeting link coming soon", "(Australia/Melbourne)"],
   });
   await check("7.4 trainer: sessions are read-only", "/trainer/batches/B1?tab=classes", "trainer", { has: ["Supporting choice"], hasNot: ["Add a class session", "Cancel class"] });
-  await check("7.5 student: next class without a link → “Meeting link coming soon”, Add to calendar, timezone, instructions", "/dashboard/classroom", "student", {
-    has: ["Your next live class", "Supporting choice", "(Australia/Melbourne)", "Trainer: Sarah Wilson", "Read chapter 2 before class.", "Meeting link coming soon", "Add to calendar", "Wellbeing workshop", "Cancelled"],
-    hasNot: ["Past class"],
+  // "Your next live class" and "Upcoming meetings" are hidden on My classes for now (SHOW_NEXT_CLASS / SHOW_MEETINGS = false)
+  await check("7.5 student: next-class card and upcoming meetings hidden for now; My batch and training plan still there", "/dashboard/classroom", "student", {
+    has: ["My classes", "My batch", "Your training plan"],
+    hasNot: ["Your next live class", "Upcoming meetings", "Join Google Meet"],
   });
-  await db.collection("classSessions").updateOne({ sessionId: "Supporting choice" }, { $set: { link: "https://meet.google.com/xyz-abcd-efg" } });
-  await check("7.5 student: with a link, Join Google Meet appears", "/dashboard/classroom", "student", { has: ["Join Google Meet"], hasRaw: ["https://meet.google.com/xyz-abcd-efg"] });
-  await db.collection("classSessions").updateOne({ sessionId: "Supporting choice" }, { $set: { cancelled: true } });
-  await check("7.5 student: no Join for a cancelled class (next one moves up)", "/dashboard/classroom", "student", { has: ["Wellbeing workshop"], hasNotRaw: ["https://meet.google.com/xyz-abcd-efg"] });
   const ics = await get("/api/calendar/Wellbeing%20workshop", "student");
   await check("7.5 Add to calendar gives a calendar file", "/api/calendar/Wellbeing%20workshop", "student", { has: ["BEGIN:VCALENDAR", "SUMMARY:Wellbeing workshop"] });
   if (!ics.html.includes("DTSTART:")) console.log("FAIL  calendar file has no start time");
@@ -101,14 +98,15 @@ export default async function ({ check, get, db }) {
 
   // ---- 8.2 statuses
   await db.collection("students").updateOne({ studentId: "S9002" }, { $set: { status: "Suspended" } });
-  await check("8.2 admin: course statuses include Deferred; accounts show Disable / Disabled", "/superadmin/students", "superadmin", {
-    has: ["Deferred", "Withdrawn", "Cancelled", "Completed", "Disable", "Disabled", "Reactivate"],
+  await check("8.2 admin: one row per course with read-only course status, account Enabled / Disabled, Manage", "/superadmin/students", "superadmin", {
+    has: ["Student Course Course status Account Actions", "Enabled", "Disabled", "Manage", "Status badges are read-only. Select Manage to make a change.", "Recent changes"],
     hasNot: ["Deactivate", "Release"],
   });
 
   // ---- 8.3 delete is Super Admin only
-  await check("8.3 Super Admin sees Delete", "/superadmin/students", "superadmin", { hasRaw: ['aria-label="Delete Alex Morgan"'] });
-  await check("8.3 an Admin account has no Delete, only Disable", "/admin/students", "admin", { has: ["Disable"], hasNotRaw: ['aria-label="Delete Alex Morgan"'] });
+  // Delete and Disable live in the Manage panel (browser-tested); the page gets canDelete only for Super Admin
+  await check("8.3 Super Admin's Students page allows Delete", "/superadmin/students", "superadmin", { hasRaw: ['canDelete\\":true'] });
+  await check("8.3 an Admin account's page doesn't", "/admin/students", "admin", { hasRaw: ['canDelete\\":false'] });
 
   // ---- 8.4 no-access state explains itself
   // the page streams, so the server sends a 404 marker and the browser shows the portal's "This page isn’t available to you" page

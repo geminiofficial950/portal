@@ -1,12 +1,12 @@
-import Link from "next/link";
 import LocalTime from "../assessment/_components/LocalTime";
+import { RequestedDocuments } from "../course/StudentDocuments";
 import { requireStudent } from "@/lib/auth";
 import { listExtensionRequests } from "@/lib/deadlines";
 import { listRequests } from "@/lib/documents";
 
 const tone = { Pending: "bg-amber-100 text-amber-900", Approved: "bg-emerald-100 text-emerald-800", Declined: "bg-rose-100 text-rose-800" } as const;
 
-// The student's requests: extension requests they made, and documents the college asked them for
+// The student's requests: extension requests they made, and documents the college asked them for (upload them here)
 export default async function StudentRequestsPage() {
   const session = await requireStudent();
   const [extensions, documents] = await Promise.all([listExtensionRequests({ studentId: session.sub }), listRequests(session.sub)]);
@@ -39,19 +39,7 @@ export default async function StudentRequestsPage() {
         ))}
         {!extensions.length && <p className="rounded-[1.5rem] bg-lilac/70 px-5 py-6 text-base text-ink">No extension requests yet.</p>}
       </section>
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-ink">Documents requested by the college</h2>
-        {documents.map((d) => (
-          <div key={d.requestId} className="flex flex-wrap items-center justify-between gap-2 rounded-[1.5rem] border border-ink/10 bg-white p-5">
-            <span className="text-lg font-semibold text-ink">{d.name}</span>
-            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${d.file ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{d.file ? "Uploaded" : "Needed"}</span>
-          </div>
-        ))}
-        {!documents.length && <p className="rounded-[1.5rem] bg-lilac/70 px-5 py-6 text-base text-ink">No documents requested.</p>}
-        <Link href="/dashboard/course" className="inline-block text-base font-semibold text-plum underline">
-          Upload documents on your course page
-        </Link>
-      </section>
+      <RequestedDocuments initialRequests={documents} />
     </div>
   );
 }

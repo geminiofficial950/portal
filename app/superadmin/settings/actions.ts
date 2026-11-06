@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { adminActor, requireAdmin } from "@/lib/auth";
+import { adminActor, requireSuperAdmin } from "@/lib/auth";
 import { checkDeclaration, type DeclarationText } from "@/lib/declaration";
 import { saveDeclaration } from "@/lib/declaration-store";
 import { saveSettings } from "@/lib/settings";
@@ -22,7 +22,7 @@ function clean(input: PortalSettings): PortalSettings {
 }
 
 export async function saveSettingsAction(input: PortalSettings): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireAdmin();
+  await requireSuperAdmin();
   const settings = clean(input);
   if (!settings.college.name) return { ok: false, error: "College name can’t be empty." };
   await saveSettings(settings);
@@ -38,7 +38,7 @@ export async function saveSettingsAction(input: PortalSettings): Promise<{ ok: t
 // ---------- Declaration students tick on Theory / Workplacement Tasks (Super Admin and Admins) ----------
 
 export async function saveDeclarationAction(input: DeclarationText): Promise<OptionResult<{ declaration: DeclarationText }>> {
-  await requireAdmin();
+  await requireSuperAdmin();
   const checked = checkDeclaration(input);
   if ("error" in checked) return { ok: false, error: checked.error };
   await saveDeclaration(checked);

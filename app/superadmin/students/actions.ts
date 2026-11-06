@@ -4,14 +4,13 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { studentRecords, type AffectedRecords } from "@/lib/affected-records";
 import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
-import { isCourseStatus, type CourseStatus } from "@/lib/course-status";
+import { COURSE_STATUS_LOG, COURSE_STATUS_REASON_MAX, isCourseStatus, type CourseStatus } from "@/lib/course-status";
 import { listCourses } from "@/lib/courses";
 import { checkStudentId } from "@/lib/group-meta";
 import {
   createStudent,
   deleteStudent,
   getStudent,
-  hasCourse,
   DuplicateEmailError,
   DuplicateStudentIdError,
   resetStudentPassword,
@@ -21,6 +20,7 @@ import {
   type StudentDTO,
   type StudentStatus,
 } from "@/lib/students";
+import { logStudent, type StudentLogDTO } from "@/lib/student-logs";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -109,17 +109,26 @@ export async function deleteStudentAction(studentId: string): Promise<Result> {
 }
 
 // Active, Completed, Risk of withdrawal… for one of the student's courses — shown on their Course page
-export async function setCourseStatusAction(studentId: string, courseCode: string, courseStatus: CourseStatus): Promise<Result> {
-  await requireAdmin();
+// A reason is required; the change is recorded on the student's log with the staff name, date and reason
+export async function setCourseStatusAction(studentId: string, courseCode: string, courseStatus: CourseStatus, reasonIn: string): Promise<Result<{ change: StudentLogDTO }>> {
+  const actor = await adminActor();
   if (!isCourseStatus(courseStatus)) return { ok: false, error: "Unknown course status." };
+  const reason = String(reasonIn ?? "").replace(/\s+/g, " ").trim();
+  if (!reason) return { ok: false, error: "Write the reason for the change." };
+  if (reason.length > COURSE_STATUS_REASON_MAX) return { ok: false, error: `Keep the reason under ${COURSE_STATUS_REASON_MAX} characters.` };
   const student = await getStudent(studentId);
-  if (!student || !hasCourse(student, courseCode)) return { ok: false, error: "Student or course not found." };
+  const current = student?.courses.find((c) => c.code === courseCode);
+  if (!student || !current) return { ok: false, error: "Student or course not found." };
+  if (current.status === courseStatus) return { ok: false, error: `${courseCode} is already ${courseStatus}.` };
   await setStudentCourseStatus(studentId, courseCode, courseStatus);
-  await logActivity(await adminActor(), `set ${studentId}’s course status for ${courseCode} to ${courseStatus}`, "student");
+  await logActivity(actor, `set ${studentId}’s course status for ${courseCode} to ${courseStatus} — ${reason}`, "student");
+  const detail = `${current.status} → ${courseStatus} · ${reason} · by ${actor}`;
+  await logStudent({ studentId, studentName: student.name, courseCode, action: COURSE_STATUS_LOG, detail });
+  const change: StudentLogDTO = { studentId, studentName: student.name, courseCode, unitCode: null, action: COURSE_STATUS_LOG, detail, at: new Date().toISOString() };
   revalidatePath(`/superadmin/students/${studentId}`);
   revalidatePath("/superadmin/students");
   revalidatePath("/dashboard/course");
-  return { ok: true };
+  return { ok: true, change };
 }
 
 // Enrol a student in more courses or take one away. Work done in a removed course is kept.

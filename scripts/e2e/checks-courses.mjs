@@ -26,10 +26,14 @@ export default async function ({ check, db }) {
   await check("admin: a unit code with a dot opens", "/superadmin/courses/ICT40120/MOD.2", "superadmin", { has: ["MOD.2", "Cloud basics"] });
   await check("student: the other course's unit with its own code works", "/dashboard/assessment/ICT-101?course=ICT40120", "student2", { has: ["Intro to networks", "Cloud basics"] });
 
-  // student course page: description, the units with their status, and course documents (LMS guide: Courses → Enrolled course)
+  // the student's training plan (units with their status) is on My classes; the course card shows the course status
   await db.collection("unitRecords").insertOne({ studentId: "S9001", courseCode: "CHC33021", unitCode: "CHCCCS040", status: "Competent", history: [] });
-  await check("student: course page lists every unit with its status", "/dashboard/course", "student", {
-    has: ["Learn to support people in aged care and disability.", "Units", "01", "Provide individualised support", "CHCCCS031", "Open unit", "Support independence and wellbeing", "Competent", "Work with diverse people", "Not open yet"],
+  await check("student: course card shows the course status after the enrolled date", "/dashboard/course", "student", {
+    has: ["Learn to support people in aged care and disability.", "Work placement", "Enrolled date", "Course status", "Active"],
+    hasNot: ["Your training plan"],
   });
-  await check("student: an open unit's button goes to that unit", "/dashboard/course", "student", { hasRaw: ["/dashboard/assessment/CHCCCS031?course=CHC33021"], hasNotRaw: ["/dashboard/assessment/CHCCCS040?course=CHC33021", "/dashboard/assessment/CHCDIV001?course=CHC33021"] });
+  await check("student: My classes lists every unit with its status (training plan)", "/dashboard/classroom", "student", {
+    has: ["Your training plan", "01", "Provide individualised support", "CHCCCS031", "Open unit", "Support independence and wellbeing", "Competent", "Work with diverse people", "Not open yet"],
+  });
+  await check("student: an open unit's button goes to that unit", "/dashboard/classroom", "student", { hasRaw: ["/dashboard/assessment/CHCCCS031?course=CHC33021"], hasNotRaw: ["/dashboard/assessment/CHCCCS040?course=CHC33021", "/dashboard/assessment/CHCDIV001?course=CHC33021"] });
 }

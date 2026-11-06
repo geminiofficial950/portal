@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { setCourseStatusAction, setStudentCoursesAction } from "../actions";
-import { courseStatusStyle, statusOptions, type CourseStatus } from "@/lib/course-status";
+import { setStudentCoursesAction } from "../actions";
+import CourseStatusDrawer from "../CourseStatusDrawer";
+import { courseStatusStyle, type CourseStatus } from "@/lib/course-status";
 
 type Enrolment = { code: string; name: string; status: CourseStatus };
 
@@ -26,18 +27,7 @@ export default function StudentCoursesPanel({
   const [adding, setAdding] = useState(available[0]?.code ?? "");
   const [saving, startSaving] = useTransition();
 
-  const changeStatus = (code: string, status: CourseStatus) => {
-    const before = courses;
-    setCourses((list) => list.map((c) => (c.code === code ? { ...c, status } : c)));
-    startSaving(async () => {
-      const res = await setCourseStatusAction(studentId, code, status);
-      if (!res.ok) {
-        setCourses(before);
-        return void toast.error(res.error);
-      }
-      toast.success(`${name}: ${code} is now ${status}`);
-    });
-  };
+  const [managing, setManaging] = useState<Enrolment | null>(null);
 
   const saveList = (next: Enrolment[], message: string) =>
     startSaving(async () => {
@@ -78,19 +68,14 @@ export default function StudentCoursesPanel({
               <span className="block truncate text-xs text-ink">{c.name}</span>
             </span>
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${courseStatusStyle[c.status]}`}>{c.status}</span>
-            <select
-              value={c.status}
+            <button
+              onClick={() => setManaging(c)}
               disabled={saving}
-              onChange={(e) => changeStatus(c.code, e.target.value as CourseStatus)}
-              aria-label={`Course status for ${c.code}`}
-              className="rounded-xl bg-lilac px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-plum/30 disabled:opacity-60"
+              aria-label={`Change status of ${c.code}`}
+              className="rounded-full border border-plum/40 bg-white px-3 py-2 text-xs font-semibold text-plum transition hover:bg-plum hover:text-white disabled:opacity-60"
             >
-              {statusOptions(c.status).map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              Change status
+            </button>
             <button
               onClick={() => remove(c)}
               disabled={saving || courses.length === 1}
@@ -102,6 +87,19 @@ export default function StudentCoursesPanel({
           </li>
         ))}
       </ul>
+      {managing && (
+        <CourseStatusDrawer
+          student={{ studentId, name }}
+          course={{ code: managing.code, name: managing.name }}
+          current={managing.status}
+          onClose={() => setManaging(null)}
+          onSaved={(status) => {
+            setCourses((list) => list.map((c) => (c.code === managing.code ? { ...c, status } : c)));
+            setManaging(null);
+            router.refresh();
+          }}
+        />
+      )}
       {available.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <select

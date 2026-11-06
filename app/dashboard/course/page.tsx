@@ -1,18 +1,18 @@
 import Link from "next/link";
-import { ArrowRightIcon, BookIcon, BoxIcon, CalendarIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
+import { ArrowRightIcon, BookIcon, BoxIcon, CalendarIcon, CheckIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
 import CourseIllustration from "./CourseIllustration";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
 import { courseStatusStyle } from "@/lib/course-status";
-import { listPlacementDocs, listRequests, listSignedDocs } from "@/lib/documents";
+import { listPlacementDocs, listSignedDocs } from "@/lib/documents";
 import { listHiddenUnits } from "@/lib/hidden-units";
 import { getStudent } from "@/lib/students";
 import { listUnitRecords } from "@/lib/unit-records";
-import { unitAccess, unitStatusStyle } from "@/lib/unit-status-meta";
+import { unitAccess } from "@/lib/unit-status-meta";
 import StudentDocuments from "./StudentDocuments";
 
-// Every course the student is enrolled in, at a glance, then placement and requested documents.
-// Order (LMS guide): course description and details, then Course documents / Placement pack, then the training plan (units with status).
+// Every course the student is enrolled in, at a glance (with its course status), then Course documents and the Placement pack.
+// The training plan (units with status) is on My classes; documents the college asked for are on Requests.
 // "Go to my course" opens the course details page (units + learning content).
 export default async function CoursePage() {
   const session = await requireStudent();
@@ -39,11 +39,7 @@ export default async function CoursePage() {
     );
   }
 
-  const [placementDocs, signed, requests] = await Promise.all([
-    listPlacementDocs(courses.map((c) => c.course.code)),
-    listSignedDocs(student.studentId),
-    listRequests(student.studentId),
-  ]);
+  const [placementDocs, signed] = await Promise.all([listPlacementDocs(courses.map((c) => c.course.code)), listSignedDocs(student.studentId)]);
 
   const totalUnits = courses.reduce((n, c) => n + c.visibleUnits, 0);
 
@@ -111,7 +107,6 @@ export default async function CoursePage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Your course</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-3">
                       <h3 className="text-xl font-semibold leading-snug text-ink sm:text-2xl">{course.name}</h3>
-                      <span className={`rounded-full px-3 py-1 text-sm font-semibold ${courseStatusStyle[status]}`}>{status}</span>
                     </div>
                     <p className="mt-2 flex items-center gap-2 text-base text-ink">
                       <span className="text-lg font-semibold text-plum">#</span>
@@ -122,7 +117,7 @@ export default async function CoursePage() {
                     {course.description && <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">{course.description}</p>}
                   </div>
 
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-5">
                     {[
                       { label: "Units", value: visibleUnits, icon: BoxIcon },
                       { label: "Duration", value: course.duration, icon: ClockIcon },
@@ -143,6 +138,18 @@ export default async function CoursePage() {
                         </span>
                       </div>
                     ))}
+                    {/* Course status, right after the enrolled date */}
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
+                        <CheckIcon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <dt className="text-sm text-ink">Course status</dt>
+                        <dd>
+                          <span className={`inline-block rounded-full px-3 py-0.5 text-sm font-semibold ${courseStatusStyle[status]}`}>{status}</span>
+                        </dd>
+                      </span>
+                    </div>
                   </dl>
 
                   <Link
@@ -169,57 +176,8 @@ export default async function CoursePage() {
             docs: placementDocs.filter((d) => d.courseCode === course.code),
           }))}
           initialSigned={signed}
-          initialRequests={requests}
         />
       </div>
-      {/* Training plan: every unit with its status — below the description and the course documents (LMS guide).
-          Only an open unit has a button; a unit with a non-active status (e.g. Competent) shows just its name and status. */}
-      <section aria-labelledby="plan-heading" className="space-y-4">
-        <h2 id="plan-heading" className="text-2xl font-semibold text-ink sm:text-3xl">
-          Your training plan
-        </h2>
-        {courses.map(({ course, units }) => (
-          <div key={course.code} className="space-y-2">
-            {courses.length > 1 && (
-              <p className="text-base font-semibold text-plum">
-                {course.code} · {course.name}
-              </p>
-            )}
-            <ol className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
-              {units.map((u, i) => {
-                const nonActive = u.record && u.record.status !== "Active";
-                return (
-                  <li key={u.code} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <span
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${u.access.open ? "bg-emerald-600 text-white" : "bg-lilac text-ink"}`}
-                    >
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-base font-semibold text-ink">{u.title}</span>
-                      <span className="block text-sm text-ink">{u.code}</span>
-                    </span>
-                    {nonActive ? (
-                      <span className={`rounded-full px-3 py-1 text-sm font-semibold ${unitStatusStyle[u.record!.status]}`}>{u.record!.status}</span>
-                    ) : u.access.open ? (
-                      <Link
-                        href={`/dashboard/assessment/${encodeURIComponent(u.code)}?course=${encodeURIComponent(course.code)}`}
-                        className="rounded-xl bg-plum px-4 py-2 text-sm font-semibold text-white transition hover:bg-plum-light"
-                      >
-                        Open unit
-                      </Link>
-                    ) : (
-                      <span className="rounded-full bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-800">{u.access.reason}</span>
-                    )}
-                  </li>
-                );
-              })}
-              {!units.length && <li className="px-4 py-3 text-base text-ink">The college hasn’t added units yet.</li>}
-            </ol>
-          </div>
-        ))}
-      </section>
-
     </div>
   );
 }

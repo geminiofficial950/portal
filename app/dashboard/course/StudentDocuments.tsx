@@ -17,18 +17,15 @@ const empty = "flex items-center gap-3 rounded-[1.5rem] bg-lilac px-5 py-5 text-
 const heading = "flex items-center gap-2.5 text-xl font-medium text-ink";
 const headingIcon = "grid h-9 w-9 place-items-center rounded-xl bg-plum text-white";
 
-// Student: placement forms to sign and upload, and documents the college asked for
+// Student: course documents to download and placement forms to sign and upload (Courses page)
 export default function StudentDocuments({
   placement,
   initialSigned,
-  initialRequests,
 }: {
   placement: PlacementGroup[];
   initialSigned: SignedDocDTO[];
-  initialRequests: DocumentRequestDTO[];
 }) {
   const [signed, setSigned] = useState(initialSigned);
-  const [requests, setRequests] = useState(initialRequests);
   const multi = placement.length > 1;
 
   const uploadSigned = (doc: PlacementDocDTO) => async (file: { id: string }) => {
@@ -38,12 +35,6 @@ export default function StudentDocuments({
     toast.success(`Signed “${doc.title}” uploaded`);
   };
 
-  const uploadRequested = (r: DocumentRequestDTO) => async (file: { id: string }) => {
-    const res = await uploadRequestedDocAction(r.requestId, file.id);
-    if (!res.ok) return void toast.error(res.error);
-    setRequests((list) => list.map((x) => (x.requestId === r.requestId ? res.request : x)));
-    toast.success(`“${r.name}” uploaded`);
-  };
 
   return (
     <div id="documents" className="space-y-10">
@@ -163,14 +154,33 @@ export default function StudentDocuments({
             </div>
           ))}
       </section>
+    </div>
+  );
+}
 
-      {/* Documents the college asked this student for */}
+// Student: documents the college asked this student for — shown on the Requests page, with how many there are
+export function RequestedDocuments({ initialRequests }: { initialRequests: DocumentRequestDTO[] }) {
+  const [requests, setRequests] = useState(initialRequests);
+  const needed = requests.filter((r) => !r.file).length;
+
+  const uploadRequested = (r: DocumentRequestDTO) => async (file: { id: string }) => {
+    const res = await uploadRequestedDocAction(r.requestId, file.id);
+    if (!res.ok) return void toast.error(res.error);
+    setRequests((list) => list.map((x) => (x.requestId === r.requestId ? res.request : x)));
+    toast.success(`“${r.name}” uploaded`);
+  };
+
+  return (
       <section aria-labelledby="requested-heading" className="space-y-3">
         <h2 id="requested-heading" className={heading}>
           <span className={headingIcon}>
             <FileIcon className="h-5 w-5" />
           </span>
           Other Requested Documents
+          <span className="rounded-full bg-lilac px-3 py-0.5 text-sm font-semibold text-plum" aria-label={`${requests.length} requested`}>
+            {requests.length}
+          </span>
+          {needed > 0 && <span className="rounded-full bg-amber-100 px-3 py-0.5 text-sm font-semibold text-amber-900">{needed} needed</span>}
         </h2>
         {requests.length === 0 ? (
           <p className={empty}>
@@ -221,6 +231,5 @@ export default function StudentDocuments({
           </ul>
         )}
       </section>
-    </div>
   );
 }

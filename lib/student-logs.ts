@@ -83,6 +83,12 @@ export async function listStudentLogs(studentId: string, opts: { courseCode?: st
   return docs.map(toDTO);
 }
 
+// The latest entries of one kind across all students (e.g. course status changes for the Students page)
+export async function listRecentLogs(action: string, limit = 8) {
+  const docs = await (await collection()).find({ action }).sort({ at: -1 }).limit(limit).toArray();
+  return docs.map(toDTO);
+}
+
 // Every student's log, newest first (for the "all students" download)
 export async function listAllStudentLogs(limit = 50000) {
   const docs = await (await collection()).find().sort({ at: -1 }).limit(limit).toArray();
