@@ -76,7 +76,7 @@ export default function RichTextEditor({
               e.preventDefault();
               run(t.cmd, "arg" in t ? `<${t.arg}>` : undefined);
             }}
-            className={`min-w-8 rounded-md px-2 py-1 text-xs text-ink/70 transition hover:bg-lilac hover:text-plum ${t.className}`}
+            className={`min-w-8 rounded-md px-2 py-1 text-xs text-ink transition hover:bg-lilac hover:text-plum ${t.className}`}
           >
             {t.label}
           </button>
@@ -94,7 +94,7 @@ export default function RichTextEditor({
         className="rich-text px-4 py-3 text-sm leading-relaxed text-ink outline-none"
         style={{ minHeight }}
       />
-      <div className={`flex justify-end border-t border-ink/5 px-4 py-1.5 text-[11px] ${over ? "text-rose-600" : "text-ink/40"}`}>
+      <div className={`flex justify-end border-t border-ink/5 px-4 py-1.5 text-[11px] ${over ? "text-rose-600" : "text-ink"}`}>
         {words} word{words === 1 ? "" : "s"}
         {wordLimit ? ` / ${wordLimit} limit` : ""}
       </div>

@@ -32,7 +32,7 @@ export default async function AdminStudentUnitPage(props: PageProps<"/superadmin
 
   return (
     <div className="animate-fade-up space-y-6">
-      <Link href={`/superadmin/students/${student.studentId}?course=${encodeURIComponent(course.code)}`} className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum">
+      <Link href={`/superadmin/students/${student.studentId}?course=${encodeURIComponent(course.code)}`} className="inline-flex items-center gap-2 text-sm text-ink transition hover:text-plum">
         <BackIcon className="h-4 w-4" />
         {student.name}’s progress
       </Link>

@@ -2,12 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
-import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
+import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin, requireSuperAdmin } from "@/lib/auth";
+import { checkLoginEmail, checkTrainerId } from "@/lib/group-meta";
+import { changeTrainerLogin, IdentityTakenError } from "@/lib/identity";
 import { unassignTrainerTickets } from "@/lib/tickets";
 import type { TrainerDTO } from "@/lib/trainer-meta";
 import {
   createTrainer,
   deleteTrainer,
+  getTrainer,
   DuplicateTrainerEmailError,
   resetTrainerPassword,
   setTrainerActive,
@@ -69,4 +72,28 @@ export async function deleteTrainerAction(trainerId: string): Promise<Result> {
   await logActivity(await adminActor(), `removed trainer ${doc.name}`, "trainer");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
+}
+
+// Super Admin only: change a trainer's login email and/or trainer ID. A new ID is carried across their batch
+// assignments, class sessions and uploads. Their old session ends; the password stays.
+export async function changeTrainerLoginAction(trainerId: string, input: { email: string; trainerId: string }): Promise<Result<{ trainer: TrainerDTO; moved: number }>> {
+  const admin = await requireSuperAdmin();
+  const email = checkLoginEmail(String(input?.email ?? ""));
+  if ("error" in email) return { ok: false, error: email.error };
+  const id = checkTrainerId(String(input?.trainerId ?? ""));
+  if ("error" in id) return { ok: false, error: id.error };
+  let res;
+  try {
+    res = await changeTrainerLogin(String(trainerId), { id: id.id, email: email.email });
+  } catch (err) {
+    if (err instanceof IdentityTakenError) return { ok: false, error: err.message };
+    throw err;
+  }
+  if (!res) return { ok: false, error: "Trainer not found." };
+  const trainer = (await getTrainer(id.id))!;
+  const changes = [res.before.id !== id.id ? `ID ${res.before.id} → ${id.id}` : "", res.before.email !== email.email ? `email ${res.before.email} → ${email.email}` : ""].filter(Boolean).join(", ");
+  if (changes) await logActivity(admin.label, `changed ${trainer.name}’s login: ${changes}`, "trainer");
+  revalidatePath("/superadmin", "layout");
+  revalidatePath("/trainer", "layout");
+  return { ok: true, trainer, moved: res.moved };
 }

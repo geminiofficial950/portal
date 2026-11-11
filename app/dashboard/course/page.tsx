@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRightIcon, BookIcon, BoxIcon, CalendarIcon, CheckIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
+import { ArrowRightIcon, BookIcon, BoxIcon, CheckIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
 import CourseIllustration from "./CourseIllustration";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
@@ -25,7 +25,7 @@ export default async function CoursePage() {
             const units = (course?.units ?? [])
               .filter((u) => !hidden.has(u.code))
               .map((u) => ({ ...u, record: records[u.code] ?? null, access: unitAccess(records[u.code] ?? null) }));
-            return course ? [{ course, status: c.status, enrolled: c.enrolled, visibleUnits: units.length, units }] : [];
+            return course ? [{ course, status: c.status, visibleUnits: units.length, units }] : [];
           }),
         )
       ).flat()
@@ -89,7 +89,7 @@ export default async function CoursePage() {
         </div>
 
         <ul className="space-y-5">
-          {courses.map(({ course, status, enrolled, visibleUnits }) => (
+          {courses.map(({ course, status, visibleUnits }) => (
             <li key={course.code}>
               <article
                 aria-label={course.name}
@@ -117,7 +117,7 @@ export default async function CoursePage() {
                     {course.description && <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">{course.description}</p>}
                   </div>
 
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-5">
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                     {[
                       { label: "Units", value: visibleUnits, icon: BoxIcon },
                       { label: "Duration", value: course.duration, icon: ClockIcon },
@@ -126,7 +126,6 @@ export default async function CoursePage() {
                         value: course.placementHours === null ? "To be confirmed" : `${course.placementHours} hours`,
                         icon: ClipboardIcon,
                       },
-                      { label: "Enrolled date", value: enrolled, icon: CalendarIcon },
                     ].map(({ label, value, icon: Icon }) => (
                       <div key={label} className="flex items-center gap-3">
                         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
@@ -138,7 +137,7 @@ export default async function CoursePage() {
                         </span>
                       </div>
                     ))}
-                    {/* Course status, right after the enrolled date */}
+                    {/* Course status */}
                     <div className="flex items-center gap-3">
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
                         <CheckIcon className="h-5 w-5" />

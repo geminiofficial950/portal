@@ -37,7 +37,7 @@ export default function ThemeToggle({ className = "", look = "button" }: { class
       title={theme === "dark" ? "Light mode" : "Dark mode"}
       className={`${
         look === "menu"
-          ? "flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white/85 transition hover:text-white"
+          ? "flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white transition hover:text-white"
           : "flex h-11 items-center gap-2 rounded-full border border-ink/15 bg-lilac px-4 text-sm font-medium text-plum transition hover:bg-plum hover:text-white"
       } ${className} ${theme ? "opacity-100" : "opacity-0"}`}
     >

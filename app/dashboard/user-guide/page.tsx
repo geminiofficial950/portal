@@ -217,15 +217,15 @@ export default function UserGuidePage() {
   return (
     <div className="animate-fade-up space-y-6">
       <div className="overflow-hidden rounded-[1.75rem] bg-plum px-6 py-7 text-white sm:px-8">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/55">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white">
           Student help
         </p>
         <h1 className="mt-2 text-2xl font-semibold sm:text-[1.75rem]">How do I…?</h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/70">
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-white">
           Short guides for the things students ask most — portal, courses, assessments, and help.
         </p>
         <label className="mt-5 flex max-w-md items-center gap-3 rounded-full bg-white/10 px-4 py-3 ring-1 ring-white/15">
-          <SearchIcon className="h-4 w-4 shrink-0 text-white/70" />
+          <SearchIcon className="h-4 w-4 shrink-0 text-white" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -283,7 +283,7 @@ export default function UserGuidePage() {
                     <span className="min-w-0">
                       <span className="block text-sm font-medium leading-snug">{guide.howDoI}</span>
                       <span
-                        className={`mt-1 block text-[11px] ${active ? "text-white/65" : "text-ink"}`}
+                        className={`mt-1 block text-[11px] ${active ? "text-white" : "text-ink"}`}
                       >
                         {guide.readTime}
                       </span>

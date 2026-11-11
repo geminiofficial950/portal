@@ -225,7 +225,7 @@ export default function CoursesClient({
             />
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/5 pt-4">
-              <div className="flex items-center gap-4 text-xs text-ink/60">
+              <div className="flex items-center gap-4 text-xs text-ink">
                 <span className="flex items-center gap-1.5">
                   <BoxIcon className="h-4 w-4" />
                   {c.units.length} units
@@ -299,7 +299,7 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
 
   if (!editing) {
     return (
-      <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink/70">
+      <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink">
         <span className="font-medium text-ink">Work placement:</span>
         {course.placementHours === null ? "not set" : `${course.placementHours} hours`}
         <button onClick={() => setEditing(true)} className="font-medium text-plum hover:underline">
@@ -323,11 +323,11 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
         aria-label={`Work placement hours for ${course.code}`}
         className="w-24 rounded-lg bg-white px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
       />
-      <span className="text-xs text-ink/60">hours</span>
+      <span className="text-xs text-ink">hours</span>
       <button type="submit" disabled={saving} className="rounded-full bg-plum px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-60">
         {saving ? "Saving…" : "Save"}
       </button>
-      <button type="button" onClick={() => setEditing(false)} className="rounded-full px-2 py-1.5 text-[11px] text-ink/60 hover:bg-white/60">
+      <button type="button" onClick={() => setEditing(false)} className="rounded-full px-2 py-1.5 text-[11px] text-ink hover:bg-white/60">
         Cancel
       </button>
     </form>

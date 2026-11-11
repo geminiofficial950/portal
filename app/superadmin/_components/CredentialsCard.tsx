@@ -22,7 +22,7 @@ export default function CredentialsCard({ credentials, onClose }: { credentials:
       <button
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-4 top-4 rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+        className="absolute right-4 top-4 rounded-full p-1.5 text-white hover:bg-white/10 hover:text-white"
       >
         <CloseIcon className="h-4 w-4" />
       </button>
@@ -30,7 +30,7 @@ export default function CredentialsCard({ credentials, onClose }: { credentials:
         <CheckIcon className="h-4 w-4 text-peach" />
         {credentials.title}
       </p>
-      <p className="mt-1 text-xs text-white/70">Share these login details. The password won’t be shown again.</p>
+      <p className="mt-1 text-xs text-white">Share these login details. The password won’t be shown again.</p>
       <dl className="mt-4 grid gap-3 sm:grid-cols-3">
         {[
           [credentials.idLabel, credentials.id],
@@ -38,7 +38,7 @@ export default function CredentialsCard({ credentials, onClose }: { credentials:
           ["Password", credentials.password],
         ].map(([label, value]) => (
           <div key={label} className="min-w-0 rounded-xl bg-white/10 px-4 py-3">
-            <dt className="text-[10px] uppercase tracking-wide text-white/55">{label}</dt>
+            <dt className="text-[10px] uppercase tracking-wide text-white">{label}</dt>
             <dd className="mt-0.5 truncate font-mono text-sm">{value}</dd>
           </div>
         ))}

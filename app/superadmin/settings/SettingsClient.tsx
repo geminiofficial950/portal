@@ -25,13 +25,13 @@ export default function SettingsClient({ initialSettings }: { initialSettings: P
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Portal settings</h1>
-          <p className="mt-1 text-sm text-ink/55">College details, portal switches and what each role can do.</p>
+          <p className="mt-1 text-sm text-ink">College details, portal switches and what each role can do.</p>
         </div>
         <div className="flex items-center gap-3">
           {dirty && (
             <button
               onClick={() => setSettings(saved)}
-              className="rounded-full px-5 py-3 text-sm font-medium text-ink/60 transition hover:bg-lilac"
+              className="rounded-full px-5 py-3 text-sm font-medium text-ink transition hover:bg-lilac"
             >
               Discard
             </button>
@@ -58,7 +58,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: P
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {COLLEGE_FIELDS.map(({ key, label }) => (
               <label key={key} className="block">
-                <span className="text-[11px] font-medium text-ink/50">{label}</span>
+                <span className="text-[11px] font-medium text-ink">{label}</span>
                 <input
                   value={settings.college[key]}
                   onChange={(e) => setSettings({ ...settings, college: { ...settings.college, [key]: e.target.value } })}
@@ -78,7 +78,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: P
                   <p className={`text-sm font-medium ${s.key === "maintenance" && settings.switches.maintenance ? "text-rose-600" : "text-ink"}`}>
                     {s.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-ink/45">{s.hint}</p>
+                  <p className="mt-0.5 text-[11px] text-ink">{s.hint}</p>
                 </div>
                 <Toggle
                   checked={settings.switches[s.key]}
@@ -93,7 +93,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: P
 
       <section className="rounded-[1.75rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6">
         <h2 className="text-lg font-medium text-ink">What trainers can do</h2>
-        <p className="mt-0.5 text-xs text-ink/50">Super Admin can always do everything. Students only see their own portal.</p>
+        <p className="mt-0.5 text-xs text-ink">Super Admin can always do everything. Students only see their own portal.</p>
         <ul className="mt-2 grid gap-x-10 divide-y divide-ink/5 sm:grid-cols-2 sm:divide-y-0">
           {PERMISSIONS.map((p) => (
             <li key={p.key} className="flex items-center justify-between gap-4 py-4 sm:border-b sm:border-ink/5">

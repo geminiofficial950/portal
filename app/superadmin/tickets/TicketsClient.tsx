@@ -70,14 +70,14 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
     <div className="animate-fade-up space-y-8">
       <div>
         <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Support</h1>
-        <p className="mt-1 text-sm text-ink/55">Every student request in one place. Assign it, reply, then move it to resolved.</p>
+        <p className="mt-1 text-sm text-ink">Every student request in one place. Assign it, reply, then move it to resolved.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {TICKET_STATUSES.map((s) => (
           <div key={s} className={`rounded-[1.5rem] px-5 py-4 ${s === "Resolved" ? "bg-emerald-50" : "bg-lilac"}`}>
             <p className="text-2xl font-medium text-ink">{list.filter((t) => t.status === s).length}</p>
-            <p className="mt-1 text-xs text-ink/50">{s}</p>
+            <p className="mt-1 text-xs text-ink">{s}</p>
           </div>
         ))}
       </div>
@@ -89,7 +89,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
               key={f}
               onClick={() => setFilter(f)}
               className={`rounded-full px-4 py-2 text-xs font-medium transition ${
-                filter === f ? "bg-plum text-white" : "bg-lilac text-ink/70 hover:bg-plum/10"
+                filter === f ? "bg-plum text-white" : "bg-lilac text-ink hover:bg-plum/10"
               }`}
             >
               {f}
@@ -118,10 +118,10 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-medium text-plum">{t.ticketId}</span>
-                <span className="text-[11px] text-ink/40">{t.topic}</span>
+                <span className="text-[11px] text-ink">{t.topic}</span>
               </div>
               <p className="mt-1.5 font-medium text-ink">{t.subject}</p>
-              <p className="mt-0.5 text-[11px] text-ink/45">
+              <p className="mt-0.5 text-[11px] text-ink">
                 {t.studentName} ({t.studentId}) · raised {t.created} · {t.messages.length} message{t.messages.length === 1 ? "" : "s"}
               </p>
             </div>
@@ -186,7 +186,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
         {visible.length === 0 && (
           <li className="grid place-items-center rounded-[1.5rem] bg-lilac/70 px-5 py-12 text-center">
             <TicketIcon className="h-8 w-8 text-plum/40" />
-            <p className="mt-3 text-sm text-ink/45">
+            <p className="mt-3 text-sm text-ink">
               {list.length === 0 ? "No support requests yet — they appear here when students ask for help." : "No support requests match."}
             </p>
           </li>

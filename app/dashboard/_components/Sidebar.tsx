@@ -128,7 +128,7 @@ function NavLinks({ nav, home, onNavigate, pathname = null }: NavLinksProps & { 
               href={href}
               onClick={onNavigate}
               className={`relative -ml-4 flex items-center gap-4 py-2.5 pl-4 text-sm transition ${
-                active ? "text-peach" : "text-white/85 hover:text-white"
+                active ? "text-peach" : "text-white hover:text-white"
               }`}
             >
               {active && (
@@ -202,13 +202,16 @@ export default function Sidebar({ variant = "student", superAdmin }: { variant?:
           <button
             onClick={() => setOpen(false)}
             aria-label="Close menu"
-            className="rounded-lg p-1.5 text-white/80 hover:bg-white/10 lg:hidden"
+            className="rounded-lg p-1.5 text-white hover:bg-white/10 lg:hidden"
           >
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
 
-        <p className="mt-4 text-sm font-semibold tracking-wide text-white">{base.title}</p>
+        {/* Admin pages: the title waits until we know Super Admin vs Admin account (never flashes the wrong one) */}
+        <p className="mt-4 min-h-5 text-sm font-semibold tracking-wide text-white">
+          {variant === "admin" ? (superAdmin === undefined ? " " : superAdmin ? "Super Admin Portal" : "Admin Portal") : base.title}
+        </p>
         <nav className="mt-8 flex-1">
           <Suspense fallback={<NavLinks nav={nav} home={home} onNavigate={() => setOpen(false)} />}>
             <ActiveNavLinks nav={nav} home={home} onNavigate={() => setOpen(false)} />
@@ -227,7 +230,7 @@ export default function Sidebar({ variant = "student", superAdmin }: { variant?:
         <form action={logout}>
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white/75 transition hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white transition hover:text-white"
           >
             <LogoutIcon className="h-5 w-5" />
             Logout

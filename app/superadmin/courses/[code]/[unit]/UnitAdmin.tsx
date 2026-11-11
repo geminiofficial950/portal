@@ -19,7 +19,7 @@ import { RESOURCE_SLOTS, type Resource, type ResourceSlot, type UnitContent } fr
 import FileActions from "../../../../dashboard/_components/FileActions";
 
 const SECTIONS = [
-  { key: "overview", label: "1. Main unit", hint: "What the unit is about" },
+  { key: "overview", label: "1. Unit Description", hint: "What the unit is about" },
   { key: "resources", label: "2. Resources", hint: "Things to read first" },
   { key: "assessment", label: "3. Modules", hint: "Activities and tasks — any number, in your order" },
 ] as const;
@@ -56,7 +56,7 @@ export default function UnitAdmin({
         onClick={(e) => {
           if (assessmentDirty && !window.confirm("You have unsaved changes. Leave anyway?")) e.preventDefault();
         }}
-        className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum"
+        className="inline-flex items-center gap-2 text-sm text-ink transition hover:text-plum"
       >
         <BackIcon className="h-4 w-4" />
         All courses
@@ -83,7 +83,7 @@ export default function UnitAdmin({
             }`}
           >
             <span className="block text-sm font-medium">{s.label}</span>
-            <span className={`mt-0.5 block text-[11px] ${section === s.key ? "text-white/70" : "text-ink/45"}`}>{s.hint}</span>
+            <span className={`mt-0.5 block text-[11px] ${section === s.key ? "text-white" : "text-ink"}`}>{s.hint}</span>
           </button>
         ))}
       </div>
@@ -115,8 +115,8 @@ function OverviewEditor({ courseCode, unitCode, initial }: { courseCode: string;
   return (
     <section className={`${card} space-y-4`}>
       <div>
-        <h2 className="text-lg font-medium text-ink">Main unit</h2>
-        <p className="mt-0.5 text-sm text-ink/55">What students learn in this unit, how long it takes, and anything they should know first.</p>
+        <h2 className="text-lg font-medium text-ink">Unit Description</h2>
+        <p className="mt-0.5 text-sm text-ink">What students learn in this unit, how long it takes, and anything they should know first.</p>
       </div>
       <RichTextEditor
         label="Unit overview"
@@ -254,7 +254,7 @@ function ResourcesManager({ courseCode, unitCode, initial }: { courseCode: strin
               key={k.key}
               type="button"
               onClick={() => setKind(k.key)}
-              className={`rounded-full px-4 py-2 text-xs font-medium transition ${kind === k.key ? "bg-plum text-white" : "bg-lilac text-ink/70 hover:bg-plum/10"}`}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition ${kind === k.key ? "bg-plum text-white" : "bg-lilac text-ink hover:bg-plum/10"}`}
             >
               {k.label}
             </button>

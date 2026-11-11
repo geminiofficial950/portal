@@ -20,7 +20,7 @@ export default async function AdminReviewPage(props: PageProps<"/superadmin/mark
     <div className="animate-fade-up space-y-6">
       <Link
         href={`/superadmin/students/${submission.studentId}/${submission.unitCode}`}
-        className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum"
+        className="inline-flex items-center gap-2 text-sm text-ink transition hover:text-plum"
       >
         <BackIcon className="h-4 w-4" />
         {submission.studentName}’s work for {submission.unitCode}

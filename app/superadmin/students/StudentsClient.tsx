@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { CheckIcon, ClockIcon, DownloadIcon, InfoIcon, PlusIcon, SearchIcon, TrashIcon } from "../../dashboard/_components/icons";
 import CredentialsCard, { type Credentials } from "../_components/CredentialsCard";
 import { transferWithChecks } from "../batches/transfer-flow";
+import LoginDetailsForm from "../_components/LoginDetailsForm";
 import CourseStatusDrawer from "./CourseStatusDrawer";
 import type { BatchDTO } from "@/lib/batch-meta";
 import { courseStatusStyle, parseStatusChange, type CourseStatus } from "@/lib/course-status";
@@ -13,7 +14,7 @@ import { STUDENT_ID_MAX } from "@/lib/group-meta";
 import { generatePassword } from "@/lib/password";
 import type { StudentLogDTO } from "@/lib/student-logs";
 import type { StudentDTO, StudentStatus } from "@/lib/students";
-import { createStudentAction, deleteStudentAction, previewStudentDeletionAction, resetPasswordAction, setStudentStatusAction } from "./actions";
+import { changeStudentLoginAction, createStudentAction, deleteStudentAction, previewStudentDeletionAction, resetPasswordAction, setStudentStatusAction } from "./actions";
 
 const accountTone: Record<StudentStatus, string> = {
   Active: "bg-emerald-100 text-emerald-800",
@@ -42,7 +43,7 @@ export default function StudentsClient({
   batchesHref: string;
   recentChanges: StudentLogDTO[];
 }) {
-  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "" };
+  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "", batches: {} as Record<string, string> };
   const [list, setList] = useState(initialStudents);
   const [recent, setRecent] = useState(recentChanges);
   const [query, setQuery] = useState("");
@@ -78,7 +79,8 @@ export default function StudentsClient({
     e.preventDefault();
     if (form.courses.length === 0) return void toast.error("Pick at least one course.");
     startSaving(async () => {
-      const res = await createStudentAction(form);
+      const batchIds = form.courses.map((code) => form.batches[code]).filter(Boolean);
+      const res = await createStudentAction({ name: form.name, email: form.email, courses: form.courses, password: form.password, studentId: form.studentId, batchIds });
       if (!res.ok) return void toast.error(res.error);
       setList((l) => [res.student, ...l]);
       setCredentials({ title: `${res.student.name} added`, idLabel: "Student ID", id: res.student.studentId, email: res.student.email, password: form.password });
@@ -223,7 +225,13 @@ export default function StudentsClient({
                   <input
                     type="checkbox"
                     checked={form.courses.includes(c.code)}
-                    onChange={(e) => setForm({ ...form, courses: e.target.checked ? [...form.courses, c.code] : form.courses.filter((x) => x !== c.code) })}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        courses: e.target.checked ? [...form.courses, c.code] : form.courses.filter((x) => x !== c.code),
+                        batches: e.target.checked ? form.batches : Object.fromEntries(Object.entries(form.batches).filter(([k]) => k !== c.code)),
+                      })
+                    }
                     className="mt-0.5 h-4 w-4 shrink-0 accent-plum"
                   />
                   <span className="min-w-0">
@@ -232,6 +240,34 @@ export default function StudentsClient({
                 </label>
               ))}
             </div>
+            {/* Batch for each ticked course (optional) — only that course's batches are offered */}
+            {form.courses.length > 0 && (
+              <div className="mt-3 grid gap-2 border-t border-ink/10 pt-3 sm:grid-cols-2">
+                {form.courses.map((code) => {
+                  const options = batches.filter((b) => b.courseCode === code);
+                  return (
+                    <label key={code} className="block space-y-1 text-xs font-medium text-ink">
+                      Batch for {code}
+                      <select
+                        value={form.batches[code] ?? ""}
+                        onChange={(e) => setForm({ ...form, batches: { ...form.batches, [code]: e.target.value } })}
+                        disabled={!options.length}
+                        aria-label={`Batch for ${code}`}
+                        className="w-full rounded-xl bg-lilac px-3 py-2 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/30 disabled:opacity-70"
+                      >
+                        <option value="">{options.length ? "No batch yet" : "No batch made for this course yet"}</option>
+                        {options.map((b) => (
+                          <option key={b.batchId} value={b.batchId}>
+                            {b.name}
+                            {b.code ? ` (${b.code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </fieldset>
           <button type="submit" disabled={saving} className="self-end whitespace-nowrap rounded-full bg-plum px-6 py-3 text-sm font-medium text-white transition hover:bg-plum-light disabled:cursor-wait disabled:opacity-60">
             {saving ? "Saving…" : "Create login"}
@@ -240,7 +276,7 @@ export default function StudentsClient({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white px-4 py-2.5 ring-1 ring-ink/15 focus-within:ring-2 focus-within:ring-plum/40 sm:max-w-md">
+        <label className="flex w-full min-w-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 ring-1 ring-ink/15 focus-within:ring-2 focus-within:ring-plum/40 sm:w-auto sm:max-w-md sm:flex-1">
           <SearchIcon className="h-4 w-4 text-ink" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email or student ID" className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink/70" />
         </label>
@@ -248,7 +284,7 @@ export default function StudentsClient({
           value={batchFilter}
           onChange={(e) => setBatchFilter(e.target.value)}
           aria-label="Filter by batch"
-          className="rounded-xl bg-white px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-2 focus:ring-plum/40"
+          className="w-full rounded-xl bg-white px-4 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-2 focus:ring-plum/40 sm:w-auto"
         >
           <option value="All">All batches</option>
           {batches.map((b) => (
@@ -261,7 +297,7 @@ export default function StudentsClient({
         </select>
       </div>
 
-      <div role="tablist" aria-label="Filter by account" className="inline-flex overflow-hidden rounded-xl border border-ink/15 bg-white">
+      <div role="tablist" aria-label="Filter by account" className="inline-flex max-w-full overflow-x-auto rounded-xl border border-ink/15 bg-white">
         {tabs.map((t) => {
           const count = t.key === "All" ? list.length : list.filter((s) => s.status === t.key).length;
           return (
@@ -270,7 +306,7 @@ export default function StudentsClient({
               role="tab"
               aria-selected={filter === t.key}
               onClick={() => setFilter(t.key)}
-              className={`border-r border-ink/10 px-5 py-2.5 text-sm font-semibold transition last:border-r-0 ${filter === t.key ? "bg-lilac text-plum" : "text-ink hover:bg-lilac/50"}`}
+              className={`whitespace-nowrap border-r border-ink/10 px-3 py-2.5 text-sm font-semibold transition last:border-r-0 sm:px-5 ${filter === t.key ? "bg-lilac text-plum" : "text-ink hover:bg-lilac/50"}`}
             >
               {t.label} ({count})
             </button>
@@ -279,7 +315,8 @@ export default function StudentsClient({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white">
-        <div className="overflow-x-auto">
+        {/* Table from tablet width up; on a phone each enrolment is a card (below) so Manage is never off-screen */}
+        <div className="overflow-x-auto max-md:hidden">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead>
               <tr className="border-b border-ink/10 text-sm font-semibold text-ink">
@@ -331,6 +368,40 @@ export default function StudentsClient({
             </tbody>
           </table>
         </div>
+        <ul className="divide-y divide-ink/10 md:hidden" aria-label="Students">
+          {rows.map(({ s, c }) => {
+            const batch = batchOf(s, c.code);
+            return (
+              <li key={`${s.studentId}-${c.code}`} className={`space-y-2.5 px-4 py-4 ${busyId === s.studentId ? "opacity-60" : ""}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <Link href={`/superadmin/students/${s.studentId}`} className="min-w-0">
+                    <span className="block font-semibold text-ink underline-offset-2 hover:underline">{s.name}</span>
+                    <span className="block text-xs text-ink">{s.studentId}</span>
+                  </Link>
+                  <button
+                    onClick={() => setManaging({ studentId: s.studentId, code: c.code })}
+                    className="shrink-0 rounded-xl border border-plum/50 px-4 py-2 text-sm font-semibold text-plum transition hover:bg-plum hover:text-white"
+                  >
+                    Manage
+                  </button>
+                </div>
+                <p className="text-sm text-ink">
+                  {courseTitle(c.code)}
+                  <span className="block text-xs text-ink">
+                    {c.code}
+                    {batch ? ` · ${batchName(batch)}` : " · No batch"}
+                  </span>
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-ink">Course status</span>
+                  <span className={`rounded-full px-3 py-1 font-semibold ${courseStatusStyle[c.status]}`}>{c.status}</span>
+                  <span className="ml-2 text-ink">Account</span>
+                  <span className={`rounded-full px-3 py-1 font-semibold ${accountTone[s.status]}`}>{accountWord[s.status]}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
         {rows.length === 0 && (
           <p className="px-5 py-12 text-center text-sm text-ink">{list.length === 0 ? "No students yet — click Add student to create the first login." : "No students match this search."}</p>
         )}
@@ -443,6 +514,23 @@ export default function StudentsClient({
               )}
             </div>
           </div>
+
+          {/* Super Admin only: change the student's login email / ID (all their records move with a new ID) */}
+          {canDelete && (
+            <div className="border-t border-ink/10 pt-5">
+              <LoginDetailsForm
+                key={open.studentId}
+                who={open.name}
+                idLabel="Student ID"
+                current={{ id: open.studentId, email: open.email }}
+                save={(next) => changeStudentLoginAction(open.studentId, { email: next.email, studentId: next.id })}
+                onSaved={(next) => {
+                  setList((l) => l.map((x) => (x.studentId === open.studentId ? { ...x, studentId: next.id, email: next.email } : x)));
+                  setManaging({ studentId: next.id, code: openCourse.code });
+                }}
+              />
+            </div>
+          )}
         </CourseStatusDrawer>
       )}
     </div>

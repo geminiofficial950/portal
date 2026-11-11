@@ -4,11 +4,12 @@ import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { MailIcon, PlusIcon, TrashIcon, UserPlusIcon } from "../../dashboard/_components/icons";
 import CredentialsCard, { type Credentials } from "../_components/CredentialsCard";
+import LoginDetailsForm from "../_components/LoginDetailsForm";
 import Toggle from "../_components/Toggle";
 import { initials } from "@/lib/format";
 import { generatePassword } from "@/lib/password";
 import type { TrainerDTO } from "@/lib/trainer-meta";
-import { addTrainerAction, deleteTrainerAction, resetTrainerPasswordAction, setTrainerActiveAction } from "./actions";
+import { addTrainerAction, changeTrainerLoginAction, deleteTrainerAction, resetTrainerPasswordAction, setTrainerActiveAction } from "./actions";
 
 // canDelete: Super Admin only; Admins switch a trainer off instead
 export default function TrainersClient({ initialTrainers, canDelete }: { initialTrainers: TrainerDTO[]; canDelete: boolean }) {
@@ -18,6 +19,7 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [saving, startSaving] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null); // trainer whose login details are open (Super Admin)
 
   const run = async (id: string, action: () => Promise<{ ok: boolean; error?: string }>, onOk: () => void) => {
     setBusyId(id);
@@ -66,7 +68,7 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-ink sm:text-[1.65rem]">Trainers</h1>
-          <p className="mt-1 text-sm text-ink/55">Create trainer logins, switch their access on or off, and assign them tickets.</p>
+          <p className="mt-1 text-sm text-ink">Create trainer logins, switch their access on or off, and assign them tickets.</p>
         </div>
         <button
           onClick={() => {
@@ -88,7 +90,7 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
         ].map((c) => (
           <div key={c.label} className={`rounded-[1.5rem] px-5 py-4 ${c.tone}`}>
             <p className="text-2xl font-medium text-ink">{c.value}</p>
-            <p className="mt-1 text-xs text-ink/50">{c.label}</p>
+            <p className="mt-1 text-xs text-ink">{c.label}</p>
           </div>
         ))}
       </div>
@@ -144,7 +146,7 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-ink">{t.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink/45">
+                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink">
                       <MailIcon className="h-3.5 w-3.5 shrink-0" />
                       {t.email}
                     </p>
@@ -162,14 +164,25 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/5 pt-4">
-                  <button
-                    onClick={() => resetPassword(t)}
-                    className="rounded-full bg-lilac px-3 py-1.5 text-[11px] font-medium text-ink/70 transition hover:bg-plum/10 hover:text-plum"
-                  >
-                    Reset password
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => resetPassword(t)}
+                      className="rounded-full bg-lilac px-3 py-1.5 text-[11px] font-medium text-ink transition hover:bg-plum/10 hover:text-plum"
+                    >
+                      Reset password
+                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => setEditing((e) => (e === t.trainerId ? null : t.trainerId))}
+                        aria-expanded={editing === t.trainerId}
+                        className="rounded-full bg-lilac px-3 py-1.5 text-[11px] font-medium text-ink transition hover:bg-plum/10 hover:text-plum"
+                      >
+                        {editing === t.trainerId ? "Close" : "Edit login"}
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-[11px] text-ink/45">
+                    <p className="text-[11px] text-ink">
                       {t.trainerId} · added {t.added}
                     </p>
                     {canDelete && <button
@@ -181,12 +194,26 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
                         });
                       }}
                       aria-label={`Remove ${t.name}`}
-                      className="rounded-full p-1.5 text-ink/35 transition hover:bg-rose-50 hover:text-rose-600"
+                      className="rounded-full p-1.5 text-ink transition hover:bg-rose-50 hover:text-rose-600"
                     >
                       <TrashIcon className="h-4 w-4" />
                     </button>}
                   </div>
                 </div>
+                {canDelete && editing === t.trainerId && (
+                  <div className="mt-4 border-t border-ink/5 pt-4">
+                    <LoginDetailsForm
+                      who={t.name}
+                      idLabel="Trainer ID"
+                      current={{ id: t.trainerId, email: t.email }}
+                      save={(next) => changeTrainerLoginAction(t.trainerId, { email: next.email, trainerId: next.id })}
+                      onSaved={(next) => {
+                        setList((l) => l.map((x) => (x.trainerId === t.trainerId ? { ...x, trainerId: next.id, email: next.email } : x)));
+                        setEditing(null);
+                      }}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}
@@ -194,7 +221,7 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
       ) : (
         <div className="grid place-items-center rounded-[1.75rem] bg-lilac/70 px-6 py-12 text-center">
           <UserPlusIcon className="h-8 w-8 text-plum/40" />
-          <p className="mt-3 text-sm text-ink/55">No trainers yet — click Add trainer to add the first one.</p>
+          <p className="mt-3 text-sm text-ink">No trainers yet — click Add trainer to add the first one.</p>
         </div>
       )}
     </div>

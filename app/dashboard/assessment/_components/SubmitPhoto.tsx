@@ -87,7 +87,7 @@ export default function SubmitPhoto({
           <h2 id="photo-title" className="text-lg font-semibold">
             {title}
           </h2>
-          <p className="mt-0.5 text-xs text-white/75">A photo of you is taken when you submit. Only the college admin can see it.</p>
+          <p className="mt-0.5 text-xs text-white">A photo of you is taken when you submit. Only the college admin can see it.</p>
         </div>
 
         <div className="p-6">
@@ -109,7 +109,7 @@ export default function SubmitPhoto({
                 className="h-full w-full -scale-x-100 object-cover"
               />
             )}
-            {!shot && !ready && !error && <p className="absolute inset-0 grid place-items-center text-sm text-white/70">Starting camera…</p>}
+            {!shot && !ready && !error && <p className="absolute inset-0 grid place-items-center text-sm text-white">Starting camera…</p>}
           </div>
 
           {error && <p className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}

@@ -29,8 +29,8 @@ export default async function ({ check, db }) {
   // the student's training plan (units with their status) is on My classes; the course card shows the course status
   await db.collection("unitRecords").insertOne({ studentId: "S9001", courseCode: "CHC33021", unitCode: "CHCCCS040", status: "Competent", history: [] });
   await check("student: course card shows the course status after the enrolled date", "/dashboard/course", "student", {
-    has: ["Learn to support people in aged care and disability.", "Work placement", "Enrolled date", "Course status", "Active"],
-    hasNot: ["Your training plan"],
+    has: ["Learn to support people in aged care and disability.", "Work placement", "Course status", "Active"],
+    hasNot: ["Your training plan", "Enrolled date"],
   });
   await check("student: My classes lists every unit with its status (training plan)", "/dashboard/classroom", "student", {
     has: ["Your training plan", "01", "Provide individualised support", "CHCCCS031", "Open unit", "Support independence and wellbeing", "Competent", "Work with diverse people", "Not open yet"],
