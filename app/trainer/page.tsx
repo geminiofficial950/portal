@@ -210,7 +210,7 @@ async function DashboardBody() {
       </section>
 
       {/* rework and due dates */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <section className="rounded-xl bg-[#f6f5fa] p-5">
           <div className="mb-3 flex items-end justify-between gap-3">
             <h2 className="text-sm font-semibold text-ink">Students needing attention</h2>

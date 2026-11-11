@@ -159,11 +159,11 @@ export default function SupportPage() {
         </div>
 
         <div className="relative mt-6 space-y-4 text-sm">
-          <p className="leading-relaxed text-white/80">
+          <p className="leading-relaxed text-white">
             Need help with enrolment, timetable changes, or assessments? Raise a ticket or
             visit Student Services on campus.
           </p>
-          <ul className="space-y-2 text-xs text-white/70">
+          <ul className="space-y-2 text-xs text-white">
             <li>· Mon–Fri · 9:00 AM – 5:00 PM</li>
             <li>· Online tickets or on-campus desk</li>
             <li>· Bring your student ID on campus</li>

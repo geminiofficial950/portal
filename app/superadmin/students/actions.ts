@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { studentRecords, type AffectedRecords } from "@/lib/affected-records";
-import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
+import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin, requireSuperAdmin } from "@/lib/auth";
 import { COURSE_STATUS_LOG, COURSE_STATUS_REASON_MAX, isCourseStatus, type CourseStatus } from "@/lib/course-status";
 import { listCourses } from "@/lib/courses";
-import { checkStudentId } from "@/lib/group-meta";
+import { listBatches } from "@/lib/groups";
+import { checkLoginEmail, checkStudentId } from "@/lib/group-meta";
+import { changeStudentLogin, IdentityTakenError } from "@/lib/identity";
 import {
   createStudent,
   deleteStudent,
@@ -15,6 +17,7 @@ import {
   DuplicateStudentIdError,
   resetStudentPassword,
   setStudentCourseStatus,
+  setStudentBatches,
   setStudentCourses,
   updateStudentStatus,
   type StudentDTO,
@@ -42,8 +45,9 @@ export async function createStudentAction(input: {
   courses: string[];
   password: string;
   studentId?: string; // blank = next S-number
+  batchIds?: string[]; // optional: a batch for any of the chosen courses (one per course)
 }): Promise<Result<{ student: StudentDTO }>> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const name = input.name.trim();
   const email = input.email.trim();
@@ -52,6 +56,14 @@ export async function createStudentAction(input: {
   if ("error" in courses) return { ok: false, error: courses.error };
   if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email." };
   if (input.password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+
+  // batches picked while enrolling: each must exist and belong to one of the chosen courses, one per course
+  const picked = [...new Set((Array.isArray(input.batchIds) ? input.batchIds : []).map(String).filter(Boolean))];
+  const allBatches = picked.length ? await listBatches() : [];
+  const batches = picked.map((id) => allBatches.find((b) => b.batchId === id));
+  if (batches.some((b) => !b)) return { ok: false, error: "A chosen batch no longer exists." };
+  if (batches.some((b) => !b!.courseCode || !courses.codes.includes(b!.courseCode))) return { ok: false, error: "Each batch must belong to one of the student’s courses." };
+  if (new Set(batches.map((b) => b!.courseCode)).size !== batches.length) return { ok: false, error: "Pick at most one batch per course." };
 
   let studentId: string | undefined;
   if (input.studentId?.trim()) {
@@ -63,8 +75,15 @@ export async function createStudentAction(input: {
   try {
     const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId });
     await logActivity(student.name, `was enrolled in ${courses.codes.join(", ")} (${student.studentId})`, "student");
+    if (batches.length) {
+      await setStudentBatches(student.studentId, picked);
+      for (const b of batches) {
+        await logStudent({ studentId: student.studentId, studentName: student.name, courseCode: b!.courseCode, action: "Batch changed", detail: `added to ${b!.name} by ${admin.label} (when enrolled)` });
+      }
+      await logActivity(admin.label, `put ${student.name} in ${batches.map((b) => b!.name).join(", ")}`, "student");
+    }
     revalidatePath("/superadmin", "layout");
-    return { ok: true, student };
+    return { ok: true, student: { ...student, batchIds: picked } };
   } catch (err) {
     if (err instanceof DuplicateEmailError) return { ok: false, error: "A student with this email already exists." };
     if (err instanceof DuplicateStudentIdError) return { ok: false, error: `Student ID ${studentId} is already taken.` };
@@ -145,3 +164,29 @@ export async function setStudentCoursesAction(studentId: string, codesIn: string
 }
 
 // Batches are managed on their own page: app/superadmin/batches/actions.ts
+
+// Super Admin only: change a student's login email and/or student ID. A new ID is carried across all their records
+// (work, results, requests, logs, files), so nothing is left behind. Their old session ends; the password stays.
+export async function changeStudentLoginAction(studentId: string, input: { email: string; studentId: string }): Promise<Result<{ student: StudentDTO; moved: number }>> {
+  const admin = await requireSuperAdmin();
+  const email = checkLoginEmail(String(input?.email ?? ""));
+  if ("error" in email) return { ok: false, error: email.error };
+  const id = checkStudentId(String(input?.studentId ?? ""));
+  if ("error" in id) return { ok: false, error: id.error };
+  let res;
+  try {
+    res = await changeStudentLogin(String(studentId), { id: id.id, email: email.email });
+  } catch (err) {
+    if (err instanceof IdentityTakenError) return { ok: false, error: err.message };
+    throw err;
+  }
+  if (!res) return { ok: false, error: "Student not found." };
+  const student = (await getStudent(id.id))!;
+  const changes = [res.before.id !== id.id ? `ID ${res.before.id} → ${id.id}` : "", res.before.email !== email.email ? `email ${res.before.email} → ${email.email}` : ""].filter(Boolean).join(", ");
+  if (changes) {
+    await logActivity(admin.label, `changed ${student.name}’s login: ${changes}`, "student");
+    await logStudent({ studentId: id.id, studentName: student.name, action: "Login details changed", detail: `${changes} · by ${admin.label}` });
+  }
+  revalidatePath("/superadmin", "layout");
+  return { ok: true, student, moved: res.moved };
+}

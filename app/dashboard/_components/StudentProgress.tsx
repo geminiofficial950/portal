@@ -70,14 +70,14 @@ export default function StudentProgress({
             {data.course.code} · {data.course.name}
           </p>
           <h1 className="mt-1 text-2xl font-medium text-ink sm:text-[1.65rem]">{data.student.name}</h1>
-          <p className="mt-1 text-sm text-ink/55">
+          <p className="mt-1 text-sm text-ink">
             {data.student.studentId} · {data.student.email}
           </p>
         </div>
         <div className="rounded-[1.5rem] bg-lilac px-5 py-4">
           <p className="text-2xl font-medium text-ink">
             {passed}
-            <span className="text-base text-ink/40"> / {data.units.length}</span>
+            <span className="text-base text-ink"> / {data.units.length}</span>
           </p>
           <p className="mt-1 text-xs text-ink">units Competent</p>
         </div>
@@ -268,7 +268,7 @@ function UnitRow({
                 return (
                   <span
                     key={p.key}
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${s ? statusStyle[s] : "bg-lilac/60 text-ink/30 line-through"}`}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${s ? statusStyle[s] : "bg-lilac/60 text-ink line-through"}`}
                   >
                     {p.label}
                     {s && s !== "Not started" ? ` · ${statusLabel[s]}` : ""}
@@ -277,7 +277,7 @@ function UnitRow({
               })}
             </div>
             {unit.parts.length > 0 && (
-              <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-ink/50">
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-ink">
                 {unit.dueAt ? (
                   <span className={isPastDue(unit.dueAt) && !done ? "text-rose-600" : ""}>
                     Due <LocalTime iso={unit.dueAt} />
@@ -378,15 +378,15 @@ function UnitRow({
               {saving ? "Saving…" : "Save due date"}
             </button>
             {unit.extended && (
-              <button onClick={() => saveDue(null)} disabled={saving} className="rounded-full bg-white px-4 py-2.5 text-sm text-ink/70 hover:bg-white/70">
+              <button onClick={() => saveDue(null)} disabled={saving} className="rounded-full bg-white px-4 py-2.5 text-sm text-ink hover:bg-white/70">
                 Use the unit’s date
               </button>
             )}
-            <button onClick={() => setDueOpen(false)} className="rounded-full px-4 py-2.5 text-sm text-ink/60 hover:bg-white/60">
+            <button onClick={() => setDueOpen(false)} className="rounded-full px-4 py-2.5 text-sm text-ink hover:bg-white/60">
               Cancel
             </button>
           </div>
-          <p className="text-[11px] text-ink/50">
+          <p className="text-[11px] text-ink">
             {unit.unitDueAt ? (
               <>
                 The unit is due <LocalTime iso={unit.unitDueAt} /> for everyone else.
@@ -401,21 +401,21 @@ function UnitRow({
 
       {onViewPhoto && unit.photos.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-lilac/40 px-4 py-3">
-          <span className="text-[11px] font-medium text-ink/50">Photos at submit</span>
+          <span className="text-[11px] font-medium text-ink">Photos at submit</span>
           {unit.photos.map((p) => {
             const label = `${p.label} · ${unit.code}`;
             return (
               <button
                 key={p.fileId}
                 onClick={() => onViewPhoto({ fileId: p.fileId, label })}
-                className="group flex items-center gap-2 rounded-xl bg-white p-1 pr-3 text-[11px] text-ink/70 shadow-sm transition hover:text-plum"
+                className="group flex items-center gap-2 rounded-xl bg-white p-1 pr-3 text-[11px] text-ink shadow-sm transition hover:text-plum"
                 title={`View photo — ${label}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route */}
                 <img src={`/api/files/${p.fileId}`} alt={`Photo for ${label}`} className="h-10 w-10 rounded-lg object-cover" />
                 {p.label}
                 {p.submittedAt && (
-                  <span className="text-ink/40">
+                  <span className="text-ink">
                     · <LocalTime iso={p.submittedAt} />
                   </span>
                 )}
@@ -476,7 +476,7 @@ function UnitRow({
             >
               {saving ? "Saving…" : "Save unit status"}
             </button>
-            <button onClick={() => setOpen(false)} className="rounded-full px-4 py-2.5 text-sm text-ink/60 hover:bg-white/60">
+            <button onClick={() => setOpen(false)} className="rounded-full px-4 py-2.5 text-sm text-ink hover:bg-white/60">
               Cancel
             </button>
           </div>

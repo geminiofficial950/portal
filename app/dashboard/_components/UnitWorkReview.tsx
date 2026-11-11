@@ -70,7 +70,7 @@ export default function UnitWorkReview({
         )}
       </div>
 
-      {parts.length === 0 && <p className={`${card} text-sm text-ink/55`}>No marked modules are set up for this unit yet.</p>}
+      {parts.length === 0 && <p className={`${card} text-sm text-ink`}>No marked modules are set up for this unit yet.</p>}
 
       {parts.length > 0 && (
         <div role="tablist" aria-label="Modules" className={`grid gap-2 sm:grid-cols-2 ${parts.length >= 4 ? "xl:grid-cols-4" : parts.length === 3 ? "xl:grid-cols-3" : ""}`}>
@@ -126,14 +126,14 @@ export default function UnitWorkReview({
                     )}
                   </p>
                 ) : (
-                  <p className="mt-0.5 text-xs text-ink/45">Not started</p>
+                  <p className="mt-0.5 text-xs text-ink">Not started</p>
                 )}
               </div>
               <div className="flex items-center gap-3">
                 {s?.photo && (
                   <button
                     onClick={() => setPhoto({ id: s.photo!.id, caption: `${p.label} · ${unit.code}` })}
-                    className="flex items-center gap-2 rounded-xl bg-lilac/60 p-1 pr-3 text-[11px] text-ink/70 transition hover:text-plum"
+                    className="flex items-center gap-2 rounded-xl bg-lilac/60 p-1 pr-3 text-[11px] text-ink transition hover:text-plum"
                     title="Photo taken when submitting"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file route */}
@@ -161,7 +161,7 @@ export default function UnitWorkReview({
               </div>
             )}
             {s && s.history.length > 0 && (
-              <details className="text-xs text-ink/60">
+              <details className="text-xs text-ink">
                 <summary className="cursor-pointer">Earlier attempts ({s.history.length})</summary>
                 <ul className="mt-2 space-y-1">
                   {s.history.map((h) => (

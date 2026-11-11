@@ -97,7 +97,7 @@ No student has work or a status in it. Its overview, resources and modules are d
           <button
             onClick={onClose}
             aria-label="Close"
-            className="absolute right-4 top-4 rounded-full p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
+            className="absolute right-4 top-4 rounded-full p-1.5 text-white transition hover:bg-white/10 hover:text-white"
           >
             <CloseIcon className="h-5 w-5" />
           </button>
@@ -107,7 +107,7 @@ No student has work or a status in it. Its overview, resources and modules are d
           <h2 id="units-title" className="mt-1 pr-8 text-lg font-medium leading-snug">
             {course.name}
           </h2>
-          <p className="mt-1 text-xs text-white/70">
+          <p className="mt-1 text-xs text-white">
             {course.units.length} units · {course.duration} · {course.category}
           </p>
         </div>
@@ -144,10 +144,10 @@ No student has work or a status in it. Its overview, resources and modules are d
                       const c = content[`${course.code}/${u.code}`];
                       return (
                         <>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c?.overviewSnippet ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink/40"}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c?.overviewSnippet ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink"}`}>
                             Overview
                           </span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c?.resources ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink/40"}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c?.resources ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink"}`}>
                             {c?.resources ? `${c.resources} resource${c.resources === 1 ? "" : "s"}` : "Resources"}
                           </span>
                         </>
@@ -184,7 +184,7 @@ No student has work or a status in it. Its overview, resources and modules are d
             );
           })}
           {visible.length === 0 && (
-            <li className="py-10 text-center text-sm text-ink/45">
+            <li className="py-10 text-center text-sm text-ink">
               {course.units.length === 0 ? "No units yet — add the first one below." : "No units match this search."}
             </li>
           )}

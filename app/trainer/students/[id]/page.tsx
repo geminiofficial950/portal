@@ -31,7 +31,7 @@ export default async function TrainerStudentProgressPage(props: PageProps<"/trai
 
   return (
     <div className="animate-fade-up space-y-6">
-      <Link href="/trainer/students" className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum">
+      <Link href="/trainer/students" className="inline-flex items-center gap-2 text-sm text-ink transition hover:text-plum">
         <BackIcon className="h-4 w-4" />
         All students
       </Link>

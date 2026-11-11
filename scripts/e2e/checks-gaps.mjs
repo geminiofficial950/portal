@@ -42,8 +42,8 @@ export default async function ({ check, get, strip, db }) {
   });
   const t = strip((await get("/dashboard/course", "student")).html);
   // The page streams, so parts can arrive out of order in the HTML; the on-screen order is checked in the browser run
-  const parts = ["Learn to support people in aged care and disability.", "Enrolled date", "Course status", "Course documents", "Placement pack"];
-  const ok = parts.every((x) => t.includes(x)) && t.indexOf("Learn to support") < t.indexOf("Enrolled date") && !t.includes("Your training plan") && !t.includes("Other Requested Documents");
+  const parts = ["Learn to support people in aged care and disability.", "Work placement", "Course status", "Course documents", "Placement pack"];
+  const ok = parts.every((x) => t.includes(x)) && t.indexOf("Learn to support") < t.indexOf("Work placement") && !t.includes("Enrolled date") && !t.includes("Your training plan") && !t.includes("Other Requested Documents");
   console.log(`${ok ? "PASS" : "FAIL"}  student: course page has description, enrolled date, course status, course documents, placement pack (plan on My classes, requests on Requests)${ok ? "" : `\n      missing ${parts.filter((x) => !t.includes(x)).join(", ")}`}`);
   if (!ok) process.exitCode = 1;
 

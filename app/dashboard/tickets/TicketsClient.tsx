@@ -130,7 +130,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                   }`}
                 >
                   <p className="text-sm font-medium">{t.label}</p>
-                  <p className={`mt-0.5 text-[11px] ${active ? "text-white/70" : "text-ink"}`}>{t.hint}</p>
+                  <p className={`mt-0.5 text-[11px] ${active ? "text-white" : "text-ink"}`}>{t.hint}</p>
                 </button>
               );
             })}
@@ -193,7 +193,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className={`text-[10px] font-medium ${active ? "text-white/60" : "text-ink"}`}>
+                        <p className={`text-[10px] font-medium ${active ? "text-white" : "text-ink"}`}>
                           {item.ticketId} · {item.topic}
                         </p>
                         <span
@@ -205,7 +205,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                         </span>
                       </div>
                       <p className="text-sm font-medium leading-snug">{item.subject}</p>
-                      <p className={`text-[11px] ${active ? "text-white/65" : "text-ink"}`}>Asked {item.created}</p>
+                      <p className={`text-[11px] ${active ? "text-white" : "text-ink"}`}>Asked {item.created}</p>
                     </button>
                   </li>
                 );
@@ -240,11 +240,11 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                     return (
                       <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${mine ? "bg-plum text-white" : "bg-lilac text-ink"}`}>
-                          <p className={`text-[10px] font-medium ${mine ? "text-white/70" : "text-ink"}`}>
+                          <p className={`text-[10px] font-medium ${mine ? "text-white" : "text-ink"}`}>
                             {mine ? "You" : msg.name}
                           </p>
                           <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</p>
-                          <p className={`mt-2 text-[10px] ${mine ? "text-white/55" : "text-ink"}`}>{msg.time}</p>
+                          <p className={`mt-2 text-[10px] ${mine ? "text-white" : "text-ink"}`}>{msg.time}</p>
                         </div>
                       </div>
                     );

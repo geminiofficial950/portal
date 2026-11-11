@@ -64,7 +64,7 @@ export default function TicketThreadModal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="absolute right-4 top-4 rounded-full p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white"
+            className="absolute right-4 top-4 rounded-full p-1.5 text-white transition hover:bg-white/10 hover:text-white"
           >
             <CloseIcon className="h-5 w-5" />
           </button>
@@ -74,7 +74,7 @@ export default function TicketThreadModal({
           <h2 id="thread-title" className="mt-1 pr-8 text-lg font-medium leading-snug">
             {ticket.subject}
           </h2>
-          <p className="mt-1 text-xs text-white/70">
+          <p className="mt-1 text-xs text-white">
             {ticket.studentName} ({ticket.studentId}) · {ticket.status} · {ticket.assignee}
           </p>
         </div>
@@ -83,9 +83,9 @@ export default function TicketThreadModal({
           {ticket.messages.map((m, i) => (
             <div key={i} className={`flex ${m.from === "college" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${m.from === "college" ? "bg-plum text-white" : "bg-lilac text-ink"}`}>
-                <p className={`text-[10px] font-medium ${m.from === "college" ? "text-white/70" : "text-ink/45"}`}>{m.name}</p>
+                <p className={`text-[10px] font-medium ${m.from === "college" ? "text-white" : "text-ink"}`}>{m.name}</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{m.text}</p>
-                <p className={`mt-2 text-[10px] ${m.from === "college" ? "text-white/55" : "text-ink/40"}`}>{m.time}</p>
+                <p className={`mt-2 text-[10px] ${m.from === "college" ? "text-white" : "text-ink"}`}>{m.time}</p>
               </div>
             </div>
           ))}
@@ -110,7 +110,7 @@ export default function TicketThreadModal({
             </button>
           </form>
         ) : (
-          <p className="border-t border-ink/5 bg-[#faf9fd] px-5 py-4 text-xs text-ink/55 sm:px-7">{readOnlyNote}</p>
+          <p className="border-t border-ink/5 bg-[#faf9fd] px-5 py-4 text-xs text-ink sm:px-7">{readOnlyNote}</p>
         )}
       </div>
     </div>,

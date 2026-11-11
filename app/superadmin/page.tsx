@@ -85,11 +85,11 @@ export default async function SuperAdminOverview() {
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80 text-plum">
                 <Icon className="h-5 w-5" />
               </span>
-              <ArrowRightIcon className="h-4 w-4 text-ink/80 transition group-hover:translate-x-0.5 group-hover:text-plum" />
+              <ArrowRightIcon className="h-4 w-4 text-ink transition group-hover:translate-x-0.5 group-hover:text-plum" />
             </div>
             <p className="mt-4 text-sm font-medium text-ink">{label}</p>
             <p className="mt-1 text-2xl font-medium text-ink">{value}</p>
-            <p className="mt-1 text-xs font-medium text-ink/85">{hint}</p>
+            <p className="mt-1 text-xs font-medium text-ink">{hint}</p>
           </Link>
         ))}
       </div>
@@ -113,7 +113,7 @@ export default async function SuperAdminOverview() {
                       <span className="mr-2 text-[11px] font-medium text-plum">{c.code}</span>
                       {c.name}
                     </span>
-                    <span className="shrink-0 text-xs text-ink/55">
+                    <span className="shrink-0 text-xs text-ink">
                       {c.students ? `${c.students} student${c.students === 1 ? "" : "s"} · ${c.avg}%` : "No students yet"}
                     </span>
                   </div>
@@ -147,7 +147,7 @@ export default async function SuperAdminOverview() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{t.subject}</span>
-                        <span className="mt-0.5 block text-[11px] text-white/70">
+                        <span className="mt-0.5 block text-[11px] text-white">
                           {t.ticketId} · {t.studentName} · {t.assignee}
                         </span>
                       </span>
@@ -174,15 +174,15 @@ export default async function SuperAdminOverview() {
                     <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${activityTone[a.kind]} text-[10px] font-bold text-white`}>
                       {initials(a.who)}
                     </span>
-                    <p className="text-sm text-ink/80">
+                    <p className="text-sm text-ink">
                       <span className="font-medium text-ink">{a.who}</span> {a.what}
-                      <span className="mt-0.5 block text-[11px] text-ink/40">{a.when}</span>
+                      <span className="mt-0.5 block text-[11px] text-ink">{a.when}</span>
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 rounded-[1.75rem] bg-lilac/70 px-5 py-6 text-center text-sm text-ink/50">
+              <p className="mt-4 rounded-[1.75rem] bg-lilac/70 px-5 py-6 text-center text-sm text-ink">
                 Nothing yet — actions like adding students show up here.
               </p>
             )}

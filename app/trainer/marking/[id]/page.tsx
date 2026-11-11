@@ -27,7 +27,7 @@ export default async function ReviewPage(props: PageProps<"/trainer/marking/[id]
     <div className="animate-fade-up space-y-6">
       <Link
         href={`/trainer/marking/course/${encodeURIComponent(submission.courseCode)}/${encodeURIComponent(submission.unitCode)}?part=${submission.part}`}
-        className="inline-flex items-center gap-2 text-sm text-ink/55 transition hover:text-plum"
+        className="inline-flex items-center gap-2 text-sm text-ink transition hover:text-plum"
       >
         <BackIcon className="h-4 w-4" />
         Back to {submission.unitCode}
