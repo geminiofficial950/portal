@@ -335,3 +335,9 @@ export async function listReviewRequests() {
   const docs = await (await collection()).find({ "response.state": "review" }).sort({ "response.at": 1 }).toArray();
   return docs.map(toDTO);
 }
+
+// Feedback the student accepted and signed, newest first (so the trainer knows it was read and accepted)
+export async function listAcceptedFeedback(limit = 200) {
+  const docs = await (await collection()).find({ "response.state": "accepted" }).sort({ "response.at": -1 }).limit(limit).toArray();
+  return docs.map(toDTO);
+}

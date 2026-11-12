@@ -22,6 +22,7 @@ export type InboxRow = {
   decidedBy: string | null;
   waitDays: number; // since handed in
   sinceDecidedDays: number; // since a status was given
+  response: "accepted" | "review" | null; // how the student answered the published feedback
 };
 
 type Tab = "toMark" | "sentBack" | "marked";
@@ -222,6 +223,15 @@ export default function MarkingInbox({
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyle[r.status]}`}>
                         {statusLabel[r.status]}
                         {tab === "sentBack" && ` · ${dayWord(r.sinceDecidedDays)} ago`}
+                      </span>
+                    )}
+                    {tab !== "toMark" && (
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          r.response === "accepted" ? "bg-emerald-100 text-emerald-800" : r.response === "review" ? "bg-amber-100 text-amber-900" : "bg-slate-200 text-slate-800"
+                        }`}
+                      >
+                        {r.response === "accepted" ? "Student accepted feedback" : r.response === "review" ? "Student asked for a review" : "Student hasn’t responded yet"}
                       </span>
                     )}
                     <Link

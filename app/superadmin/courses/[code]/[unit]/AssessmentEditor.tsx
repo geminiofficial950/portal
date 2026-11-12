@@ -157,6 +157,13 @@ export default function AssessmentEditor({
         </div>
       )}
 
+      {live.length > 0 && (
+        <p className="text-sm text-ink">
+          {canEditDue
+            ? "Set each module’s due date on its row, then save. Students see it on the unit page and in their training plan."
+            : "Due dates are shown on each module row. Only Super Admin can change them."}
+        </p>
+      )}
       {live.length === 0 && <p className={`${card} text-center text-sm text-ink`}>No modules yet. Add the first one below.</p>}
 
       <ol className="space-y-3">
@@ -170,9 +177,27 @@ export default function AssessmentEditor({
                   {MODULE_KINDS.find((k) => k.key === m.kind)?.label} · {m.activities.length} activit{m.activities.length === 1 ? "y" : "ies"} ·{" "}
                   {m.files.length} file{m.files.length === 1 ? "" : "s"}
                   {needsSubmission(m) ? " · student submits" : " · nothing to submit"}
-                  {m.dueAt && ` · due ${fmtDue(m.dueAt)}`}
                 </span>
               </button>
+              {/* The due date is set right here on the module row (Super Admin); everyone else sees it */}
+              {canEditDue && needsSubmission(m) ? (
+                <label className="flex items-center gap-2 rounded-xl bg-lilac/60 px-3 py-1.5">
+                  <span className="text-sm font-semibold text-ink">Due</span>
+                  <input
+                    type="datetime-local"
+                    value={toLocalInput(m.dueAt)}
+                    onChange={(e) => update(m.id, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    aria-label={`${m.title} due date (row)`}
+                    className="rounded-lg bg-white px-2 py-1 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-plum/40"
+                  />
+                </label>
+              ) : (
+                needsSubmission(m) && (
+                  <span className={`rounded-full px-3 py-1 text-sm font-semibold ${m.dueAt ? "bg-lilac text-ink" : "bg-amber-100 text-amber-900"}`}>
+                    {m.dueAt ? `Due ${fmtDue(m.dueAt)}` : "No due date"}
+                  </span>
+                )
+              )}
               <button onClick={() => move(m.id, -1)} disabled={i === 0} aria-label={`Move ${m.title} up`} className={iconBtn}>
                 <ChevronUpIcon className="h-5 w-5" />
               </button>

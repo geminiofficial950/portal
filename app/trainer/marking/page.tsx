@@ -42,6 +42,7 @@ export default async function MarkingPage() {
     decidedBy: s.decidedBy,
     waitDays: daysSince(s.submittedAt, now),
     sinceDecidedDays: daysSince(s.decidedAt, now),
+    response: s.response?.state ?? null,
   }));
   const toMarkByCourse = (code: string) => rows.filter((r) => r.courseCode === code && r.status === "Submitted").length;
 

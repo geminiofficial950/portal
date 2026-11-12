@@ -20,7 +20,7 @@ import TrainingPlan from "../_components/TrainingPlan";
 
 // Hidden for now on the student's My classes page (asked 6 Nov 2026) — set to true to show them again
 const SHOW_NEXT_CLASS = false; // "Your next live class" card
-const SHOW_MEETINGS = false; // "Upcoming meetings" list
+const SHOW_MEETINGS = false; // "Upcoming meetings" empty state — the list itself shows whenever a meeting is scheduled (Google Meet link)
 
 // The request time; this page is rendered per request (it reads the session)
 const requestTime = () => Date.now();
@@ -189,8 +189,8 @@ export default async function ClassroomPage() {
       )}
 
 
-      {/* Upcoming meetings — hidden for now (SHOW_MEETINGS) */}
-      {SHOW_MEETINGS && (
+      {/* Upcoming meetings with their Google Meet link — shown whenever one is scheduled for the student */}
+      {(SHOW_MEETINGS || meetings.length > 0) && (
         <section aria-labelledby="meetings-heading" className="space-y-4">
           <h2 id="meetings-heading" className="text-xl font-semibold text-ink">
             Upcoming meetings
@@ -255,7 +255,7 @@ export default async function ClassroomPage() {
                           : "bg-plum hover:bg-plum-light"
                       }`}
                     >
-                      {live ? "Join now" : "Join meeting"}
+                      {live ? "Join now" : "Join on Google Meet"}
                       <ArrowRightIcon className="h-4 w-4" />
                     </a>
                   </li>
