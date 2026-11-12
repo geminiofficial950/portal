@@ -97,6 +97,7 @@ export default async function StudentUnitPage({ unitCode, courseCode, item }: { 
         photoRequired={settings.switches.proctoring}
         declaration={declaration}
         resources={locked ? [] : content.resources}
+        overview={locked ? "" : content.overview}
         unitStatus={record && record.status !== "Active" ? record : null}
         locked={locked}
         lockNote={locked ? `${access.reason}. ${access.next}` : null}

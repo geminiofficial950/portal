@@ -68,6 +68,7 @@ export default function UnitWork({
   photoRequired,
   declaration,
   resources,
+  overview = "",
   unitStatus,
   locked = false,
   lockNote,
@@ -84,6 +85,7 @@ export default function UnitWork({
   photoRequired: boolean;
   declaration: DeclarationText;
   resources: Resource[];
+  overview?: string; // the unit description the college wrote (cleaned HTML)
   unitStatus: FullUnitRecord | null; // a non-active unit status (with unit feedback) — the unit is then closed
   locked?: boolean; // the unit isn't open for the student: only the notice and the course content show
   lockNote?: string | null;
@@ -170,7 +172,15 @@ export default function UnitWork({
             </div>
           )}
 
-          {!locked && items.length <= 1 && (
+          {/* Unit Description written by the college (Courses → unit → 1. Unit Description) */}
+          {!locked && item?.kind === "overview" && overview.replace(/<[^>]*>/g, "").trim() && (
+            <section aria-label="Unit Description" className={card}>
+              <h2 className="text-xl font-semibold text-ink">Unit Description</h2>
+              <div className="rich-text mt-3 text-base leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: overview }} />
+            </section>
+          )}
+
+          {!locked && items.length <= 1 && !overview.replace(/<[^>]*>/g, "").trim() && (
             <p className={`${card} text-center text-base text-ink`}>The college hasn’t added anything to this unit yet. Check back soon.</p>
           )}
 
