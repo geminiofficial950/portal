@@ -18,11 +18,11 @@ export default function DueLabel({ dueAt }: { dueAt: string | null }) {
   const msLeft = new Date(dueAt).getTime() - minute * 60000;
   const days = Math.ceil(msLeft / 86400000);
   const text = formatDue(dueAt);
-  const tone = msLeft < 0 ? "text-rose-600" : days <= 3 ? "text-amber-700" : "text-ink";
+  const tone = msLeft < 0 ? "text-rose-800" : days <= 3 ? "text-amber-900" : "text-ink";
   const hint = msLeft < 0 ? " · Overdue" : days <= 1 ? " · Due today" : days <= 7 ? ` · ${days} days left` : "";
 
   return (
-    <span className={`flex items-center gap-1.5 text-xs ${tone}`}>
+    <span className={`flex items-center gap-1.5 text-sm font-semibold ${tone}`}>
       <ClockIcon className="h-4 w-4" />
       Due {text}
       {hint}

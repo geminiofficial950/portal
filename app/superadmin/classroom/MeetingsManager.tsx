@@ -25,6 +25,7 @@ export default function MeetingsManager({
   today,
   now,
   googleReady,
+  trainerView = false,
 }: {
   courses: Course[];
   students: Student[];
@@ -32,6 +33,7 @@ export default function MeetingsManager({
   today: string; // YYYY-MM-DD in Sydney
   now: number;
   googleReady: boolean; // Google Calendar connected: links are made automatically
+  trainerView?: boolean; // a trainer: only their own batch students are listed, and a meeting is for one of them
 }) {
   const [meetings, setMeetings] = useState(initial);
   const [form, setForm] = useState<MeetingInput>(() => blank(courses[0]?.code ?? ""));
@@ -44,6 +46,7 @@ export default function MeetingsManager({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (trainerView && !form.studentId) return void toast.error("Choose the student this session is for.");
     startSaving(async () => {
       const res = editing ? await updateMeetingAction(editing, form) : await scheduleMeetingAction(form);
       if (!res.ok) return void toast.error(res.error);
@@ -102,7 +105,13 @@ export default function MeetingsManager({
           <label className="block space-y-1.5">
             <span className={label}>Who is it for?</span>
             <select value={form.studentId} onChange={(e) => set({ studentId: e.target.value })} className={field}>
-              <option value="">Everyone in this course</option>
+              {trainerView ? (
+                <option value="" disabled>
+                  {inCourse.length ? "Choose one of your students" : "No students in your batches for this course"}
+                </option>
+              ) : (
+                <option value="">Everyone in this course</option>
+              )}
               {inCourse.map((s) => (
                 <option key={s.studentId} value={s.studentId}>
                   Only {s.name} ({s.studentId})

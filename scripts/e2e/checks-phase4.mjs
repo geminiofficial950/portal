@@ -20,7 +20,7 @@ export default async function ({ check, db }) {
   // ---- portals
   await check("admin portal title and navigation", "/superadmin", "superadmin", { has: ["Super Admin Portal", "Courses", "Batches", "Requests", "Settings"], hasNotRaw: ['href="/superadmin/classroom"'] });
   await check("Admin account sees “Admin Portal” (not Super Admin)", "/admin", "admin", { has: ["Admin Portal"], hasNot: ["Super Admin Portal"] });
-  await check("trainer portal title and navigation", "/trainer", "trainer", { has: ["Trainer Portal", "My batches", "Assigned units", "Submissions", "Feedback reviews", "Extension requests"] });
+  await check("trainer portal title and navigation", "/trainer", "trainer", { has: ["Trainer Portal", "My batches", "Assigned units", "Submissions", "Feedback responses", "Extension requests"] });
   await check("student portal title and navigation", "/dashboard", "student", { has: ["Student Portal", "Courses", "My classes", "Requests", "Feedback", "Student support Portal help"], hasNot: ["Help Support"] });
 
   // ---- marking screen

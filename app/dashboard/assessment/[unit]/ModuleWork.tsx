@@ -75,14 +75,20 @@ export function Outcome({ sub, onSaved }: { sub: SubmissionDTO; onSaved?: (s: Su
         {statusLabel[sub.status]}
         {sub.attempt > 1 && <span className="font-normal"> · attempt {sub.attempt}</span>}
       </p>
-      {sub.status === "MoreDocs" && <p className="mt-1 text-sm">Please add what your trainer asked for below and submit again.</p>}
-      {sub.status === "Rejected" && <p className="mt-1 text-sm">Please read the feedback, update your work and submit again.</p>}
-      {sub.feedback && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{sub.feedback}</p>}
-      {sub.decidedBy && (
-        <p className="mt-2 text-xs">
-          {sub.decidedBy}
-          {sub.decidedAt && <> · <LocalTime iso={sub.decidedAt} /></>}
-        </p>
+      {sub.status === "MoreDocs" && <p className="mt-1 text-base font-medium text-ink">Please add what your trainer asked for below and submit again.</p>}
+      {sub.status === "Rejected" && <p className="mt-1 text-base font-medium text-ink">Please read the feedback, update your work and submit again.</p>}
+      {/* The feedback itself: dark text on white, so it's easy to read on any result colour */}
+      {(sub.feedback || sub.decidedBy) && (
+        <div className="mt-3 rounded-xl border border-ink/15 bg-white px-4 py-3 text-ink">
+          <p className="text-sm font-semibold uppercase tracking-wide text-ink">Trainer feedback</p>
+          {sub.feedback && <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed text-ink">{sub.feedback}</p>}
+          {sub.decidedBy && (
+            <p className="mt-2 text-sm text-ink">
+              {sub.decidedBy}
+              {sub.decidedAt && <> · <LocalTime iso={sub.decidedAt} /></>}
+            </p>
+          )}
+        </div>
       )}
       {sub.markedFiles.length > 0 && (
         <div className="mt-3">
@@ -94,10 +100,10 @@ export function Outcome({ sub, onSaved }: { sub: SubmissionDTO; onSaved?: (s: Su
       {onSaved && <FeedbackResponse sub={sub} onSaved={onSaved} />}
       {sub.history.length > 0 && (
         <details className="mt-3 text-sm">
-          <summary className="cursor-pointer font-medium">Earlier feedback ({sub.history.length})</summary>
+          <summary className="cursor-pointer font-semibold">Earlier feedback ({sub.history.length})</summary>
           <ul className="mt-2 space-y-2">
             {sub.history.map((h) => (
-              <li key={h.attempt} className="rounded-xl bg-white/70 px-3 py-2">
+              <li key={h.attempt} className="rounded-xl bg-white px-3 py-2 text-ink">
                 <span className="font-medium">
                   Attempt {h.attempt} · {statusLabel[h.status]}
                 </span>{" "}

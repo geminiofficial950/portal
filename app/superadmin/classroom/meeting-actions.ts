@@ -8,6 +8,7 @@ import { createMeetEvent, deleteMeetEvent, GoogleMeetError, googleMeetReady, upd
 import { addMeeting, getMeeting, meetingEventId, removeMeeting, updateMeeting } from "@/lib/meetings";
 import { checkMeeting, type MeetingDTO, type MeetingInput } from "@/lib/meetings-meta";
 import { getStudent, hasCourse } from "@/lib/students";
+import { trainerScope } from "@/lib/trainer-access";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -29,10 +30,21 @@ async function google<T>(run: () => Promise<T>): Promise<{ ok: true; value: T } 
   }
 }
 
+type Staff = Awaited<ReturnType<typeof requireStaff>>;
+
+// A trainer may only make, change or cancel a meeting for one of the students currently in their own batches
+async function trainerMayUse(staff: Staff, studentId: string | null | undefined) {
+  if (staff.role !== "trainer") return true;
+  if (!studentId) return false;
+  return (await trainerScope(staff.id)).students.some((s) => s.studentId === studentId);
+}
+const NOT_YOURS = "You can only set up sessions for students in your own batches.";
+
 // Checks the whole form: course, who it's for, and the meeting itself
-async function readInput(input: MeetingInput) {
+async function readInput(input: MeetingInput, staff: Staff) {
   const course = await getCourse(String(input?.courseCode ?? ""));
   if (!course) return { ok: false as const, error: "Choose a course." };
+  if (!(await trainerMayUse(staff, input?.studentId ? String(input.studentId) : null))) return { ok: false as const, error: NOT_YOURS };
   let student: { studentId: string; name: string } | null = null;
   if (input.studentId) {
     const s = await getStudent(String(input.studentId));
@@ -60,7 +72,7 @@ const forWhom = (m: MeetingDTO) => (m.studentName ? `${m.studentName} (${m.cours
 
 export async function scheduleMeetingAction(input: MeetingInput): Promise<Result<{ meeting: MeetingDTO }>> {
   const staff = await requireStaff();
-  const read = await readInput(input);
+  const read = await readInput(input, staff);
   if (!read.ok) return read;
 
   // Google makes the Meet link unless one was pasted
@@ -83,7 +95,8 @@ export async function updateMeetingAction(id: string, input: MeetingInput): Prom
   const staff = await requireStaff();
   const before = await getMeeting(id);
   if (!before) return { ok: false, error: "That meeting was cancelled." };
-  const read = await readInput(input);
+  if (before.createdBy !== staff.name && !(await trainerMayUse(staff, before.studentId))) return { ok: false, error: NOT_YOURS };
+  const read = await readInput(input, staff);
   if (!read.ok) return read;
 
   const eventId = await meetingEventId(id);
@@ -114,6 +127,8 @@ export async function updateMeetingAction(id: string, input: MeetingInput): Prom
 
 export async function cancelMeetingAction(id: string): Promise<Result> {
   const staff = await requireStaff();
+  const target = await getMeeting(id);
+  if (target && target.createdBy !== staff.name && !(await trainerMayUse(staff, target.studentId))) return { ok: false, error: NOT_YOURS };
   const eventId = await meetingEventId(id);
   if (eventId) {
     const gone = await google(() => deleteMeetEvent(eventId));

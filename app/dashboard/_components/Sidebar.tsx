@@ -54,7 +54,7 @@ const variants = {
       { label: "My batches", href: "/trainer/batches", icon: UsersIcon },
       { label: "Assigned units", href: "/trainer/units", icon: BookIcon },
       { label: "Submissions", href: "/trainer/marking", icon: ClipboardIcon },
-      { label: "Feedback reviews", href: "/trainer/reviews", icon: ChatIcon },
+      { label: "Feedback responses", href: "/trainer/reviews", icon: ChatIcon },
       { label: "Extension requests", href: "/trainer/extensions", icon: CalendarIcon },
       { label: "Students", href: "/trainer/students", icon: UserPlusIcon },
       { label: "Classes", href: "/trainer/classroom", icon: VideoIcon },

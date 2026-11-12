@@ -1,5 +1,8 @@
 import Link from "next/link";
+import DueLabel from "../assessment/_components/DueLabel";
 import { getCourse } from "@/lib/courses";
+import { studentModuleDues } from "@/lib/deadlines";
+import { listStudentSubmissions } from "@/lib/submissions";
 import { listHiddenUnits } from "@/lib/hidden-units";
 import type { StudentDTO } from "@/lib/students";
 import { listUnitRecords } from "@/lib/unit-records";
@@ -11,9 +14,24 @@ export default async function TrainingPlan({ student }: { student: StudentDTO })
   const courses = (
     await Promise.all(
       student.courses.map(async (c) => {
-        const [course, hidden, records] = await Promise.all([getCourse(c.code), listHiddenUnits(student.studentId, c.code), listUnitRecords(student.studentId, c.code)]);
+        const [course, hidden, records, dues, subs] = await Promise.all([
+          getCourse(c.code),
+          listHiddenUnits(student.studentId, c.code),
+          listUnitRecords(student.studentId, c.code),
+          studentModuleDues(student.studentId, c.code),
+          listStudentSubmissions(student.studentId, c.code),
+        ]);
         if (!course) return [];
-        const units = course.units.filter((u) => !hidden.has(u.code)).map((u) => ({ ...u, record: records[u.code] ?? null, access: unitAccess(records[u.code] ?? null) }));
+        // A unit's next deadline: the earliest due date of a module still waiting on the student (not handed in, or sent back)
+        const handedIn = new Set(subs.filter((x) => x.status === "Submitted" || x.status === "Accepted").map((x) => `${x.unitCode}/${x.part}`));
+        const nextDue = (unitCode: string) =>
+          Object.entries(dues)
+            .filter(([k, d]) => d && k.startsWith(`${unitCode}/`) && !handedIn.has(k))
+            .map(([, d]) => d!)
+            .sort()[0] ?? null;
+        const units = course.units
+          .filter((u) => !hidden.has(u.code))
+          .map((u) => ({ ...u, record: records[u.code] ?? null, access: unitAccess(records[u.code] ?? null), due: nextDue(u.code) }));
         return [{ course, units }];
       }),
     )
@@ -43,6 +61,11 @@ export default async function TrainingPlan({ student }: { student: StudentDTO })
                   <span className="min-w-0 flex-1">
                     <span className="block text-base font-semibold text-ink">{u.title}</span>
                     <span className="block text-sm text-ink">{u.code}</span>
+                    {u.due && !nonActive && (
+                      <span className="mt-1 block text-sm font-semibold">
+                        <DueLabel dueAt={u.due} />
+                      </span>
+                    )}
                   </span>
                   {nonActive ? (
                     <span className={`rounded-full px-3 py-1 text-sm font-semibold ${unitStatusStyle[u.record!.status]}`}>{u.record!.status}</span>
