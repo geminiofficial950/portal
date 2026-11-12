@@ -240,6 +240,40 @@ export default function StudentsClient({
                 </label>
               ))}
             </div>
+            {/* Batch (optional), always shown: picking a batch ticks its course too */}
+            {form.courses.length === 0 && (
+              <div className="mt-3 border-t border-ink/10 pt-3">
+                <label className="block space-y-1 text-sm font-semibold text-ink">
+                  Batch (optional)
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const b = batches.find((x) => x.batchId === e.target.value);
+                      if (b?.courseCode) setForm({ ...form, courses: [b.courseCode], batches: { [b.courseCode]: b.batchId } });
+                    }}
+                    disabled={!batches.length}
+                    aria-label="Batch"
+                    className="w-full rounded-xl bg-lilac px-3 py-2 text-sm font-normal text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/30"
+                  >
+                    <option value="">{batches.length ? "Choose a batch — its course is ticked for you" : "No batches made yet"}</option>
+                    {courses
+                      .filter((c) => batches.some((b) => b.courseCode === c.code))
+                      .map((c) => (
+                        <optgroup key={c.code} label={`${c.code} · ${c.title}`}>
+                          {batches
+                            .filter((b) => b.courseCode === c.code)
+                            .map((b) => (
+                              <option key={b.batchId} value={b.batchId}>
+                                {b.name}
+                                {b.code ? ` (${b.code})` : ""}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                  </select>
+                </label>
+              </div>
+            )}
             {/* Batch for each ticked course (optional) — only that course's batches are offered */}
             {form.courses.length > 0 && (
               <div className="mt-3 grid gap-2 border-t border-ink/10 pt-3 sm:grid-cols-2">
