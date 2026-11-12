@@ -65,6 +65,7 @@ export default async function ClassroomPage() {
   // Class sessions of the student's batches: the next one gets its own card, the rest are listed
   const sessions = await listSessions(myBatches.map((b) => b.batchId));
   const next = nextSession(sessions, now);
+  const sessionsOf = (batchId: string) => sessions.filter((s) => s.batchId === batchId && sessionState(s, now) !== "ended");
   const upcoming = sessions.filter(
     (s) => s !== next && sessionState(s, now) !== "ended",
   );
@@ -338,7 +339,9 @@ export default async function ClassroomPage() {
                   {b.courseCode} · Trainer: {b.trainerName ?? "to be confirmed"}
                 </span>
               </div>
-              {b.classes.length ? (
+              {/* Weekly class times (day, time, link) */}
+              {b.classes.length > 0 && (
+
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[480px] text-left">
                     <thead className="bg-lilac text-sm font-semibold text-ink">
@@ -373,7 +376,52 @@ export default async function ClassroomPage() {
                     </tbody>
                   </table>
                 </div>
-              ) : (
+              )}
+              {/* Scheduled classes of this batch (added by a trainer, Admin or Super Admin — who added it isn't shown) */}
+              {sessionsOf(b.batchId).length > 0 && (
+                <ul className="divide-y divide-ink/10 border-t border-ink/10">
+                  {sessionsOf(b.batchId).map((s) => (
+                    <li key={s.sessionId} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                      <span className="min-w-0 flex-1 space-y-0.5">
+                        <span className="flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
+                          {s.title}
+                          {s.cancelled && <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-800">Cancelled</span>}
+                          {!s.cancelled && sessionState(s, now) === "live" && (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">Live now</span>
+                          )}
+                        </span>
+                        <span className="flex items-center gap-2 text-base text-ink">
+                          <ClockIcon className="h-4 w-4 shrink-0 text-plum" />
+                          {sessionWhen(s)}
+                        </span>
+                        {s.unitCode && <span className="block text-sm text-ink">{s.unitCode}</span>}
+                        {s.instructions && <span className="block whitespace-pre-wrap text-sm text-ink">{s.instructions}</span>}
+                      </span>
+                      {!s.cancelled && (
+                        <span className="flex flex-wrap items-center gap-2">
+                          {canJoin(s, now) ? (
+                            <a
+                              href={s.link!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-xl bg-plum px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-plum-light"
+                            >
+                              <VideoIcon className="h-4 w-4" />
+                              Join on Google Meet
+                            </a>
+                          ) : (
+                            <span className="rounded-xl bg-lilac px-4 py-2.5 text-sm font-semibold text-ink">Meeting link coming soon</span>
+                          )}
+                          <a href={`/api/calendar/${s.sessionId}`} className="text-sm font-semibold text-plum underline">
+                            Add to calendar
+                          </a>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!b.classes.length && !sessionsOf(b.batchId).length && (
                 <p className="px-5 py-5 text-base text-ink">
                   Class times will show here when your trainer adds them.
                 </p>
