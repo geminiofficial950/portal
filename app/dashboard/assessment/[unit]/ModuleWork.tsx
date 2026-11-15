@@ -10,6 +10,7 @@ import FeedbackResponse from "../_components/FeedbackResponse";
 import LocalTime from "../_components/LocalTime";
 import SignaturePad, { type Signature } from "../_components/SignaturePad";
 import SubmitPhoto from "../_components/SubmitPhoto";
+import { resyncServerClock } from "../../_components/ServerClock";
 import { submitModuleAction } from "../actions";
 import { deadlineLocked, type ExtensionRequestDTO } from "@/lib/deadline-meta";
 import type { DeclarationText } from "@/lib/declaration";
@@ -204,6 +205,7 @@ export default function ModuleWork({
   module: m,
   sub,
   due,
+  now,
   requests,
   photoRequired,
   declaration,
@@ -214,6 +216,7 @@ export default function ModuleWork({
   module: Module;
   sub: SubmissionDTO | undefined;
   due: string | null; // this student's deadline for the module
+  now: number; // the server's time (lib/server-clock), never the computer's clock
   requests: ExtensionRequestDTO[]; // their extension requests for it
   photoRequired: boolean;
   declaration: DeclarationText;
@@ -221,7 +224,7 @@ export default function ModuleWork({
 }) {
   const submits = needsSubmission(m);
   // Past the deadline, unfinished work locks (content + submitting); handed-in or marked work isn't affected
-  const locked = submits && deadlineLocked(due, sub?.status);
+  const locked = submits && deadlineLocked(due, sub?.status, now);
   const canEdit = submits && canEditWork(sub?.status, locked, false);
   const [responses, setResponses] = useState<Responses>(() => (sub ? legacyResponses(m.activities, sub.content) : {}));
   const [files, setFiles] = useState<FileRef[]>(sub && !sub.content.slots ? sub.files : []);
@@ -284,7 +287,12 @@ export default function ModuleWork({
         mode === "submit" && ticked.every(Boolean) && agreed,
         mode === "submit" && signature ? { fileId: signature.file.id, method: signature.method } : null,
       );
-      if (!res.ok) return void toast.error(res.error);
+      if (!res.ok) {
+        // the server says the deadline has passed: catch up with its clock, so the module shows locked with
+        // "Request an extension" (the saved work is kept)
+        if (res.code === "PAST_DUE") await resyncServerClock();
+        return void toast.error(res.error);
+      }
       setSavedKey(workKey());
       onSaved(res.submission);
       toast.success(mode === "submit" ? "Submitted — now pending marking. Your declaration is your receipt." : "Draft saved");

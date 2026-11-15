@@ -16,6 +16,9 @@ import { getUnitContent, listCourseOutline } from "@/lib/unit-content";
 import { listUnitRecords } from "@/lib/unit-records";
 import { unitAccess } from "@/lib/unit-status-meta";
 
+// The request time; this page is rendered per request (it reads the session)
+const requestTime = () => Date.now();
+
 // One unit of one of the signed-in student's courses: an overview of its modules, Resources, then each module,
 // with every unit of the course on the right. `courseCode` comes from the link; without it, the first of their
 // courses that has the unit. `item` picks what to open.
@@ -42,6 +45,8 @@ export default async function StudentUnitPage({ unitCode, courseCode, item }: { 
     listExtensionRequests({ studentId: student.studentId, courseCode: course.code }),
   ]);
   if (hidden.has(unit.code)) notFound();
+  // the server's time: deadline locks on the page follow it, never the student's computer clock
+  const renderedAt = requestTime();
 
   const statusOf = (u: string, p: string) => submissions.find((s) => s.unitCode === u && s.part === p)?.status;
   // Unit status is the highest access rule: Active AND opened by admin (or released). Anything else hides every module.
@@ -93,6 +98,7 @@ export default async function StudentUnitPage({ unitCode, courseCode, item }: { 
         assessment={forStudent(locked ? emptyAssessment() : assessment)}
         initialSubmissions={locked ? {} : byPart}
         dues={locked ? {} : dues}
+        renderedAt={renderedAt}
         extensions={locked ? [] : myRequests}
         photoRequired={settings.switches.proctoring}
         declaration={declaration}

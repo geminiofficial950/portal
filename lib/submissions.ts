@@ -251,6 +251,16 @@ export async function setSubmittedAt(submissionId: string, submittedAt: Date) {
   return doc ? toDTO(doc) : null;
 }
 
+// Super Admin corrects when a piece of work was marked (only work with a published result)
+export async function setDecidedAt(submissionId: string, decidedAt: Date) {
+  const doc = await (await collection()).findOneAndUpdate(
+    { submissionId, decidedAt: { $ne: null } },
+    { $set: { decidedAt, updatedAt: new Date() } },
+    { returnDocument: "after" },
+  );
+  return doc ? toDTO(doc) : null;
+}
+
 // Publishes a module status + feedback (any module). The unpublished draft is cleared, and the student is asked
 // again to accept or review it (a new feedback version needs a new response).
 export async function decide(

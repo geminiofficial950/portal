@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { partsOf, unitDueAt, type AssessmentPart } from "@/lib/assessment-meta";
 import { trainerCanSee } from "@/lib/trainer-access";
-import { getUnitRecord, listUnitRecords, setUnitOpening, setUnitStatus, type FullUnitRecord } from "@/lib/unit-records";
+import { getUnitRecord, listUnitRecords, setUnitDecidedAt, setUnitOpening, setUnitStatus, type FullUnitRecord } from "@/lib/unit-records";
+import { formatStamp } from "@/lib/format";
 import { canSetUnitStatus, checkUnitStatusChange, isUnitStatus, type UnitStatus } from "@/lib/unit-status-meta";
 import { getAssessment } from "@/lib/assessments";
 import { adminActor, DATES_SUPER_ADMIN_ONLY, requireAdmin, requireStaff } from "@/lib/auth";
@@ -64,6 +65,54 @@ export async function setUnitStatusAction(
   refresh(student.studentId);
   revalidatePath("/dashboard", "layout");
   return { ok: true, record: await getUnitRecord(student.studentId, course.code, unit.code) };
+}
+
+// Super Admin: change the date of a unit's status — e.g. the day it became Competent. The record has to read in
+// order, so it can't be before the unit's last module was submitted or marked (change those dates first), or in
+// the future. The status itself, who decided it and the feedback don't change; the old date stays in the history.
+export async function setUnitDecidedAtAction(
+  studentId: string,
+  courseCode: string,
+  unitCode: string,
+  iso: string,
+): Promise<Result<{ record: FullUnitRecord }>> {
+  if (!(await requireAdmin()).isSuper) return { ok: false, error: DATES_SUPER_ADMIN_ONLY };
+  const student = await getStudent(studentId);
+  const course = student && hasCourse(student, courseCode) ? await getCourse(courseCode) : null;
+  const unit = course?.units.find((u) => u.code === unitCode);
+  if (!student || !course || !unit) return { ok: false, error: "Student or unit not found." };
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return { ok: false, error: "Pick a valid date and time." };
+  if (when.getTime() > Date.now() + 60_000) return { ok: false, error: "The date can’t be in the future." };
+
+  const current = await getUnitRecord(student.studentId, course.code, unit.code);
+  if (!current.decidedAt) return { ok: false, error: "This unit has no status decision yet. Set the unit status first." };
+
+  // the latest submitted / marked date of the unit's work
+  const work = (await listStudentSubmissions(student.studentId, course.code)).filter((s) => s.unitCode === unit.code);
+  const last = work
+    .flatMap((s) => [s.submittedAt && { at: s.submittedAt, what: "submitted" }, s.decidedAt && { at: s.decidedAt, what: "marked" }])
+    .filter((x): x is { at: string; what: string } => !!x)
+    .sort((a, b) => b.at.localeCompare(a.at))[0];
+  if (last && when < new Date(last.at)) {
+    return {
+      ok: false,
+      error: `${unit.code} can’t be ${current.status} before its last module was ${last.what} (${formatStamp(new Date(last.at))}). Change that date first.`,
+    };
+  }
+
+  const admin = await adminActor();
+  const saved = await setUnitDecidedAt(student.studentId, course.code, unit.code, when, admin);
+  if (!saved) return { ok: false, error: "This unit has no status decision yet. Set the unit status first." };
+  const { previous, ...record } = saved;
+  await logActivity(
+    admin,
+    `changed the ${current.status} date of ${unit.code} for ${student.name} from ${formatStamp(new Date(previous))} to ${formatStamp(when)}`,
+    "student",
+  );
+  refresh(student.studentId);
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, record };
 }
 
 // Admin opens units for one student now, schedules them, or closes them again. Used to open a missed unit later

@@ -69,6 +69,7 @@ export default async function AdminStudentProgressPage(props: PageProps<"/supera
         role="admin"
         showPhotos
         canChangeDue={admin.isSuper}
+        canChangeDates={admin.isSuper}
         canHide
         canUnlock
         workHrefBase={`/superadmin/students/${progress.student.studentId}`}

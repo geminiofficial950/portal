@@ -4,6 +4,7 @@ import { DM_Sans } from "next/font/google";
 import Sidebar from "./_components/Sidebar";
 import Header from "./_components/Header";
 import AppToaster from "./_components/AppToaster";
+import ServerClock from "./_components/ServerClock";
 import { requireStudent } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { getStudent } from "@/lib/students";
@@ -41,6 +42,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         </main>
       </div>
       <AppToaster />
+      <ServerClock />
     </div>
   );
 }

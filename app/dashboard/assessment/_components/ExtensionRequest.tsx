@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { requestExtensionAction } from "../../../actions/deadlines";
 import { ClockIcon, LockIcon } from "../../_components/icons";
+import { resyncServerClock } from "../../_components/ServerClock";
 import LocalTime from "./LocalTime";
 import { DEADLINE_LIMITS, type ExtensionRequestDTO } from "@/lib/deadline-meta";
 
@@ -25,6 +27,7 @@ export default function ExtensionRequest({
   const [list, setList] = useState(requests);
   const [form, setForm] = useState({ reason: "", proposedDue: "" });
   const [busy, start] = useTransition();
+  const router = useRouter();
   const pending = list.find((r) => r.status === "Pending");
   const lastDeclined = list.find((r) => r.status === "Declined");
 
@@ -36,7 +39,15 @@ export default function ExtensionRequest({
         reason: form.reason,
         proposedDue: form.proposedDue ? new Date(form.proposedDue).toISOString() : "",
       });
-      if (!res.ok) return void toast.error(res.error);
+      if (!res.ok) {
+        if (res.code === "NOT_LOCKED") {
+          // by the server's clock (or a changed deadline) the module is still open: catch up, and it reopens here
+          await resyncServerClock();
+          router.refresh();
+          return void toast(res.error);
+        }
+        return void toast.error(res.error);
+      }
       setList((l) => [res.request, ...l]);
       toast.success("Request sent — your trainer will decide");
     });

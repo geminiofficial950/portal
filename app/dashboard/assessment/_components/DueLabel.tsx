@@ -2,10 +2,16 @@
 
 import { useSyncExternalStore } from "react";
 import { ClockIcon } from "../../_components/icons";
+import { isServerClockSynced, serverNow, subscribeServerClock } from "@/lib/server-clock";
 
-// The viewer's clock and time zone only exist in the browser, so the server render is a placeholder.
-const noop = () => () => {};
-const useNow = () => useSyncExternalStore(noop, () => Math.floor(Date.now() / 60000), () => null);
+// The minute by the server's clock (never the computer's, which can be wrong or changed). The viewer's time zone
+// only exists in the browser, so the server render — and the browser until the clock is synced — is a placeholder.
+const useNow = () =>
+  useSyncExternalStore(
+    subscribeServerClock,
+    () => (isServerClockSynced() ? Math.floor(serverNow() / 60000) : null),
+    () => null,
+  );
 
 export const formatDue = (iso: string) =>
   new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }); // date only, no time

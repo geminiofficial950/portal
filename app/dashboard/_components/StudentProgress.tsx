@@ -5,7 +5,8 @@ import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import LocalTime from "../assessment/_components/LocalTime";
-import { setStudentDueAction, setUnitHiddenAction, setUnitOpeningAction, setUnitStatusAction } from "../../actions/unit-results";
+import { setStudentDueAction, setUnitDecidedAtAction, setUnitHiddenAction, setUnitOpeningAction, setUnitStatusAction } from "../../actions/unit-results";
+import DateEditor from "./DateEditor";
 import { isPastDue } from "@/lib/assessment-meta";
 import { toLocalInput } from "@/lib/format";
 import type { StudentProgressDTO, UnitProgress } from "@/lib/progress";
@@ -21,6 +22,7 @@ export default function StudentProgress({
   role = "admin",
   showPhotos = false,
   canChangeDue = false,
+  canChangeDates = false,
   canHide = false,
   canUnlock = false,
   workHrefBase,
@@ -30,6 +32,7 @@ export default function StudentProgress({
   role?: "admin" | "trainer";
   showPhotos?: boolean;
   canChangeDue?: boolean; // Super Admin: give this student their own due date per unit
+  canChangeDates?: boolean; // Super Admin: change the date of a unit's status (e.g. when it became Competent)
   canHide?: boolean; // Super Admin: hide a unit from this student
   canUnlock?: boolean; // admin: open units for this student now, schedule them, or close them
   workHrefBase?: string; // Super Admin: links each unit to everything the student handed in
@@ -125,6 +128,7 @@ export default function StudentProgress({
             canGrade={canGrade}
             role={role}
             canChangeDue={canChangeDue}
+            canChangeDates={canChangeDates}
             canHide={canHide}
             canUnlock={canUnlock}
             onChange={(patch) => setUnit(u.code, patch)}
@@ -165,6 +169,7 @@ function UnitRow({
   canGrade,
   role,
   canChangeDue,
+  canChangeDates,
   canHide,
   canUnlock,
   onChange,
@@ -178,6 +183,7 @@ function UnitRow({
   canGrade: boolean;
   role: "admin" | "trainer";
   canChangeDue: boolean;
+  canChangeDates: boolean;
   canHide: boolean;
   canUnlock: boolean;
   onChange: (patch: Partial<UnitProgress>) => void;
@@ -431,6 +437,17 @@ function UnitRow({
           <p className="mt-1 text-[11px]">
             {unit.record.decidedBy}
             {unit.record.decidedAt && <> · <LocalTime iso={unit.record.decidedAt} /></>}
+            {canChangeDates && unit.record.decidedAt && (
+              <DateEditor
+                value={unit.record.decidedAt}
+                label={`${unit.code} ${unit.record.status} date`}
+                save={async (iso) => {
+                  const res = await setUnitDecidedAtAction(studentId, courseCode, unit.code, iso);
+                  if (res.ok) onChange({ record: res.record, access: unitAccess(res.record) });
+                  return res;
+                }}
+              />
+            )}
           </p>
         </div>
       )}

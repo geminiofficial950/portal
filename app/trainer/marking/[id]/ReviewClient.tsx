@@ -149,6 +149,12 @@ export default function ReviewClient({
                   Declaration evidence
                 </a>
               )}
+              {s.status !== "Draft" && s.submittedAt && !!mod?.activities.length && (
+                <a href={`/api/answers/${s.submissionId}`} className="inline-flex items-center gap-1.5 font-semibold text-plum underline">
+                  <FileIcon className="h-4 w-4" />
+                  Download answers (PDF)
+                </a>
+              )}
             </div>
             <details className="rounded-xl bg-lilac/50 px-4 py-3 text-sm text-ink">
               <summary className="cursor-pointer font-semibold">Previous attempts ({s.history.length})</summary>

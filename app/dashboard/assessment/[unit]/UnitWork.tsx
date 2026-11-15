@@ -16,6 +16,7 @@ import { formatBytes, statusLabel, statusStyle, type SubmissionDTO, type Submiss
 import type { FullUnitRecord } from "@/lib/unit-records";
 import { unitStatusStyle } from "@/lib/unit-status-meta";
 import { unitItemKeys } from "@/lib/unit-items";
+import { useServerNow } from "@/lib/server-clock";
 import { RESOURCE_SLOTS, type Resource } from "@/lib/unit-meta";
 
 type Subs = Partial<Record<AssessmentPart, SubmissionDTO>>;
@@ -64,6 +65,7 @@ export default function UnitWork({
   assessment,
   initialSubmissions,
   dues,
+  renderedAt,
   extensions,
   photoRequired,
   declaration,
@@ -81,6 +83,7 @@ export default function UnitWork({
   assessment: StudentAssessment; // live modules only, no reference answers
   initialSubmissions: Subs;
   dues: Record<string, string | null>; // each module's deadline for this student
+  renderedAt: number; // the server's time when the page was made (deadlines follow the server's clock)
   extensions: ExtensionRequestDTO[]; // their extension requests in this unit
   photoRequired: boolean;
   declaration: DeclarationText;
@@ -90,6 +93,8 @@ export default function UnitWork({
   locked?: boolean; // the unit isn't open for the student: only the notice and the course content show
   lockNote?: string | null;
 }) {
+  // Now by the server's clock (a changed computer clock can't lock or open a module)
+  const now = useServerNow(renderedAt);
   const [subs, setSubs] = useState(initialSubmissions);
   const update = (s: SubmissionDTO) => setSubs((prev) => ({ ...prev, [s.part]: s }));
   const modules = assessment.modules;
@@ -192,7 +197,7 @@ export default function UnitWork({
                 {items.slice(1).map((it, i) => {
                   const m = it.kind === "part" ? modules.find((x) => `part:${x.id}` === it.key) : undefined;
                   const due = m ? dues[m.id] : null;
-                  const overdue = !!m && it.marked && isPastDue(due ?? null) && !subs[m.id]?.submittedAt;
+                  const overdue = !!m && it.marked && isPastDue(due ?? null, now) && !subs[m.id]?.submittedAt;
                   return (
                     <li key={it.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-lilac/40 sm:px-5">
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-lilac text-plum">
@@ -253,6 +258,7 @@ export default function UnitWork({
                 module={mod}
                 sub={subs[mod.id]}
                 due={dues[mod.id] ?? null}
+                now={now}
                 requests={extensions.filter((r) => r.moduleId === mod.id)}
                 photoRequired={photoRequired}
                 declaration={declaration}
