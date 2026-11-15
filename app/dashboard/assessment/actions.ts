@@ -19,7 +19,8 @@ import { getStudent, hasCourse } from "@/lib/students";
 import { getUnitRecord } from "@/lib/unit-records";
 import { unitAccess } from "@/lib/unit-status-meta";
 
-type Result = { ok: true; submission: SubmissionDTO } | { ok: false; error: string };
+// code PAST_DUE: the deadline has passed by the server's clock (the page then catches up with that clock)
+type Result = { ok: true; submission: SubmissionDTO } | { ok: false; error: string; code?: "PAST_DUE" };
 
 // The submit photo, when camera proctoring is on: it must be an image this student just uploaded
 async function submitPhoto(photoId: string | null | undefined, studentId: string) {
@@ -46,7 +47,7 @@ async function load(courseCode: string, unitCode: string, moduleId: string) {
   if (!mod || !needsSubmission(mod)) return { error: "This module has nothing to submit." } as const;
   // The student's deadline for this module (their own date from an extension or request, else the module's)
   if (isPastDue(dues[`${unit.code}/${mod.id}`] ?? null)) {
-    return { error: "The due date has passed, so this module is locked. Request an extension." } as const;
+    return { error: "The due date has passed, so this module is locked. Request an extension.", code: "PAST_DUE" } as const;
   }
   return { student, course, unit, mod } as const;
 }
@@ -67,7 +68,7 @@ export async function submitModuleAction(
   signature?: { fileId: string; method: "drawn" | "uploaded" } | null,
 ): Promise<Result> {
   const ctx = await load(courseCode, unitCode, String(moduleId));
-  if ("error" in ctx) return { ok: false, error: ctx.error! };
+  if ("error" in ctx) return { ok: false, error: ctx.error!, code: "code" in ctx ? ctx.code : undefined };
   const { student, course, unit, mod } = ctx;
 
   const content: SubmissionContent = {};

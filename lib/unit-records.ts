@@ -124,6 +124,28 @@ export async function setUnitStatus(
 }
 
 /**
+ * Super Admin changes the date of a unit's current status (e.g. when it became Competent). The status, who decided
+ * it and the feedback stay; the history keeps a row with the old and new date, so the original is never lost.
+ * An older result (not yet a status here) is copied in so the new date applies to it.
+ */
+export async function setUnitDecidedAt(studentId: string, courseCode: string, unitCode: string, decidedAt: Date, by: string) {
+  const current = await getUnitRecord(studentId, courseCode, unitCode);
+  if (!current.decidedAt) return null;
+  const at = new Date();
+  await (await collection()).updateOne(
+    { studentId, courseCode, unitCode },
+    {
+      $set: { status: current.status, decidedBy: current.decidedBy, feedback: current.feedback, decidedAt },
+      $push: {
+        history: { status: current.status, by, role: "admin", at, note: `Date changed from ${current.decidedAt} to ${decidedAt.toISOString()}` },
+      },
+    },
+    { upsert: true },
+  );
+  return { ...(await getUnitRecord(studentId, courseCode, unitCode)), previous: current.decidedAt };
+}
+
+/**
  * Admin opens a unit for these students now, schedules it (`releaseAt`), or closes it again (`open: false`).
  * Status is not changed here — a non-active unit stays hidden even when opened.
  */

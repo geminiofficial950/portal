@@ -22,7 +22,8 @@ import { trainerCanSee } from "@/lib/trainer-access";
 import { getUnitRecord } from "@/lib/unit-records";
 import { unitAccess } from "@/lib/unit-status-meta";
 
-type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+// code NOT_LOCKED: by the server's clock the deadline hasn't passed (the page then catches up with that clock)
+type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string; code?: "NOT_LOCKED" };
 
 const refresh = () => {
   revalidatePath("/dashboard", "layout");
@@ -47,7 +48,9 @@ export async function requestExtensionAction(courseCode: string, unitCode: strin
   if (!mod) return { ok: false, error: "Module not found." };
   const due = (await studentModuleDues(student.studentId, courseCode))[`${unitCode}/${moduleId}`] ?? null;
   const work = await getWork({ studentId: student.studentId, courseCode, unitCode, part: moduleId });
-  if (!deadlineLocked(due, work?.status)) return { ok: false, error: "This module isn’t locked by its deadline." };
+  if (!deadlineLocked(due, work?.status)) {
+    return { ok: false, code: "NOT_LOCKED", error: "Your due date hasn’t passed yet, so this module is still open — you can keep working on it." };
+  }
   const pending = (await listExtensionRequests({ studentId: student.studentId, status: "Pending" })).some((r) => r.unitCode === unitCode && r.moduleId === moduleId);
   const checked = checkExtensionRequest(input, { now: Date.now(), pending });
   if (!checked.ok) return checked;

@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import toast from "react-hot-toast";
-import { setSubmittedAtAction } from "../../actions/submissions";
+import { useState } from "react";
+import { setMarkedAtAction, setSubmittedAtAction } from "../../actions/submissions";
 import { createPortal } from "react-dom";
 import LocalTime from "../assessment/_components/LocalTime";
+import DateEditor from "./DateEditor";
 import { CheckIcon } from "./icons";
 import { partsOf, type AssessmentPart, type UnitAssessment } from "@/lib/assessment-meta";
 import ModuleSubmission from "./ModuleSubmission";
 import type { Unit } from "@/lib/courses";
-import { toLocalInput } from "@/lib/format";
 import { needsRework, statusLabel, statusStyle, type SubmissionDTO } from "@/lib/submission-meta";
 import type { FullUnitRecord } from "@/lib/unit-records";
 import { unitStatusStyle } from "@/lib/unit-status-meta";
@@ -37,7 +35,7 @@ export default function UnitWorkReview({
   submissions: Partial<Record<AssessmentPart, SubmissionDTO>>;
   unitRecord: FullUnitRecord | null;
   reviewBase: string;
-  canEditDate?: boolean; // Super Admin: change the date work counts as submitted
+  canEditDate?: boolean; // Super Admin: change the dates work counts as submitted and marked
 }) {
   // Marked modules, plus any module the student has work in that was later archived or removed
   const parts = [
@@ -119,7 +117,7 @@ export default function UnitWorkReview({
                     {s.submittedAt ? (
                       <>
                         {" "}· submitted <LocalTime iso={s.submittedAt} />
-                        {canEditDate && <SubmittedDateEditor submissionId={s.submissionId} submittedAt={s.submittedAt} />}
+                        {canEditDate && <DateEditor value={s.submittedAt} label="Submitted date" save={(iso) => setSubmittedAtAction(s.submissionId, iso)} />}
                       </>
                     ) : (
                       " · draft, not submitted"
@@ -156,6 +154,11 @@ export default function UnitWorkReview({
                       {" "}· <LocalTime iso={s.decidedAt} />
                     </span>
                   )}
+                  {canEditDate && s.decidedAt && (
+                    <span className="font-normal">
+                      <DateEditor value={s.decidedAt} label="Marked date" save={(iso) => setMarkedAtAction(s.submissionId, iso)} />
+                    </span>
+                  )}
                 </p>
                 {s.feedback && <p className="mt-1 whitespace-pre-wrap">{s.feedback}</p>}
               </div>
@@ -180,6 +183,11 @@ export default function UnitWorkReview({
             {s?.content.declaration && (
               <a href={`/api/declaration/${s.submissionId}`} className="inline-flex rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light">
                 Download declaration (PDF)
+              </a>
+            )}
+            {s && s.status !== "Draft" && s.submittedAt && !!assessment.modules.find((m) => m.id === p.key)?.activities.length && (
+              <a href={`/api/answers/${s.submissionId}`} className="inline-flex rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white transition hover:bg-plum-light">
+                Download answers (PDF)
               </a>
             )}
             {s && s.status !== "Draft" && (
@@ -211,52 +219,5 @@ export default function UnitWorkReview({
           document.getElementById("portal-root") ?? document.body,
         )}
     </div>
-  );
-}
-
-// Super Admin: change when this work counts as submitted (e.g. it was handed in on paper earlier)
-function SubmittedDateEditor({ submissionId, submittedAt }: { submissionId: string; submittedAt: string }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(toLocalInput(submittedAt));
-  const [saving, startSaving] = useTransition();
-
-  const save = () =>
-    startSaving(async () => {
-      const res = await setSubmittedAtAction(submissionId, new Date(value).toISOString());
-      if (!res.ok) return void toast.error(res.error);
-      toast.success("Submitted date changed");
-      setOpen(false);
-      router.refresh();
-    });
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="ml-2 font-medium text-plum underline-offset-2 hover:underline">
-        Change date
-      </button>
-    );
-  }
-  return (
-    <span className="mt-2 flex flex-wrap items-center gap-2">
-      <input
-        type="datetime-local"
-        value={value}
-        max={toLocalInput(new Date().toISOString())}
-        onChange={(e) => setValue(e.target.value)}
-        aria-label="Submitted date and time"
-        className="rounded-lg bg-lilac px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/10 focus:ring-plum/40"
-      />
-      <button
-        onClick={save}
-        disabled={saving || !value}
-        className="rounded-full bg-plum px-3 py-1.5 text-xs font-medium text-white transition hover:bg-plum-light disabled:opacity-60"
-      >
-        {saving ? "Saving…" : "Save"}
-      </button>
-      <button onClick={() => setOpen(false)} className="rounded-full px-2 py-1.5 text-xs text-ink hover:bg-lilac">
-        Cancel
-      </button>
-    </span>
   );
 }

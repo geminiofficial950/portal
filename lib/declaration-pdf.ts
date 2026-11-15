@@ -11,13 +11,14 @@ import type { SubmissionDTO } from "./submission-meta";
 // The declaration certificate as a downloadable PDF (A4 portrait), in the same style as the certificate page
 // (app/declaration/[id]/page.tsx). A long declaration carries on to a second page rather than squeezing.
 
-const PLUM = rgb(0.357, 0.247, 0.6); // #5b3f99
-const GOLD = rgb(0.722, 0.576, 0.247); // #b8933f
-const GOLD_TEXT = rgb(0.541, 0.416, 0.122); // #8a6a1f
-const INK = rgb(0.114, 0.106, 0.2); // #1d1b33
-const LILAC = rgb(0.965, 0.957, 0.988); // #f6f4fc
-const EDGE = rgb(0.886, 0.863, 0.949); // #e2dcf2
-const WHITE = rgb(1, 1, 1);
+// Colours and helpers are shared with the answers PDF (lib/answers-pdf.ts)
+export const PLUM = rgb(0.357, 0.247, 0.6); // #5b3f99
+export const GOLD = rgb(0.722, 0.576, 0.247); // #b8933f
+export const GOLD_TEXT = rgb(0.541, 0.416, 0.122); // #8a6a1f
+export const INK = rgb(0.114, 0.106, 0.2); // #1d1b33
+export const LILAC = rgb(0.965, 0.957, 0.988); // #f6f4fc
+export const EDGE = rgb(0.886, 0.863, 0.949); // #e2dcf2
+export const WHITE = rgb(1, 1, 1);
 type Color = typeof INK;
 
 const W = 595;
@@ -27,10 +28,10 @@ const RIGHT = W - M;
 const FOOTER_TOP = H - 58; // content stops above this line
 
 // Standard PDF fonts only cover basic Latin: swap smart quotes/dashes, drop anything else
-const plain = (s: string) =>
+export const plain = (s: string) =>
   s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/•/g, "-").replace(/[^\x20-\x7e]/g, "");
 
-function wrap(text: string, font: PDFFont, size: number, width: number) {
+export function wrap(text: string, font: PDFFont, size: number, width: number) {
   const lines: string[] = [];
   let line = "";
   for (const word of plain(text).split(/\s+/)) {
@@ -44,7 +45,7 @@ function wrap(text: string, font: PDFFont, size: number, width: number) {
   return lines;
 }
 
-async function readUpload(id: string) {
+export async function readUpload(id: string) {
   const file = await getUpload(id);
   if (!file) return null;
   const chunks: Buffer[] = [];
