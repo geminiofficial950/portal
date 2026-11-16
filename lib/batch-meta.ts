@@ -3,6 +3,7 @@
 // A student is in at most one batch per course. Moving a student to another batch never touches their work:
 // submissions, results and unlocks belong to the student and course, not to the batch.
 // Shared by server code and client components (no server-only imports here).
+import { checkMeetDetails } from "./classroom-meta";
 import { cleanUrl } from "./unit-meta";
 
 export const BATCH_NAME_MAX = 60;
@@ -11,7 +12,7 @@ export const CLASSES_MAX = 7;
 export const CLASS_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 export type ClassDay = (typeof CLASS_DAYS)[number];
 
-export type ClassSession = { id: string; day: ClassDay; time: string; link: string }; // time "HH:MM", Melbourne
+export type ClassSession = { id: string; day: ClassDay; time: string; link: string; meetingId?: string | null; passcode?: string | null }; // time "HH:MM", Melbourne
 
 export type TrainerAssignment = { trainerId: string; unitCodes: string[] };
 
@@ -95,15 +96,21 @@ export function checkBatchName(raw: unknown): { name: string } | { error: string
 }
 
 /** One class of a batch: a day of the week, a time (24-hour HH:MM) and a web link to join */
-export function checkClassSession(input: { day?: unknown; time?: unknown; link?: unknown }): { ok: true; value: Omit<ClassSession, "id"> } | { ok: false; error: string } {
+export function checkClassSession(input: { day?: unknown; time?: unknown; link?: unknown; meetingId?: unknown; passcode?: unknown }): { ok: true; value: Omit<ClassSession, "id"> } | { ok: false; error: string } {
   const day = String(input?.day ?? "");
   if (!CLASS_DAYS.includes(day as ClassDay)) return { ok: false, error: "Choose the day of the class." };
   const time = String(input?.time ?? "").trim();
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   if (!m || +m[1] > 23 || +m[2] > 59) return { ok: false, error: "Choose the time of the class." };
-  const link = cleanUrl(input?.link);
-  if (!link) return { ok: false, error: "Paste the class link (https://…)." };
-  return { ok: true, value: { day: day as ClassDay, time, link } };
+  // a Google Meet link or Meeting ID (with an optional code); any other https link still works on its own
+  const meet = checkMeetDetails(input, { required: true });
+  if (meet.ok) return { ok: true, value: { day: day as ClassDay, time, link: meet.link!, meetingId: meet.meetingId, passcode: meet.passcode } };
+  const other = cleanUrl(input?.link);
+  if (other && !String(input?.meetingId ?? "").trim()) {
+    const passcode = String(input?.passcode ?? "").trim().slice(0, 40) || null;
+    return { ok: true, value: { day: day as ClassDay, time, link: other, meetingId: null, passcode } };
+  }
+  return other || String(input?.meetingId ?? "").trim() ? meet : { ok: false, error: "Paste the class link (https://…) or the Meeting ID." };
 }
 
 /** "14:30" → "2:30 pm" */

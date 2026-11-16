@@ -132,11 +132,19 @@ export default function UnitWork({
       <div className="flex flex-wrap items-center gap-4 rounded-[1.5rem] border border-ink/10 bg-white px-5 py-4 shadow-sm">
         <div className="min-w-56 flex-1">
           <p className="text-lg font-semibold text-ink">{course.name}</p>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="h-2 w-full max-w-md overflow-hidden rounded-full bg-lilac" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Course progress">
+          {/* a clearly visible track, even at 0% */}
+          <div className="mt-2.5 flex items-center gap-3">
+            <div
+              className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-ink/15 ring-1 ring-inset ring-ink/10"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Course progress"
+            >
               <div className="h-full rounded-full bg-plum" style={{ width: `${percent}%` }} />
             </div>
-            <span className="shrink-0 text-sm font-medium text-ink">{percent}% complete</span>
+            <span className="shrink-0 text-sm font-semibold text-ink">{percent}% complete</span>
           </div>
         </div>
         <Link href="/dashboard/course" className="rounded-xl border border-ink/15 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-lilac">

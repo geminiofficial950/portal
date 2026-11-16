@@ -3,7 +3,7 @@
 // instructions. Students see the next class with "Join Google Meet" and "Add to calendar"; without a link they see
 // "Meeting link coming soon"; cancelled and past sessions have no Join.
 // Shared by server code and client components (no server-only imports here).
-import { cleanMeetUrl } from "./classroom-meta";
+import { checkMeetDetails } from "./classroom-meta";
 import { zonedToUtc } from "./meetings-meta";
 
 export type ClassSessionDTO = {
@@ -18,6 +18,8 @@ export type ClassSessionDTO = {
   endsAt: string; // ISO
   timezone: string;
   link: string | null; // null = "Meeting link coming soon"
+  meetingId: string | null; // shown to students next to the link
+  passcode: string | null; // the meeting code / passcode, if any
   instructions: string;
   cancelled: boolean;
   updatedAt: string;
@@ -25,13 +27,13 @@ export type ClassSessionDTO = {
 
 export const SESSION_LIMITS = { title: 120, instructions: 1000 } as const;
 
-export type SessionInput = { title: string; unitCode: string; trainerId: string; date: string; start: string; end: string; timezone: string; link: string; instructions: string };
+export type SessionInput = { title: string; unitCode: string; trainerId: string; date: string; start: string; end: string; timezone: string; link: string; meetingId?: string; passcode?: string; instructions: string };
 
 /** Checks the admin form: a title, a valid date with start before end in the batch timezone, and (optionally) a Meet link */
 export function checkSession(
   input: Partial<SessionInput>,
   ctx: { units: string[]; trainerIds: string[]; timezones: readonly string[] },
-): { ok: true; value: { title: string; unitCode: string | null; trainerId: string | null; startsAt: Date; endsAt: Date; timezone: string; link: string | null; instructions: string } } | { ok: false; error: string } {
+): { ok: true; value: { title: string; unitCode: string | null; trainerId: string | null; startsAt: Date; endsAt: Date; timezone: string; link: string | null; meetingId: string | null; passcode: string | null; instructions: string } } | { ok: false; error: string } {
   const title = String(input?.title ?? "").trim().replace(/\s+/g, " ");
   if (!title) return { ok: false, error: "Give the session a title." };
   if (title.length > SESSION_LIMITS.title) return { ok: false, error: `Keep the title under ${SESSION_LIMITS.title} characters.` };
@@ -44,11 +46,11 @@ export function checkSession(
   const endsAt = zonedToUtc(String(input?.date ?? ""), String(input?.end ?? ""), timezone);
   if (!startsAt || !endsAt) return { ok: false, error: "Choose the date, start time and end time." };
   if (endsAt.getTime() <= startsAt.getTime()) return { ok: false, error: "The end time must be after the start time." };
-  const raw = String(input?.link ?? "").trim();
-  const link = raw ? cleanMeetUrl(raw) : null;
-  if (raw && !link) return { ok: false, error: "That isn’t a Google Meet link (meet.google.com/…)." };
+  const meet = checkMeetDetails(input ?? {}, { required: false });
+  if (!meet.ok) return meet;
+  const { link, meetingId, passcode } = meet;
   const instructions = String(input?.instructions ?? "").trim().slice(0, SESSION_LIMITS.instructions);
-  return { ok: true, value: { title, unitCode, trainerId, startsAt, endsAt, timezone, link, instructions } };
+  return { ok: true, value: { title, unitCode, trainerId, startsAt, endsAt, timezone, link, meetingId, passcode, instructions } };
 }
 
 export type SessionState = "upcoming" | "live" | "ended" | "cancelled";

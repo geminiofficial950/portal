@@ -635,7 +635,7 @@ function StudentsTab({
 // ---------- Classes ----------
 
 function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolean; onChange: (c: ClassSession[]) => void }) {
-  const [cls, setCls] = useState({ day: "Monday", time: "", link: "" });
+  const [cls, setCls] = useState({ day: "Monday", time: "", link: "", meetingId: "", passcode: "" });
   const [busy, start] = useTransition();
   const add = (e: React.FormEvent) => {
     e.preventDefault();
@@ -643,7 +643,7 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
       const res = await addBatchClassAction(batch.batchId, cls);
       if (!res.ok) return void toast.error(res.error);
       onChange(sortClasses([...batch.classes, res.session]));
-      setCls({ day: cls.day, time: "", link: "" });
+      setCls({ day: cls.day, time: "", link: "", meetingId: "", passcode: "" });
       toast.success("Class added — students of this batch can see it");
     });
   };
@@ -661,7 +661,7 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
         <VideoIcon className="h-5 w-5 text-plum" />
         Weekly classes
       </h2>
-      <p className="text-sm text-ink">Day, time ({batch.timezone}) and link of each class. Students of this batch see these read-only.</p>
+      <p className="text-sm text-ink">Day, time ({batch.timezone}) and link of each class — paste the Google Meet link, or just the Meeting ID (e.g. abc-defg-hij), plus a code if there is one. Students of this batch see these read-only.</p>
       {batch.classes.length ? (
         <div className="overflow-x-auto rounded-xl border border-ink/10">
           <table className="w-full min-w-[520px] text-left text-sm">
@@ -678,10 +678,17 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
                 <tr key={c.id}>
                   <td className="px-4 py-2.5 font-medium text-ink">{c.day}</td>
                   <td className="px-4 py-2.5 text-ink">{formatClassTime(c.time)}</td>
-                  <td className="max-w-xs truncate px-4 py-2.5">
+                  <td className="max-w-xs px-4 py-2.5">
                     <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-plum underline">
                       {c.link.replace(/^https?:\/\//, "")}
                     </a>
+                    {(c.meetingId || c.passcode) && (
+                      <span className="block text-sm text-ink">
+                        {c.meetingId && `Meeting ID ${c.meetingId}`}
+                        {c.meetingId && c.passcode && " · "}
+                        {c.passcode && `Code ${c.passcode}`}
+                      </span>
+                    )}
                   </td>
                   {admin && (
                     <td className="px-4 py-2.5 text-right">
@@ -699,14 +706,16 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
         <p className="rounded-xl bg-lilac px-4 py-3 text-sm text-ink">No classes yet.</p>
       )}
       {admin && batch.classes.length < CLASSES_MAX && (
-        <form onSubmit={add} className="grid gap-2 sm:grid-cols-[10rem_8rem_minmax(0,1fr)_auto]">
+        <form onSubmit={add} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_8rem_minmax(0,1fr)_11rem_9rem_auto]">
           <select value={cls.day} onChange={(e) => setCls({ ...cls, day: e.target.value })} aria-label="Day of class" className={field}>
             {CLASS_DAYS.map((d) => (
               <option key={d}>{d}</option>
             ))}
           </select>
           <input type="time" required value={cls.time} onChange={(e) => setCls({ ...cls, time: e.target.value })} aria-label="Time of class" className={field} />
-          <input required value={cls.link} onChange={(e) => setCls({ ...cls, link: e.target.value })} placeholder="Class link (https://…)" inputMode="url" aria-label="Class link" className={field} />
+          <input value={cls.link} onChange={(e) => setCls({ ...cls, link: e.target.value })} placeholder="Class link (https://…)" inputMode="url" aria-label="Class link" className={field} />
+          <input value={cls.meetingId} maxLength={40} onChange={(e) => setCls({ ...cls, meetingId: e.target.value })} placeholder="Meeting ID" aria-label="Meeting ID" className={field} />
+          <input value={cls.passcode} maxLength={40} onChange={(e) => setCls({ ...cls, passcode: e.target.value })} placeholder="Code (optional)" aria-label="Meeting code" className={field} />
           <button type="submit" disabled={busy} className={`${btn} bg-plum py-2.5 text-white hover:bg-plum-light`}>
             Add class
           </button>

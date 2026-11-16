@@ -29,7 +29,12 @@ describe("checkSession", () => {
     expect(checkSession({ ...base, unitCode: "OTHER1" }, ctx).ok).toBe(false);
     expect(checkSession({ ...base, trainerId: "T9" }, ctx).ok).toBe(false);
     expect(checkSession({ ...base, link: "https://zoom.us/j/1" }, ctx).ok).toBe(false);
-    expect(checkSession({ ...base, link: "meet.google.com/abc-defg-hij" }, ctx)).toMatchObject({ ok: true, value: { link: "https://meet.google.com/abc-defg-hij" } });
+    expect(checkSession({ ...base, link: "meet.google.com/abc-defg-hij" }, ctx)).toMatchObject({ ok: true, value: { link: "https://meet.google.com/abc-defg-hij", meetingId: "abc-defg-hij" } });
+    // a Meeting ID alone makes the link; the code is kept
+    expect(checkSession({ ...base, link: "", meetingId: "BEX JCMB DZM".replace(/ /g, "-"), passcode: " 4821 " }, ctx)).toMatchObject({
+      ok: true,
+      value: { link: "https://meet.google.com/bex-jcmb-dzm", meetingId: "bex-jcmb-dzm", passcode: "4821" },
+    });
   });
 });
 
@@ -45,6 +50,8 @@ const s = (o: Partial<ClassSessionDTO> = {}): ClassSessionDTO => ({
   endsAt: "2027-02-18T09:00:00.000Z",
   timezone: "Australia/Melbourne",
   link: "https://meet.google.com/abc-defg-hij",
+  meetingId: null,
+  passcode: null,
   instructions: "Read chapter 2, bring an example.",
   cancelled: false,
   updatedAt: "2027-02-01T00:00:00.000Z",

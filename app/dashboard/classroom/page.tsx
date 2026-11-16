@@ -17,6 +17,7 @@ import {
 } from "@/lib/session-meta";
 import { CalendarIcon } from "../_components/icons";
 import TrainingPlan from "../_components/TrainingPlan";
+import MeetInfo from "../_components/MeetInfo";
 
 // Hidden for now on the student's My classes page (asked 6 Nov 2026) — set to true to show them again
 const SHOW_NEXT_CLASS = false; // "Your next live class" card
@@ -240,6 +241,7 @@ export default async function ClassroomPage() {
                       <span className="block text-sm text-ink">
                         {m.courseCode} – {courseName(m.courseCode)}
                       </span>
+                      <MeetInfo link={m.url} meetingId={m.meetingId} passcode={m.passcode} />
                       {m.notes && (
                         <span className="block whitespace-pre-wrap text-base text-ink">
                           {m.notes}
@@ -370,6 +372,7 @@ export default async function ClassroomPage() {
                               Join class
                               <ArrowRightIcon className="h-4 w-4" />
                             </a>
+                            <MeetInfo link={c.link} meetingId={c.meetingId} passcode={c.passcode} className="mt-1.5" />
                           </td>
                         </tr>
                       ))}
@@ -395,6 +398,7 @@ export default async function ClassroomPage() {
                           {sessionWhen(s)}
                         </span>
                         {s.unitCode && <span className="block text-sm text-ink">{s.unitCode}</span>}
+                        {!s.cancelled && <MeetInfo link={s.link} meetingId={s.meetingId} passcode={s.passcode} />}
                         {s.instructions && <span className="block whitespace-pre-wrap text-sm text-ink">{s.instructions}</span>}
                       </span>
                       {!s.cancelled && (

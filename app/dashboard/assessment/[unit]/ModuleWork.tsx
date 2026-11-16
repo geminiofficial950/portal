@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { CheckIcon, ClockIcon, FileIcon } from "../../_components/icons";
+import { CheckIcon, ClockIcon } from "../../_components/icons";
 import FileActions from "../../_components/FileActions";
 import FileList from "../../_components/FileList";
 import ExtensionRequest from "../_components/ExtensionRequest";
@@ -36,21 +36,6 @@ export function DocumentRow({ file, title }: { file: FileRef; title: string }) {
   );
 }
 
-// The declaration certificate made when the student submitted
-function DeclarationLink({ sub }: { sub: SubmissionDTO }) {
-  if (!sub.content.declaration) return null;
-  return (
-    <a
-      href={`/declaration/${sub.submissionId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-3 inline-flex items-center gap-2 rounded-xl border border-current/30 bg-white px-4 py-2 text-sm font-semibold text-plum transition hover:bg-lilac"
-    >
-      <FileIcon className="h-4 w-4" />
-      View declaration (receipt)
-    </a>
-  );
-}
 
 // Where the module stands: Pending marking / Satisfactory / Not satisfactory / Additional information requested, with feedback
 export function Outcome({ sub, onSaved }: { sub: SubmissionDTO; onSaved?: (s: SubmissionDTO) => void }) {
@@ -65,7 +50,6 @@ export function Outcome({ sub, onSaved }: { sub: SubmissionDTO; onSaved?: (s: Su
         <p className="mt-1">
           Submitted{sub.submittedAt && <> on <LocalTime iso={sub.submittedAt} /></>} — your trainer will review it.
         </p>
-        <DeclarationLink sub={sub} />
       </div>
     );
   }
@@ -97,7 +81,6 @@ export function Outcome({ sub, onSaved }: { sub: SubmissionDTO; onSaved?: (s: Su
           <FileList files={sub.markedFiles} />
         </div>
       )}
-      <DeclarationLink sub={sub} />
       {onSaved && <FeedbackResponse sub={sub} onSaved={onSaved} />}
       {sub.history.length > 0 && (
         <details className="mt-3 text-sm">

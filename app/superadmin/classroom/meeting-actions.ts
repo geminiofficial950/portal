@@ -64,6 +64,8 @@ async function readInput(input: MeetingInput, staff: Staff) {
       notes: checked.notes,
       startsAt: checked.startsAt,
       minutes: checked.minutes,
+      meetingId: checked.meetingId,
+      passcode: checked.passcode,
     },
   };
 }

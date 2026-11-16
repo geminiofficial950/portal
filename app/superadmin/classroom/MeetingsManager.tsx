@@ -13,7 +13,7 @@ const card = "rounded-[1.5rem] border border-ink/5 bg-white p-5 shadow-[0_12px_4
 const field = "w-full rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40";
 const label = "text-sm font-medium text-ink";
 
-const blank = (courseCode: string): MeetingInput => ({ courseCode, studentId: "", title: "", notes: "", date: "", time: "", minutes: 30, url: "" });
+const blank = (courseCode: string): MeetingInput => ({ courseCode, studentId: "", title: "", notes: "", date: "", time: "", minutes: 30, url: "", meetingId: "", passcode: "" });
 
 // Scheduled meetings for staff (Super Admin, Admin, trainer): pick a course (or one student of it) and a date and time in
 // Sydney time; Google Calendar makes the Meet link (or one is pasted while Google isn't connected).
@@ -64,7 +64,7 @@ export default function MeetingsManager({
     setEditing(m.id);
     // Google's link stays with the meeting, so the form only carries a link that was pasted
     setOwnLink(!m.auto || !googleReady);
-    setForm({ courseCode: m.courseCode, studentId: m.studentId ?? "", title: m.title, notes: m.notes, ...zonedParts(m.startsAt), minutes: m.minutes, url: m.auto ? "" : m.url });
+    setForm({ courseCode: m.courseCode, studentId: m.studentId ?? "", title: m.title, notes: m.notes, ...zonedParts(m.startsAt), minutes: m.minutes, url: m.auto ? "" : m.url, meetingId: m.auto ? "" : (m.meetingId ?? ""), passcode: m.passcode ?? "" });
     document.getElementById("meeting-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -166,7 +166,11 @@ export default function MeetingsManager({
                 </button>
               )}
             </span>
-            <input value={form.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://meet.google.com/abc-defg-hij" inputMode="url" className={field} />
+            <input value={form.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://meet.google.com/abc-defg-hij" inputMode="url" aria-label="Google Meet link" className={field} />
+            <span className="grid gap-3 pt-1 sm:grid-cols-2">
+              <input value={form.meetingId ?? ""} maxLength={40} onChange={(e) => set({ meetingId: e.target.value })} placeholder="Meeting ID (e.g. abc-defg-hij — or instead of the link)" aria-label="Meeting ID" className={field} />
+              <input value={form.passcode ?? ""} maxLength={40} onChange={(e) => set({ passcode: e.target.value })} placeholder="Code / passcode (optional)" aria-label="Meeting code" className={field} />
+            </span>
           </label>
         ) : (
           <div className="flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200">
@@ -250,6 +254,8 @@ export default function MeetingsManager({
                         {m.url.replace("https://", "")}
                       </a>{" "}
                       · {m.auto ? "made by Google · " : ""}set by {m.createdBy}
+                      {m.meetingId && ` · Meeting ID ${m.meetingId}`}
+                      {m.passcode && ` · Code ${m.passcode}`}
                     </span>
                   </span>
                   <span className="flex gap-2">

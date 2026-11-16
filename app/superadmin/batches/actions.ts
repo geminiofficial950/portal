@@ -204,7 +204,7 @@ export async function openUnitsAction(
 
 // ---------- Classes (admin only for now — see "Class editing" decision) ----------
 
-export async function addBatchClassAction(batchId: string, input: { day: string; time: string; link: string }): Promise<Result<{ session: ClassSession }>> {
+export async function addBatchClassAction(batchId: string, input: { day: string; time: string; link: string; meetingId?: string; passcode?: string }): Promise<Result<{ session: ClassSession }>> {
   const admin = await requireAdmin();
   const batch = await getBatch(String(batchId));
   if (!batch) return { ok: false, error: "Batch not found." };

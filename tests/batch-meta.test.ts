@@ -35,7 +35,7 @@ describe("checkClassSession", () => {
   it("accepts a day, a 24-hour time and a web link", () => {
     expect(checkClassSession({ day: "Monday", time: "09:30", link: "meet.google.com/abc-defg-hij" })).toEqual({
       ok: true,
-      value: { day: "Monday", time: "09:30", link: "https://meet.google.com/abc-defg-hij" },
+      value: { day: "Monday", time: "09:30", link: "https://meet.google.com/abc-defg-hij", meetingId: "abc-defg-hij", passcode: null },
     });
   });
 
