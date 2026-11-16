@@ -20,13 +20,15 @@ export default function DeadlinesTab({
   units,
   modules,
   members,
+  initialUnit,
 }: {
   courseCode: string;
   units: { code: string; title: string }[];
   modules: Record<string, ModuleRow[]>;
   members: { studentId: string; name: string }[];
+  initialUnit?: string;
 }) {
-  const [unitCode, setUnitCode] = useState(units[0]?.code ?? "");
+  const [unitCode, setUnitCode] = useState(units.find((u) => u.code === initialUnit)?.code ?? units[0]?.code ?? "");
   const [moduleId, setModuleId] = useState("");
   const [scope, setScope] = useState<"batch" | "some">("batch");
   const [picked, setPicked] = useState<string[]>([]);

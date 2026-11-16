@@ -17,7 +17,7 @@ import { trainerCanSee } from "@/lib/trainer-access";
 export const metadata: Metadata = { title: "Declaration | Stella College" };
 
 // The declaration certificate made when a student submitted a Theory Task or Workplacement Task.
-// The student sees their own; Super Admin, Admins and active trainers see all. "Download PDF" gives the same layout as a file
+// Staff only: Super Admin, Admins and active trainers (students can’t view or download it). "Download PDF" gives the same layout as a file
 // (lib/declaration-pdf.ts) — keep the two in step.
 export default function DeclarationPage(props: PageProps<"/declaration/[id]">) {
   return (
@@ -33,11 +33,10 @@ async function Certificate({ params }: { params: Promise<{ id: string }> }) {
   const sub = await getSubmission((await params).id);
   if (!sub?.content.declaration) notFound();
 
-  const isOwner = session.role === "student" && session.sub === sub.studentId;
   const isAdmin = session.role === "admin";
   // a trainer: only while the student is in their batch and the unit is assigned to them
   const isTrainer = session.role === "trainer" && !!(await getTrainer(session.sub))?.active && (await trainerCanSee(session.sub, sub.studentId, sub.unitCode));
-  if (!isOwner && !isAdmin && !isTrainer) notFound();
+  if (!isAdmin && !isTrainer) notFound();
   const text = agreedDeclaration(sub.content.declaration);
   const partLabel = moduleLabel(await getAssessment(sub.courseCode, sub.unitCode), sub.part);
   const submittedAt = sub.submittedAt ? formatStamp(new Date(sub.submittedAt)) : "—";

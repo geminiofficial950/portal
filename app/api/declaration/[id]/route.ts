@@ -11,7 +11,7 @@ import { getSubmission } from "@/lib/submissions";
 import { getTrainer } from "@/lib/trainers";
 
 // Downloads a declaration certificate as a PDF file (with the submit photo).
-// Allowed: the student it belongs to, Super Admin, Admins and active trainers.
+// Allowed: Super Admin, Admins and active trainers — not students.
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/declaration/[id]">) {
   const session = await getSession();
   if (!session) return new Response("Please log in.", { status: 401 });
@@ -20,7 +20,6 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/declaration
 
   const allowed =
     session.role === "admin" ||
-    (session.role === "student" && session.sub === sub.studentId) ||
     (session.role === "trainer" && !!(await getTrainer(session.sub))?.active && (await trainerCanSee(session.sub, sub.studentId, sub.unitCode)));
   if (!allowed) return new Response("You can’t open this declaration.", { status: 403 });
 

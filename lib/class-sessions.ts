@@ -28,6 +28,8 @@ const toDTO = (d: SessionDoc): ClassSessionDTO => ({
   endsAt: d.endsAt.toISOString(),
   timezone: d.timezone,
   link: d.link,
+  meetingId: d.meetingId ?? null,
+  passcode: d.passcode ?? null,
   instructions: d.instructions,
   cancelled: d.cancelled,
   updatedAt: d.updatedAt.toISOString(),

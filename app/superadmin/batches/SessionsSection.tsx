@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { addSessionAction, cancelSessionAction, updateSessionAction } from "./actions";
 import { TIMEZONES } from "@/lib/batch-meta";
 import { zonedParts } from "@/lib/meetings-meta";
-import { sessionState, sessionWhen, type ClassSessionDTO, type SessionInput } from "@/lib/session-meta";
+import { canJoin, sessionState, sessionWhen, type ClassSessionDTO, type SessionInput } from "@/lib/session-meta";
 
 const field = "w-full rounded-xl bg-white px-3 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40";
 const btn = "rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -29,7 +29,7 @@ export default function SessionsSection({
   initial: ClassSessionDTO[];
   admin: boolean;
 }) {
-  const blank: SessionInput = { title: "", unitCode: "", trainerId: "", date: "", start: "", end: "", timezone, link: "", instructions: "" };
+  const blank: SessionInput = { title: "", unitCode: "", trainerId: "", date: "", start: "", end: "", timezone, link: "", meetingId: "", passcode: "", instructions: "" };
   const [list, setList] = useState(initial);
   const [form, setForm] = useState<SessionInput>(blank);
   const [editing, setEditing] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export default function SessionsSection({
   const edit = (s: ClassSessionDTO) => {
     const a = zonedParts(s.startsAt, s.timezone);
     const b = zonedParts(s.endsAt, s.timezone);
-    setForm({ title: s.title, unitCode: s.unitCode ?? "", trainerId: s.trainerId ?? "", date: a.date, start: a.time, end: b.time, timezone: s.timezone, link: s.link ?? "", instructions: s.instructions });
+    setForm({ title: s.title, unitCode: s.unitCode ?? "", trainerId: s.trainerId ?? "", date: a.date, start: a.time, end: b.time, timezone: s.timezone, link: s.link ?? "", meetingId: s.meetingId ?? "", passcode: s.passcode ?? "", instructions: s.instructions });
     setEditing(s.sessionId);
   };
 
@@ -80,10 +80,29 @@ export default function SessionsSection({
                   </span>
                   <span className="block text-sm text-ink">{sessionWhen(s)}</span>
                   <span className="block text-sm text-ink">
-                    {s.unitCode ?? "All units"} · Trainer: {s.trainerName ?? "to be confirmed"} · {s.link ? s.link.replace("https://", "") : "Meeting link coming soon"}
+                    {s.unitCode ?? "All units"} · Trainer: {s.trainerName ?? "to be confirmed"} ·{" "}
+                    {s.link ? (
+                      <a href={s.link} target="_blank" rel="noopener noreferrer" className="font-medium text-plum underline">
+                        {s.link.replace("https://", "")}
+                      </a>
+                    ) : (
+                      "Meeting link coming soon"
+                    )}
+                    {s.meetingId ? ` · Meeting ID ${s.meetingId}` : ""}
+                    {s.passcode ? ` · Code ${s.passcode}` : ""}
                   </span>
                   {s.instructions && <span className="block whitespace-pre-wrap text-sm text-ink">{s.instructions}</span>}
                 </span>
+                {s.link && canJoin(s) && (
+                  <a
+                    href={s.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${btn} bg-plum text-white hover:bg-plum-light`}
+                  >
+                    Join on Google Meet
+                  </a>
+                )}
                 {admin && !s.cancelled && st !== "ended" && (
                   <span className="flex gap-2">
                     <button onClick={() => edit(s)} disabled={busy} className={`${btn} border border-ink/15 text-ink hover:bg-lilac`}>
@@ -137,6 +156,8 @@ export default function SessionsSection({
             ))}
           </select>
           <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="Google Meet link (optional — “coming soon” if empty)" aria-label="Google Meet link" className={`${field} lg:col-span-2`} />
+          <input value={form.meetingId ?? ""} maxLength={40} onChange={(e) => setForm({ ...form, meetingId: e.target.value })} placeholder="Meeting ID (e.g. abc-defg-hij — makes the link if it’s empty)" aria-label="Meeting ID" className={field} />
+          <input value={form.passcode ?? ""} maxLength={40} onChange={(e) => setForm({ ...form, passcode: e.target.value })} placeholder="Code / passcode (optional)" aria-label="Meeting code" className={field} />
           <textarea value={form.instructions} maxLength={1000} onChange={(e) => setForm({ ...form, instructions: e.target.value })} placeholder="Preparation instructions for students" aria-label="Student instructions" rows={2} className={`${field} resize-y lg:col-span-2`} />
           <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
             <button type="submit" disabled={busy} className={`${btn} bg-plum py-2.5 text-white hover:bg-plum-light`}>

@@ -2,12 +2,13 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { COLLEGE_TZ } from "@/lib/clock";
 
 const EVERY = 60_000;
 const noop = () => () => {};
 
 // Keeps a dashboard current: fetches fresh data every minute and whenever the tab is opened again.
-// Shows when the numbers were last updated (in the viewer's time, after hydration).
+// Shows when the numbers were last updated, in Melbourne time like the header clock (the server's time, not the laptop's).
 export default function LiveRefresh({ at }: { at: string }) {
   const router = useRouter();
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
@@ -30,7 +31,7 @@ export default function LiveRefresh({ at }: { at: string }) {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
       </span>
-      Live · updated {hydrated ? new Date(at).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }) : "just now"}
+      Live · updated {hydrated ? new Date(at).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: COLLEGE_TZ }) : "just now"}
     </p>
   );
 }

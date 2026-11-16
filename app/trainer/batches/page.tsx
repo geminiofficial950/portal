@@ -4,11 +4,15 @@ import { requireTrainer } from "@/lib/auth";
 import { formatClassTime } from "@/lib/batch-meta";
 import { listCourses } from "@/lib/courses";
 import { listBatches } from "@/lib/groups";
+import { listSessions } from "@/lib/class-sessions";
+import { canJoin, sessionWhen } from "@/lib/session-meta";
 
 // The batches assigned to this trainer
 export default async function TrainerBatchesPage() {
   const trainer = await requireTrainer();
   const [batches, courses] = await Promise.all([listBatches({ trainerId: trainer.trainerId }), listCourses()]);
+  // scheduled class sessions of these batches that can still be joined (not cancelled or over)
+  const sessions = (await listSessions(batches.map((b) => b.batchId))).filter((s) => canJoin(s));
   const courseName = (code: string | null) => courses.find((c) => c.code === code)?.name ?? "";
 
   return (
@@ -41,7 +45,26 @@ export default async function TrainerBatchesPage() {
                     </td>
                     <td className="px-5 py-3.5 text-ink">{b.students}</td>
                     <td className="px-5 py-3.5 text-xs text-ink">
-                      {b.classes.length ? b.classes.map((c) => <span key={c.id} className="block">{`${c.day} ${formatClassTime(c.time)}`}</span>) : "—"}
+                      {b.classes.map((c) => (
+                        <span key={c.id} className="block">
+                          {`${c.day} ${formatClassTime(c.time)}`} ·{" "}
+                          <a href={c.link} target="_blank" rel="noopener noreferrer" className="font-semibold text-plum underline">
+                            Join
+                          </a>
+                        </span>
+                      ))}
+                      {sessions
+                        .filter((s) => s.batchId === b.batchId)
+                        .slice(0, 3)
+                        .map((s) => (
+                          <span key={s.sessionId} className="block">
+                            {s.title} · {sessionWhen(s)} ·{" "}
+                            <a href={s.link!} target="_blank" rel="noopener noreferrer" className="font-semibold text-plum underline">
+                              Join on Google Meet
+                            </a>
+                          </span>
+                        ))}
+                      {!b.classes.length && !sessions.some((s) => s.batchId === b.batchId) && "—"}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <Link

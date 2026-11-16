@@ -95,8 +95,9 @@ export default async function CoursePage() {
                 aria-label={course.name}
                 className="grid gap-6 rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.2)] sm:p-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
               >
-                <div className="relative overflow-hidden rounded-2xl border border-ink/10">
-                  <CourseIllustration className="block h-48 w-full sm:h-56 lg:h-full lg:min-h-56" />
+                {/* the picture keeps its own shape (320 × 220): never stretched to the card's height or cropped */}
+                <div className="relative self-start overflow-hidden rounded-2xl border border-ink/10 lg:self-center">
+                  <CourseIllustration className="block aspect-[32/22] h-auto w-full" />
                   <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-plum shadow-sm">
                     Course
                   </span>

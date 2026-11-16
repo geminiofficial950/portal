@@ -34,6 +34,8 @@ const toDTO = (d: MeetingDoc): MeetingDTO => ({
   startsAt: d.startsAt.toISOString(),
   minutes: d.minutes,
   url: d.url,
+  meetingId: d.meetingId ?? null,
+  passcode: d.passcode ?? null,
   auto: !!d.eventId,
   createdBy: d.createdBy,
   updatedAt: d.updatedAt.toISOString(),

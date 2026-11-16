@@ -2,7 +2,7 @@
 // students see it under Classroom. All times are the college's time (Sydney).
 // The Meet link is made automatically in Google Calendar (lib/google-meet.ts); pasting one is the fallback.
 // Shared by server code and client components (no server-only imports here).
-import { cleanMeetUrl } from "./classroom-meta";
+import { checkMeetDetails } from "./classroom-meta";
 
 export const MEETING_TZ = "Australia/Sydney";
 export const MEETING_LENGTHS = [15, 30, 45, 60, 90, 120] as const;
@@ -21,6 +21,8 @@ export type MeetingDTO = {
   startsAt: string; // ISO
   minutes: number;
   url: string;
+  meetingId: string | null; // shown to students next to the link
+  passcode: string | null;
   auto: boolean; // link made by Google Calendar (the event is kept in step on edit / cancel)
   createdBy: string;
   updatedAt: string;
@@ -35,6 +37,8 @@ export type MeetingInput = {
   time: string; // HH:MM, Sydney
   minutes: number;
   url: string; // "" = let Google make the link
+  meetingId?: string; // or a Meet code instead of the link
+  passcode?: string;
 };
 
 const partsIn = (ms: number, tz: string) =>
@@ -73,7 +77,7 @@ export function zonedParts(iso: string, tz: string = MEETING_TZ) {
 export function checkMeeting(
   input: Partial<MeetingInput>,
   now: number,
-): { ok: true; title: string; notes: string; startsAt: Date; minutes: number; url: string | null } | { ok: false; error: string } {
+): { ok: true; title: string; notes: string; startsAt: Date; minutes: number; url: string | null; meetingId: string | null; passcode: string | null } | { ok: false; error: string } {
   const title = String(input.title ?? "").trim().replace(/\s+/g, " ");
   if (!title) return { ok: false, error: "Give the meeting a name." };
   if (title.length > MEETING_LIMITS.title) return { ok: false, error: `Keep the meeting name under ${MEETING_LIMITS.title} characters.` };
@@ -86,10 +90,9 @@ export function checkMeeting(
   const minutes = Number(input.minutes);
   if (!(MEETING_LENGTHS as readonly number[]).includes(minutes)) return { ok: false, error: "Choose how long the meeting is." };
   // a pasted link is optional — without one, Google makes it
-  const raw = String(input.url ?? "").trim();
-  const url = raw ? cleanMeetUrl(raw) : null;
-  if (raw && !url) return { ok: false, error: "That isn’t a Google Meet link (meet.google.com/…)." };
-  return { ok: true, title, notes, startsAt, minutes, url };
+  const meet = checkMeetDetails({ link: input.url, meetingId: input.meetingId, passcode: input.passcode }, { required: false });
+  if (!meet.ok) return meet;
+  return { ok: true, title, notes, startsAt, minutes, url: meet.link, meetingId: meet.meetingId, passcode: meet.passcode };
 }
 
 export const meetingEnd = (m: Pick<MeetingDTO, "startsAt" | "minutes">) => new Date(m.startsAt).getTime() + m.minutes * MIN;

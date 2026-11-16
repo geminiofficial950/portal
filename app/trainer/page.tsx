@@ -102,6 +102,9 @@ async function DashboardBody() {
   ]);
   // only students currently in the trainer's batches, in their assigned units
   const queue = allQueue.filter((s) => scope.can(s.studentId, s.unitCode));
+  // due dates only for the units this trainer teaches (in their batches)
+  const myUnits = new Set(scope.batches.flatMap((b) => (b.trainers.find((t) => t.trainerId === trainer.trainerId)?.unitCodes ?? []).map((u) => `${b.courseCode}/${u}`)));
+  const myUpcoming = upcoming.filter((u) => myUnits.has(`${u.courseCode}/${u.unitCode}`));
   const rework = allRework.filter((s) => scope.can(s.studentId, s.unitCode)).slice(0, 5);
   const unitTitle = (code: string, unit: string) => courses.find((c) => c.code === code)?.units.find((u) => u.code === unit)?.title ?? unit;
   const openTickets = tickets.filter((t) => t.status !== "Resolved").length;
@@ -244,13 +247,13 @@ async function DashboardBody() {
 
         <section className="rounded-xl bg-[#f6f5fa] p-5">
           <h2 className="mb-3 text-sm font-semibold text-ink">Due in the next 14 days</h2>
-          {upcoming.length ? (
+          {myUpcoming.length ? (
             <ul className="space-y-3">
-              {upcoming.slice(0, 5).map((u) => {
+              {myUpcoming.slice(0, 5).map((u) => {
                 const left = Math.max(0, Math.ceil((new Date(u.dueAt).getTime() - now) / DAY));
                 const d = new Date(u.dueAt);
                 return (
-                  <li key={`${u.courseCode}/${u.unitCode}`}>
+                  <li key={`${u.courseCode}/${u.unitCode}/${u.moduleId}`}>
                     <Link
                       href={`/trainer/marking/course/${encodeURIComponent(u.courseCode)}/${encodeURIComponent(u.unitCode)}`}
                       className="flex items-center gap-4 rounded-lg bg-white px-4 py-3 transition hover:shadow"
@@ -264,7 +267,8 @@ async function DashboardBody() {
                           {u.unitCode} · {unitTitle(u.courseCode, u.unitCode)}
                         </span>
                         <span className="block text-xs font-medium text-ink">
-                          {u.courseCode} · due {left === 0 ? "today" : `in ${dayWord(left)}`}
+                          {u.moduleTitle} · due {left === 0 ? "today" : `in ${dayWord(left)}`} ·{" "}
+                          {new Intl.DateTimeFormat("en-AU", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(d)}
                         </span>
                       </span>
                     </Link>
@@ -273,7 +277,7 @@ async function DashboardBody() {
               })}
             </ul>
           ) : (
-            <p className="rounded-lg bg-white px-4 py-5 text-center text-sm font-medium text-ink">No unit due dates in the next 14 days.</p>
+            <p className="rounded-lg bg-white px-4 py-5 text-center text-sm font-medium text-ink">None of your units is due in the next 14 days.</p>
           )}
         </section>
       </div>
