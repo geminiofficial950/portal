@@ -8,5 +8,5 @@ export default async function TrainerBatchPage(props: PageProps<"/trainer/batche
   const trainer = await requireTrainer();
   const data = await loadBatchDetail(decodeURIComponent((await props.params).id));
   if (!data || !data.batch.trainers.some((t) => t.trainerId === trainer.trainerId)) notFound();
-  return <BatchDetail data={data} role="trainer" viewerTrainerId={trainer.trainerId} canDelete={false} initialTab={typeof (await props.searchParams).tab === "string" ? String((await props.searchParams).tab) : undefined} backHref="/trainer/batches" />;
+  return <BatchDetail data={data} role="trainer" viewerTrainerId={trainer.trainerId} canDelete={false} initialTab={typeof (await props.searchParams).tab === "string" ? String((await props.searchParams).tab) : undefined} initialUnit={typeof (await props.searchParams).unit === "string" ? String((await props.searchParams).unit) : undefined} backHref="/trainer/batches" />;
 }

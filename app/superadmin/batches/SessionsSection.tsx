@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { addSessionAction, cancelSessionAction, updateSessionAction } from "./actions";
 import { TIMEZONES } from "@/lib/batch-meta";
 import { zonedParts } from "@/lib/meetings-meta";
-import { sessionState, sessionWhen, type ClassSessionDTO, type SessionInput } from "@/lib/session-meta";
+import { canJoin, sessionState, sessionWhen, type ClassSessionDTO, type SessionInput } from "@/lib/session-meta";
 
 const field = "w-full rounded-xl bg-white px-3 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 placeholder:text-ink/60 focus:ring-plum/40";
 const btn = "rounded-full px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -80,12 +80,29 @@ export default function SessionsSection({
                   </span>
                   <span className="block text-sm text-ink">{sessionWhen(s)}</span>
                   <span className="block text-sm text-ink">
-                    {s.unitCode ?? "All units"} · Trainer: {s.trainerName ?? "to be confirmed"} · {s.link ? s.link.replace("https://", "") : "Meeting link coming soon"}
+                    {s.unitCode ?? "All units"} · Trainer: {s.trainerName ?? "to be confirmed"} ·{" "}
+                    {s.link ? (
+                      <a href={s.link} target="_blank" rel="noopener noreferrer" className="font-medium text-plum underline">
+                        {s.link.replace("https://", "")}
+                      </a>
+                    ) : (
+                      "Meeting link coming soon"
+                    )}
                     {s.meetingId ? ` · Meeting ID ${s.meetingId}` : ""}
                     {s.passcode ? ` · Code ${s.passcode}` : ""}
                   </span>
                   {s.instructions && <span className="block whitespace-pre-wrap text-sm text-ink">{s.instructions}</span>}
                 </span>
+                {s.link && canJoin(s) && (
+                  <a
+                    href={s.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${btn} bg-plum text-white hover:bg-plum-light`}
+                  >
+                    Join on Google Meet
+                  </a>
+                )}
                 {admin && !s.cancelled && st !== "ended" && (
                   <span className="flex gap-2">
                     <button onClick={() => edit(s)} disabled={busy} className={`${btn} border border-ink/15 text-ink hover:bg-lilac`}>

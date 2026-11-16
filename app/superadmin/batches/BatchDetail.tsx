@@ -64,6 +64,7 @@ export default function BatchDetail({
   canDelete,
   backHref,
   initialTab,
+  initialUnit,
   viewerTrainerId,
 }: {
   data: BatchDetailData;
@@ -71,6 +72,7 @@ export default function BatchDetail({
   canDelete: boolean;
   backHref: string;
   initialTab?: string;
+  initialUnit?: string; // Deadlines tab: open on this unit (from ?unit=)
   viewerTrainerId?: string;
 }) {
   const router = useRouter();
@@ -189,6 +191,7 @@ export default function BatchDetail({
             .map((u) => ({ code: u.code, title: u.title }))}
           modules={data.modules}
           members={members.map((m) => ({ studentId: m.studentId, name: m.name }))}
+          initialUnit={initialUnit}
         />
       )}
 

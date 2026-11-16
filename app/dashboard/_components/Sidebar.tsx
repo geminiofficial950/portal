@@ -57,7 +57,7 @@ const variants = {
       { label: "Feedback responses", href: "/trainer/reviews", icon: ChatIcon },
       { label: "Extension requests", href: "/trainer/extensions", icon: CalendarIcon },
       { label: "Students", href: "/trainer/students", icon: UserPlusIcon },
-      { label: "Classes", href: "/trainer/classroom", icon: VideoIcon },
+      // { label: "Classes", href: "/trainer/classroom", icon: VideoIcon }, // hidden for now (asked 16 Nov 2026) — meeting links are on My batches
       { label: "Support", href: "/trainer/tickets", icon: TicketIcon },
     ],
   },
