@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { mailStudents } from "@/lib/student-mail";
 import { logActivity } from "@/lib/activity";
 import { partsOf, unitDueAt, type AssessmentPart } from "@/lib/assessment-meta";
 import { trainerCanSee } from "@/lib/trainer-access";
@@ -135,6 +136,7 @@ export async function setUnitOpeningAction(
   }
   for (const code of codes) await setUnitOpening([student.studentId], course.code, code, { open: change.open, releaseAt }, admin.label);
   if (change.open || releaseAt) await notifyUnitChange(student.studentId, course.code, "unlocked", course.units.filter((u) => codes.includes(u.code)));
+  if (change.open) await mailStudents([student.studentId], "course"); // a unit was opened for them
   const what = codes.length === 1 ? codes[0] : `${codes.length} units`;
   await logActivity(admin.label, `${change.open ? "opened" : releaseAt ? "scheduled" : "closed"} ${what} for ${student.name}`, "student");
   refresh(student.studentId);
