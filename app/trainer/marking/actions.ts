@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { mailStudents } from "@/lib/student-mail";
 import { logActivity } from "@/lib/activity";
 import { partLabel } from "@/lib/assessment-meta";
 import { getAssessment } from "@/lib/assessments";
@@ -74,6 +75,7 @@ export async function decideAction(
   }
   const label = partLabel(await getAssessment(sub.courseCode, sub.unitCode), sub.part);
   await logActivity(staff.name, `marked ${sub.studentName}’s “${label}” for ${sub.unitCode} as ${statusLabel[input.status]}`, staff.role === "admin" ? "student" : "trainer");
+  await mailStudents([sub.studentId], "feedback"); // feedback published
   refresh();
   return { ok: true, submission: saved };
 }

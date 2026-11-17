@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { mailStudents } from "@/lib/student-mail";
 import { logActivity } from "@/lib/activity";
 import { DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
 import {
@@ -190,12 +191,15 @@ export async function openUnitsAction(
   if (!units.length) return { ok: false, error: "Pick the units first." };
   const students = await scopeStudents(batch, scope);
   let changed = 0;
+  const opened: string[] = [];
   for (const unitCode of units) {
     const recs = await listUnitRecordsFor(students.map((s) => s.studentId), batch.courseCode, unitCode);
     const plan = planBulkOpen(students.map((s) => ({ studentId: s.studentId, record: recs[s.studentId] ?? null })), resetExceptions);
     await setUnitOpening(plan.affected, batch.courseCode, unitCode, { open: when.mode === "now", releaseAt }, admin.label);
     changed += plan.affected.length;
+    if (when.mode === "now") opened.push(...plan.affected);
   }
+  if (opened.length) await mailStudents(opened, "course"); // units opened for them (one email each)
   const what = when.mode === "now" ? "opened" : when.mode === "close" ? "closed" : `scheduled for ${releaseAt!.toISOString()}`;
   await logActivity(admin.label, `${what} ${units.join(", ")} for ${scope?.studentIds?.length ? `${students.length} student(s) of` : ""} ${batch.name}`, "student");
   refresh();

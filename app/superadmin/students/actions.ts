@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { mailStudents } from "@/lib/student-mail";
 import { logActivity } from "@/lib/activity";
 import { studentRecords, type AffectedRecords } from "@/lib/affected-records";
 import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin, requireSuperAdmin } from "@/lib/auth";
@@ -75,6 +76,7 @@ export async function createStudentAction(input: {
   try {
     const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId });
     await logActivity(student.name, `was enrolled in ${courses.codes.join(", ")} (${student.studentId})`, "student");
+    await mailStudents([student.studentId], "course"); // “You have 1 new update”
     if (batches.length) {
       await setStudentBatches(student.studentId, picked);
       for (const b of batches) {
@@ -155,7 +157,9 @@ export async function setStudentCoursesAction(studentId: string, codesIn: string
   await requireAdmin();
   const courses = await checkCourses(codesIn);
   if ("error" in courses) return { ok: false, error: courses.error };
+  const before = new Set((await getStudent(studentId))?.courses.map((c) => c.code) ?? []);
   if (!(await setStudentCourses(studentId, courses.codes))) return { ok: false, error: "Student not found." };
+  if (courses.codes.some((c) => !before.has(c))) await mailStudents([studentId], "course"); // enrolled in a new course
   await logActivity(await adminActor(), `set ${studentId}’s courses to ${courses.codes.join(", ")}`, "student");
   revalidatePath("/superadmin", "layout");
   revalidatePath("/trainer", "layout");
