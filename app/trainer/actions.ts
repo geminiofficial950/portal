@@ -28,6 +28,7 @@ export async function replyAsTrainerAction(ticketId: string, text: string): Prom
     ticketId,
     { from: "college", name: `${trainer.name} · Trainer`, text: body.slice(0, 4000) },
     { assigneeId: trainer.trainerId },
+    { by: `${trainer.name} · Trainer`, text: "Replied" },
   );
   if (ticket) await logActivity(trainer.name, `replied on ${ticketId}`, "ticket");
   return done(ticket);
@@ -37,7 +38,7 @@ export async function setStatusAsTrainerAction(ticketId: string, status: TicketS
   const trainer = await requireTrainer();
   if (!(await getSettings()).trainerPermissions.handleTickets) return { ok: false, error: NO_PERMISSION };
   if (!TICKET_STATUSES.includes(status)) return { ok: false, error: "Unknown status." };
-  const ticket = await updateTicket(ticketId, { status }, { assigneeId: trainer.trainerId });
+  const ticket = await updateTicket(ticketId, { status }, { assigneeId: trainer.trainerId }, { by: `${trainer.name} · Trainer`, text: `Marked ${status}` });
   if (ticket) await logActivity(trainer.name, `marked ${ticketId} as ${status.toLowerCase()}`, "ticket");
   return done(ticket);
 }

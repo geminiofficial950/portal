@@ -156,6 +156,40 @@ async function DashboardBody() {
         </p>
       )}
 
+      {/* support requests assigned to this trainer (newest first) */}
+      {tickets.some((t) => t.status !== "Resolved") && (
+        <section aria-labelledby="assigned-support-heading">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 id="assigned-support-heading" className="text-sm font-semibold text-ink">
+              Support requests assigned to you
+            </h2>
+            <Link href="/trainer/tickets" className="text-sm font-semibold text-plum">
+              Open Support
+            </Link>
+          </div>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {tickets
+              .filter((t) => t.status !== "Resolved")
+              .slice(0, 4)
+              .map((t) => (
+                <li key={t.ticketId}>
+                  <Link href="/trainer/tickets" className="block rounded-xl bg-[#f6f5fa] px-4 py-3 transition hover:shadow">
+                    <span className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink">
+                      <span className="text-plum">{t.ticketId}</span>
+                      <span className={`rounded-full px-2 py-0.5 ${t.priority === "High" ? "bg-rose-100 text-rose-800" : t.priority === "Medium" ? "bg-amber-100 text-amber-900" : "bg-slate-200 text-slate-800"}`}>{t.priority}</span>
+                      <span>{t.status}</span>
+                    </span>
+                    <span className="mt-1 block truncate text-sm font-semibold text-ink">{t.booking?.group ?? t.topic}</span>
+                    <span className="block truncate text-sm text-ink">
+                      {t.studentName} · {t.booking ? `${t.booking.when} · ${t.booking.mode}` : t.subject}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       {/* work waiting to be marked */}
       <section>
         <div className="mb-3 flex items-end justify-between gap-3">
