@@ -6,6 +6,8 @@ export const SWITCHES = [
   { key: "emailAlerts", label: "Email alerts for new tickets", hint: "Super Admin gets an email when a student raises a ticket." },
   { key: "mailCourseUpdates", label: "Email students: new course or unit", hint: "A student gets a short “You have 1 new update” email with a Login button when they’re enrolled in a course or a unit is opened for them." },
   { key: "mailFeedback", label: "Email students: feedback", hint: "A student gets the same short email when a trainer publishes feedback on their work." },
+  { key: "mailStaffCourseUpdates", label: "Email admins & trainers: new course or unit", hint: "Admin accounts and the student’s batch trainers get the same short email (counted, e.g. “2 new updates”) when a student is enrolled or a unit is opened." },
+  { key: "mailStaffFeedback", label: "Email admins & trainers: feedback", hint: "Admin accounts and the unit’s batch trainers get the same short email when feedback is published (not the trainer who published it)." },
   { key: "maintenance", label: "Maintenance mode", hint: "Students and trainers can’t log in until it’s switched off." },
 ] as const;
 export type SwitchKey = (typeof SWITCHES)[number]["key"];
@@ -40,6 +42,6 @@ export const DEFAULT_SETTINGS: PortalSettings = {
     email: "admin@stellacollege.edu.au",
     phone: "1800 069 877",
   },
-  switches: { registrations: true, proctoring: true, emailAlerts: true, mailCourseUpdates: true, mailFeedback: true, maintenance: false },
+  switches: { registrations: true, proctoring: true, emailAlerts: true, mailCourseUpdates: true, mailFeedback: true, mailStaffCourseUpdates: true, mailStaffFeedback: true, maintenance: false },
   trainerPermissions: { manageStudents: false, manageCourses: false, markAssessments: true, handleTickets: true },
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import TicketProgress from "../superadmin/_components/TicketProgress";
 import toast from "react-hot-toast";
 import { ChatIcon, TicketIcon } from "../dashboard/_components/icons";
 import TicketThreadModal from "../superadmin/_components/TicketThreadModal";
@@ -105,6 +106,7 @@ export default function TrainerTicketsClient({
               <p className="mt-0.5 text-[11px] text-ink">
                 {t.studentName} ({t.studentId}) · raised {t.created} · {t.messages.length} message{t.messages.length === 1 ? "" : "s"}
               </p>
+              <TicketProgress ticket={t} />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

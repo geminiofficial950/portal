@@ -12,6 +12,8 @@ import {
 } from "../_components/icons";
 import { TICKET_TOPICS, type TicketDTO, type TicketStatus } from "@/lib/ticket-meta";
 import { createTicketAction, replyAsStudentAction } from "./actions";
+import BookingResults from "./BookingResults";
+import SupportCards from "./SupportCards";
 
 // Students see friendlier names for the same statuses admins use
 const label: Record<TicketStatus, string> = {
@@ -32,6 +34,10 @@ const statusActiveStyle: Record<TicketStatus, string> = {
   Resolved: "bg-emerald-400/25 text-emerald-100",
 };
 
+// Hidden for now (asked 17 Nov 2026): the "Ask for help" button, the request counters and the "What do you need help
+// with?" form. Students book support from the cards instead. Set to true to show them again.
+const SHOW_ASK_FORM = false;
+
 const replyHint = (t: TicketDTO) =>
   t.status === "Resolved"
     ? "This one is closed"
@@ -41,7 +47,7 @@ const replyHint = (t: TicketDTO) =>
         : "The college is checking this"
       : "Usually replies within 1 business day";
 
-export default function TicketsClient({ initialTickets }: { initialTickets: TicketDTO[] }) {
+export default function TicketsClient({ initialTickets, me }: { initialTickets: TicketDTO[]; me: { name: string; studentId: string; email: string } }) {
   const [requests, setRequests] = useState(initialTickets);
   const [selectedId, setSelectedId] = useState(initialTickets[0]?.ticketId ?? null);
   const [asking, setAsking] = useState(initialTickets.length === 0);
@@ -82,23 +88,38 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
 
   return (
     <div className="animate-fade-up space-y-8">
+      {/* "Need help?" heading — hidden with the ask form (SHOW_ASK_FORM); the page starts at Book support */}
+      {SHOW_ASK_FORM && (
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-ink sm:text-[1.65rem]">Need help?</h1>
           <p className="mt-1 max-w-xl text-sm text-ink">
-            Ask the college anything about your course, assessments, or portal — then track
-            replies here.
+            Book the support you need below — then track the college’s replies here.
           </p>
         </div>
-        <button
-          onClick={() => setAsking((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-full bg-plum px-5 py-3 text-sm font-medium text-white transition hover:bg-plum-light"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Ask for help
-        </button>
+        {SHOW_ASK_FORM && (
+          <button
+            onClick={() => setAsking((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-full bg-plum px-5 py-3 text-sm font-medium text-white transition hover:bg-plum-light"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Ask for help
+          </button>
+        )}
       </div>
+      )}
 
+      {/* Book support: one card per support group (Learning support, Access and equity, …) */}
+      <SupportCards
+        me={me}
+        onBooked={(t) => {
+          setRequests((list) => [t, ...list]);
+          setSelectedId(t.ticketId);
+          setAsking(false);
+        }}
+      />
+
+      {SHOW_ASK_FORM && (
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { label: "Waiting on reply", value: count("Open"), tone: "bg-lilac" },
@@ -111,8 +132,9 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
           </div>
         ))}
       </div>
+      )}
 
-      {asking && (
+      {SHOW_ASK_FORM && asking && (
         <form onSubmit={sendAsk} className="rounded-[1.75rem] bg-lilac/80 p-5 sm:p-6">
           <h2 className="text-base font-semibold text-ink">What do you need help with?</h2>
           <p className="mt-1 text-xs text-ink">Pick a topic so we send it to the right team.</p>
@@ -177,7 +199,10 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
         </form>
       )}
 
-      {requests.length > 0 && (
+      {/* After booking: a simple card per booking with its result (the chat view below is hidden with SHOW_ASK_FORM) */}
+      {!SHOW_ASK_FORM && <BookingResults tickets={requests} onUpdate={(t) => setRequests((list) => list.map((r) => (r.ticketId === t.ticketId ? t : r)))} />}
+
+      {SHOW_ASK_FORM && requests.length > 0 && (
         <div className="grid gap-8 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] lg:gap-10">
           <section>
             <h2 className="text-lg font-semibold text-ink">Your requests</h2>
@@ -271,7 +296,7 @@ export default function TicketsClient({ initialTickets }: { initialTickets: Tick
                 ) : (
                   <div className="flex items-center gap-2 border-t border-ink/5 bg-emerald-50 px-5 py-3 text-xs text-emerald-700">
                     <CheckIcon className="h-4 w-4" />
-                    This request is sorted. Ask for help again if you need anything else.
+                    This request is sorted. Book support again if you need anything else.
                   </div>
                 )}
               </div>

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { mailStudents } from "@/lib/student-mail";
+import { mailUpdates } from "@/lib/student-mail";
 import { logActivity } from "@/lib/activity";
 import { DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
 import {
@@ -199,7 +199,7 @@ export async function openUnitsAction(
     changed += plan.affected.length;
     if (when.mode === "now") opened.push(...plan.affected);
   }
-  if (opened.length) await mailStudents(opened, "course"); // units opened for them (one email each)
+  if (opened.length) await mailUpdates({ studentIds: opened, kind: "course", courseCodes: [batch.courseCode], unitCodes: units }); // units opened for them
   const what = when.mode === "now" ? "opened" : when.mode === "close" ? "closed" : `scheduled for ${releaseAt!.toISOString()}`;
   await logActivity(admin.label, `${what} ${units.join(", ")} for ${scope?.studentIds?.length ? `${students.length} student(s) of` : ""} ${batch.name}`, "student");
   refresh();

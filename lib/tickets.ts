@@ -3,7 +3,11 @@ import type { ObjectId } from "mongodb";
 import { nextSeq } from "./counters";
 import { getDb } from "./db";
 import { formatDate, formatDateTime } from "./format";
-import type { TicketDTO, TicketPriority, TicketStatus } from "./ticket-meta";
+import type { BookingSummary, TicketDTO, TicketPriority, TicketStatus } from "./ticket-meta";
+
+type EventDoc = { at: Date; by: string; text: string };
+/** a progress step to record with a change */
+export type TicketEventInput = { by: string; text: string };
 
 type MessageDoc = { from: "student" | "college"; name: string; text: string; at: Date };
 
@@ -19,6 +23,8 @@ type TicketDoc = {
   assignee: string;
   assigneeId: string | null;
   messages: MessageDoc[];
+  booking?: BookingSummary | null;
+  events?: EventDoc[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -35,6 +41,13 @@ const toDTO = (t: TicketDoc): TicketDTO => ({
   assigneeId: t.assigneeId ?? null,
   created: formatDate(t.createdAt),
   messages: t.messages.map((m) => ({ from: m.from, name: m.name, text: m.text, time: formatDateTime(m.at) })),
+  booking: t.booking ?? null,
+  // requests made before progress was recorded start with their "Submitted" step too
+  events: (t.events?.[0]?.text === "Submitted" ? t.events : [{ at: t.createdAt, by: t.studentName, text: "Submitted" }, ...(t.events ?? [])]).map((e) => ({
+    by: e.by,
+    text: e.text,
+    time: formatDateTime(e.at),
+  })),
 });
 
 let indexesReady: Promise<unknown> | undefined;
@@ -80,6 +93,7 @@ export async function createTicket(input: {
   topic: string;
   subject: string;
   text: string;
+  booking?: BookingSummary | null;
 }) {
   const col = await collection();
   const now = new Date();
@@ -94,6 +108,8 @@ export async function createTicket(input: {
     assignee: "Unassigned",
     assigneeId: null,
     messages: [{ from: "student", name: input.studentName, text: input.text, at: now }],
+    booking: input.booking ?? null,
+    events: [{ at: now, by: input.studentName, text: "Submitted" }],
     createdAt: now,
     updatedAt: now,
   };
@@ -107,6 +123,7 @@ export async function addTicketMessage(
   ticketId: string,
   message: Omit<MessageDoc, "at">,
   opts: { studentId?: string; assigneeId?: string } = {},
+  event?: TicketEventInput,
 ) {
   const col = await collection();
   const now = new Date();
@@ -117,7 +134,7 @@ export async function addTicketMessage(
       : { ticketId };
   const doc = await col.findOneAndUpdate(
     filter,
-    { $push: { messages: { ...message, at: now } }, $set: { updatedAt: now } },
+    { $push: event ? { messages: { ...message, at: now }, events: { ...event, at: now } } : { messages: { ...message, at: now } }, $set: { updatedAt: now } },
     { returnDocument: "after" },
   );
   return doc ? toDTO(doc) : null;
@@ -137,11 +154,13 @@ export async function updateTicket(
   ticketId: string,
   patch: Partial<Pick<TicketDoc, "status" | "priority" | "assignee" | "assigneeId">>,
   opts: { assigneeId?: string } = {},
+  event?: TicketEventInput,
 ) {
   const col = await collection();
+  const now = new Date();
   const doc = await col.findOneAndUpdate(
     opts.assigneeId ? { ticketId, assigneeId: opts.assigneeId } : { ticketId },
-    { $set: { ...patch, updatedAt: new Date() } },
+    event ? { $set: { ...patch, updatedAt: now }, $push: { events: { ...event, at: now } } } : { $set: { ...patch, updatedAt: now } },
     { returnDocument: "after" },
   );
   return doc ? toDTO(doc) : null;

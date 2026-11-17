@@ -3,6 +3,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { ChatIcon, SearchIcon, TicketIcon } from "../../dashboard/_components/icons";
+import TicketProgress from "../_components/TicketProgress";
 import TicketThreadModal from "../_components/TicketThreadModal";
 import {
   TICKET_PRIORITIES,
@@ -11,6 +12,7 @@ import {
   type TicketPriority,
   type TicketStatus,
 } from "@/lib/ticket-meta";
+import { BOOKING_TOPIC_PREFIX } from "@/lib/support-booking-meta";
 import { assignTicketAction, replyTicketAction, setTicketPriorityAction, setTicketStatusAction } from "./actions";
 
 const statusStyle: Record<TicketStatus, string> = {
@@ -31,7 +33,8 @@ type Assignee = { trainerId: string; name: string };
 
 export default function TicketsClient({ initialTickets, assignees }: { initialTickets: TicketDTO[]; assignees: Assignee[] }) {
   const [list, setList] = useState(initialTickets);
-  const [filter, setFilter] = useState<"All" | TicketStatus>("All");
+  const [filter, setFilter] = useState<"All" | "Bookings" | TicketStatus>("All");
+  const isBooking = (t: TicketDTO) => t.topic.startsWith(BOOKING_TOPIC_PREFIX);
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
   const q = query.trim().toLowerCase();
   const visible = list.filter(
     (t) =>
-      (filter === "All" || t.status === filter) &&
+      (filter === "All" || (filter === "Bookings" ? isBooking(t) : t.status === filter)) &&
       (!q || t.subject.toLowerCase().includes(q) || t.studentName.toLowerCase().includes(q) || t.ticketId.toLowerCase().includes(q)),
   );
   const open = list.find((t) => t.ticketId === openId) ?? null;
@@ -84,7 +87,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {(["All", ...TICKET_STATUSES] as const).map((f) => (
+          {(["All", "Bookings", ...TICKET_STATUSES] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -118,12 +121,17 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-medium text-plum">{t.ticketId}</span>
-                <span className="text-[11px] text-ink">{t.topic}</span>
+                {isBooking(t) ? (
+                  <span className="rounded-full bg-plum px-2.5 py-0.5 text-xs font-semibold text-white">{t.topic}</span>
+                ) : (
+                  <span className="text-[11px] text-ink">{t.topic}</span>
+                )}
               </div>
               <p className="mt-1.5 font-medium text-ink">{t.subject}</p>
               <p className="mt-0.5 text-[11px] text-ink">
                 {t.studentName} ({t.studentId}) · raised {t.created} · {t.messages.length} message{t.messages.length === 1 ? "" : "s"}
               </p>
+              <TicketProgress ticket={t} />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

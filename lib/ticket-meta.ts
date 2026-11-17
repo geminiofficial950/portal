@@ -16,6 +16,9 @@ export const TICKET_TOPICS = [
 
 export type TicketMessage = { from: "student" | "college"; name: string; text: string; time: string };
 
+/** The details of a support booking (Student support → Book support), kept with the request so the student sees a simple card */
+export type BookingSummary = { group: string; services: string[]; when: string; mode: string; contact: string };
+
 export type TicketDTO = {
   ticketId: string;
   studentId: string;
@@ -28,4 +31,9 @@ export type TicketDTO = {
   assigneeId: string | null; // trainer ID
   created: string;
   messages: TicketMessage[];
+  booking: BookingSummary | null; // set for support bookings
+  events: TicketEvent[]; // progress: submitted, assigned, status changes, replies — oldest first
 };
+
+/** One step in a request's progress */
+export type TicketEvent = { by: string; text: string; time: string };
