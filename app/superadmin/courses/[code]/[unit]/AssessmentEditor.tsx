@@ -161,7 +161,7 @@ export default function AssessmentEditor({
         <p className="text-sm text-ink">
           {canEditDue
             ? "Set each module’s due date on its row, then save. Students see it on the unit page and in their training plan."
-            : "Due dates are shown on each module row. Only Super Admin can change them."}
+            : "Due dates are shown on each module row. They can’t be changed from this account."}
         </p>
       )}
       {live.length === 0 && <p className={`${card} text-center text-sm text-ink`}>No modules yet. Add the first one below.</p>}
@@ -321,7 +321,7 @@ function ModuleForm({ module: m, onChange, canEditDue }: { module: Module; onCha
             )}
           </>
         ) : (
-          <span className="text-sm text-ink">{m.dueAt ? fmtDue(m.dueAt) : "No due date"} · Only Super Admin can change dates.</span>
+          <span className="text-sm text-ink">{m.dueAt ? fmtDue(m.dueAt) : "No due date"} · Dates can’t be changed from this account.</span>
         )}
       </div>
 

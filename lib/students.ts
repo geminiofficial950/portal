@@ -26,6 +26,8 @@ type StudentDoc = {
   courseStatus?: CourseStatus; // older records: status of `course`
   passwordHash: string;
   createdAt: Date;
+  startDate?: string | null; // student's start / end date, YYYY-MM-DD (set when the student is created)
+  endDate?: string | null;
 };
 
 export type StudentCourse = { code: string; status: CourseStatus; enrolled: string };
@@ -40,6 +42,8 @@ export type StudentDTO = {
   progress: number;
   batchIds: string[];
   enrolled: string;
+  startDate: string | null;
+  endDate: string | null;
 };
 
 // The batches a record lists, older single `groupId` included
@@ -60,9 +64,16 @@ const toDTO = (d: StudentDoc): StudentDTO => ({
   progress: d.progress,
   batchIds: batchIdsOf(d),
   enrolled: formatDate(d.createdAt),
+  startDate: d.startDate ?? null,
+  endDate: d.endDate ?? null,
 });
 
 export const hasCourse = (s: StudentDTO, courseCode: string) => s.courses.some((c) => c.code === courseCode);
+
+// Withdrawn from a course = it stays on their record (and their work is kept) but they can't use it
+export const isWithdrawn = (s: StudentDTO, courseCode: string) => s.courses.some((c) => c.code === courseCode && c.status === "Withdrawn");
+export const canStudy = (s: StudentDTO, courseCode: string) => hasCourse(s, courseCode) && !isWithdrawn(s, courseCode);
+export const studyCodes = (s: StudentDTO) => s.courses.filter((c) => c.status !== "Withdrawn").map((c) => c.code);
 
 // The course to show when none is picked, or the picked one if the student has it
 export const pickCourse = (s: StudentDTO, courseCode?: string | null) =>
@@ -146,6 +157,8 @@ export async function createStudent(input: {
   courses: string[];
   password: string;
   studentId?: string;
+  startDate?: string | null;
+  endDate?: string | null;
 }) {
   const col = await collection();
   const doc: StudentDoc = {
@@ -160,6 +173,8 @@ export async function createStudent(input: {
     batchIds: [],
     passwordHash: await hash(input.password, 10),
     createdAt: new Date(),
+    startDate: input.startDate ?? null,
+    endDate: input.endDate ?? null,
   };
   try {
     await col.insertOne(doc);

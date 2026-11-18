@@ -16,7 +16,8 @@ import {
 } from "@/lib/deadlines";
 import { liveModules } from "@/lib/module-meta";
 import { notifyStudents } from "@/lib/student-notifications";
-import { getStudent, hasCourse } from "@/lib/students";
+import { getStudent, hasCourse, isWithdrawn } from "@/lib/students";
+import { WITHDRAWN_NOTE } from "@/lib/course-status";
 import { getWork } from "@/lib/submissions";
 import { trainerCanSee } from "@/lib/trainer-access";
 import { getUnitRecord } from "@/lib/unit-records";
@@ -41,6 +42,7 @@ export async function requestExtensionAction(courseCode: string, unitCode: strin
   const session = await requireStudent();
   const student = await getStudent(session.sub);
   if (!student || student.status !== "Active" || !hasCourse(student, courseCode)) return { ok: false, error: "This isn’t one of your courses." };
+  if (isWithdrawn(student, courseCode)) return { ok: false, error: WITHDRAWN_NOTE };
   // only while the unit itself is Active and opened (an extension can't open a unit)
   const access = unitAccess(await getUnitRecord(student.studentId, courseCode, unitCode));
   if (!access.open) return { ok: false, error: `${access.reason}. ${access.next}` };

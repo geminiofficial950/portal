@@ -43,7 +43,7 @@ export default function NotificationFeed({ items }: { items: FeedItem[] }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  if (!items.length) return <p className="rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm text-ink">No updates yet. Changes to your units will show here.</p>;
+  if (!items.length) return <p className="border-t border-[var(--s-line)] px-1 pt-3 text-sm text-ink/70">No new updates yet.</p>;
 
   return (
     <>

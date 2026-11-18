@@ -15,7 +15,7 @@ const subscribe = (onChange: () => void) => {
 const readTheme = () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
 // "menu": a sidebar row like Logout; "button": the pill button
-export default function ThemeToggle({ className = "", look = "button" }: { className?: string; look?: "button" | "menu" }) {
+export default function ThemeToggle({ className = "", look = "button" }: { className?: string; look?: "button" | "menu" | "icon" }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => null);
 
   const toggle = () => {
@@ -36,13 +36,15 @@ export default function ThemeToggle({ className = "", look = "button" }: { class
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
       className={`${
-        look === "menu"
+        look === "icon"
+          ? "grid h-10 w-10 place-items-center rounded-full bg-[var(--s-soft)] text-ink transition hover:bg-[var(--s-dark)] hover:text-white"
+          : look === "menu"
           ? "flex w-full items-center gap-3 rounded-lg px-1 py-2 text-sm text-white transition hover:text-white"
           : "flex h-11 items-center gap-2 rounded-full border border-ink/15 bg-lilac px-4 text-sm font-medium text-plum transition hover:bg-plum hover:text-white"
       } ${className} ${theme ? "opacity-100" : "opacity-0"}`}
     >
       {theme === "dark" ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
-      {theme === "dark" ? "Light mode" : "Dark mode"}
+      {look !== "icon" && (theme === "dark" ? "Light mode" : "Dark mode")}
     </button>
   );
 }

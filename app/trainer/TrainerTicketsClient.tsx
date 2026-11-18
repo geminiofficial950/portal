@@ -61,7 +61,7 @@ export default function TrainerTicketsClient({
 
       {!canHandle && (
         <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          Super Admin has turned off support handling for trainers — you can read requests but not reply or change them.
+          Support handling is turned off for trainers — you can read requests but not reply or change them.
         </p>
       )}
 

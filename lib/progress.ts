@@ -89,6 +89,7 @@ export async function listStudentsWithResults() {
         email: s.email,
         status: s.status,
         courseCodes: s.courses.map((c) => c.code),
+        withdrawn: s.courses.filter((c) => c.status === "Withdrawn").map((c) => c.code),
         units: perCourse.reduce((n, c) => n + c.units, 0),
         passed: perCourse.reduce((n, c) => n + c.passed, 0),
         graded: perCourse.reduce((n, c) => n + c.graded, 0),

@@ -40,7 +40,7 @@ export async function setUnitStatusAction(
 ): Promise<Result<{ record: FullUnitRecord }>> {
   const staff = await requireStaff();
   if (staff.role === "trainer") {
-    if (!(await getSettings()).trainerPermissions.markAssessments) return { ok: false, error: "Super Admin has turned off assessment marking for trainers." };
+    if (!(await getSettings()).trainerPermissions.markAssessments) return { ok: false, error: "Assessment marking is turned off for trainers." };
     if (!(await trainerCanSee(staff.id, studentId, unitCode))) return { ok: false, error: "You can only work on units assigned to you in this student’s current batch." };
   }
   const student = await getStudent(studentId);

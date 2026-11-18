@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
-import { addPlacementDocAction, removePlacementDocAction, savePlacementTextAction } from "../../../../actions/documents";
+import { addPlacementDocAction, listSignedCopiesAction, removePlacementDocAction, savePlacementTextAction } from "../../../../actions/documents";
 import { FileIcon, TrashIcon } from "../../../../dashboard/_components/icons";
 import UploadButton from "../../../../dashboard/_components/UploadButton";
-import { DOC_TITLE_MAX, PLACEMENT_DOC_TYPES, PLACEMENT_TEXT_MAX, sortPlacementDocs, type PlacementDocDTO } from "@/lib/document-meta";
+import { DOC_TITLE_MAX, docReviewStyle, PLACEMENT_DOC_TYPES, PLACEMENT_TEXT_MAX, sortPlacementDocs, type PlacementDocDTO, type SignedDocDTO } from "@/lib/document-meta";
+import LocalTime from "../../../../dashboard/assessment/_components/LocalTime";
 import { FILE_RULES } from "@/lib/submission-meta";
 import FileActions from "../../../../dashboard/_components/FileActions";
 
@@ -25,15 +26,25 @@ export default function PlacementAdmin({
   const [text, setText] = useState(initialText);
   const [savedText, setSavedText] = useState(initialText);
   const [docs, setDocs] = useState(() => sortPlacementDocs(initialDocs));
-  // Standard types not uploaded yet, then "Other" for anything else
-  const free = PLACEMENT_DOC_TYPES.filter((t) => !docs.some((d) => d.title === t));
+  // Every standard type stays in the list (a name can be used again), then "Other" for anything else
+  const free = PLACEMENT_DOC_TYPES;
   const [type, setType] = useState<string>(free[0] ?? "Other");
   const [otherName, setOtherName] = useState("");
   const [section, setSection] = useState<"placement" | "course">("placement");
   const [instructions, setInstructions] = useState("");
-  const pickedType = free.includes(type as (typeof free)[number]) || type === "Other" ? type : (free[0] ?? "Other");
+  const pickedType = (free as readonly string[]).includes(type) || type === "Other" ? type : (free[0] ?? "Other");
   const title = pickedType === "Other" ? otherName.trim() : pickedType;
   const [saving, startSaving] = useTransition();
+  // which form's signed copies are open, and what was loaded for it
+  const [openCopies, setOpenCopies] = useState<string | null>(null);
+  const [copies, setCopies] = useState<Record<string, (SignedDocDTO & { name: string })[]>>({});
+  const toggleCopies = async (docId: string) => {
+    if (openCopies === docId) return setOpenCopies(null);
+    setOpenCopies(docId);
+    const res = await listSignedCopiesAction(docId);
+    if (!res.ok) return void toast.error(res.error);
+    setCopies((c) => ({ ...c, [docId]: res.copies }));
+  };
 
   const saveText = () =>
     startSaving(async () => {
@@ -51,7 +62,6 @@ export default function PlacementAdmin({
     setDocs(next);
     setOtherName("");
     setInstructions("");
-    setType(PLACEMENT_DOC_TYPES.find((t) => !next.some((d) => d.title === t)) ?? "Other");
     toast.success(`“${res.doc.title}” added`);
   };
 
@@ -157,7 +167,8 @@ export default function PlacementAdmin({
         ) : (
           <ul className="divide-y divide-ink/10 overflow-hidden rounded-xl border border-ink/10">
             {docs.map((d) => (
-              <li key={d.docId} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <li key={d.docId} className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3">
                 <FileIcon className="h-5 w-5 shrink-0 text-plum" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-ink">
@@ -168,9 +179,18 @@ export default function PlacementAdmin({
                   <span className="block truncate text-xs text-ink">{d.file.name}</span>
                 </span>
                 <FileActions file={d.file} title={d.title} size="sm" />
-                <span className="rounded-full bg-lilac px-3 py-1 text-xs font-medium text-ink">
-                  {signedCounts[d.docId] ?? 0} signed cop{(signedCounts[d.docId] ?? 0) === 1 ? "y" : "ies"} uploaded
-                </span>
+                {(signedCounts[d.docId] ?? 0) > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleCopies(d.docId)}
+                    aria-expanded={openCopies === d.docId}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${openCopies === d.docId ? "bg-plum text-white" : "bg-lilac text-plum hover:bg-plum hover:text-white"}`}
+                  >
+                    {signedCounts[d.docId]} signed cop{signedCounts[d.docId] === 1 ? "y" : "ies"} uploaded {openCopies === d.docId ? "▴" : "▾"}
+                  </button>
+                ) : (
+                  <span className="rounded-full bg-lilac px-3 py-1 text-xs font-medium text-ink">0 signed copies uploaded</span>
+                )}
                 <button
                   onClick={() => remove(d)}
                   disabled={saving}
@@ -179,6 +199,54 @@ export default function PlacementAdmin({
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
+                </div>
+
+                {/* who uploaded this form: each student with their files to view or download */}
+                {openCopies === d.docId && (
+                  <div className="mt-3 rounded-xl bg-[#f6f5fa] p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+                      <span className="text-sm font-semibold text-ink">Signed copies</span>
+                      <a
+                        href={`/api/placement/${encodeURIComponent(d.docId)}/zip`}
+                        download
+                        className="rounded-full bg-plum px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-plum-light"
+                      >
+                        Download all (ZIP)
+                      </a>
+                    </div>
+                    {!copies[d.docId] ? (
+                      <p className="px-1 py-2 text-sm text-ink">Loading…</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {copies[d.docId].map((c) => (
+                          <li key={c.studentId} className="rounded-lg bg-white px-3 py-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-ink">{c.name}</span>
+                              <span className="font-mono text-xs text-ink">{c.studentId}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${docReviewStyle[c.review.status]}`}>{c.review.status}</span>
+                              <span className="text-xs text-ink">
+                                {c.uploads.length} file{c.uploads.length === 1 ? "" : "s"}
+                              </span>
+                            </div>
+                            <ul className="mt-2 space-y-1.5">
+                              {/* in the order the student uploaded them: 1 = first */}
+                              {c.uploads.map((u, i) => (
+                                <li key={u.file.id} className="flex flex-wrap items-center gap-2">
+                                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-lilac text-xs font-bold text-plum">{i + 1}</span>
+                                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{u.file.name}</span>
+                                  <span className="text-xs text-ink">
+                                    <LocalTime iso={u.uploadedAt} />
+                                  </span>
+                                  <FileActions file={u.file} title={`${d.title} — ${c.name}`} size="sm" />
+                                </li>
+                              ))}
+                            </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

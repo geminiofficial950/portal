@@ -93,7 +93,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: P
 
       <section className="rounded-[1.75rem] border border-ink/5 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)] sm:p-6">
         <h2 className="text-lg font-medium text-ink">What trainers can do</h2>
-        <p className="mt-0.5 text-xs text-ink">Super Admin can always do everything. Students only see their own portal.</p>
+        <p className="mt-0.5 text-xs text-ink">Students only see their own portal.</p>
         <ul className="mt-2 grid gap-x-10 divide-y divide-ink/5 sm:grid-cols-2 sm:divide-y-0">
           {PERMISSIONS.map((p) => (
             <li key={p.key} className="flex items-center justify-between gap-4 py-4 sm:border-b sm:border-ink/5">

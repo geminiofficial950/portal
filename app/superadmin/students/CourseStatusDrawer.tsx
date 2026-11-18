@@ -15,11 +15,14 @@ import { initials } from "@/lib/format";
 import type { StudentLogDTO } from "@/lib/student-logs";
 
 // What a status change does — said plainly. Course status is the student's standing in the course; unit access is
-// still decided by each unit's own status and opening (LMS guide), so we never claim it pauses access by itself.
+// still decided by each unit's own status and opening (LMS guide) — except Withdrawn, which closes the whole course
+// for the student (lib/students.ts canStudy).
 const effect = (to: CourseStatus) =>
   to === "Active"
     ? "The course shows as Active again. Units open and close as before. Other course enrolments and account login stay unchanged."
-    : `The course shows as ${to} to the student and staff. Units keep their own status and opening. Other course enrolments and account login stay unchanged.`;
+    : to === "Withdrawn"
+      ? "This course closes for the student: they can't open its units, take quizzes, upload work or placement forms, open its files or join its classes. Their work, results and history are kept, and setting the course back to Active opens it again. Trainers see the student marked Withdrawn. Other courses and account login stay unchanged."
+      : `The course shows as ${to} to the student and staff. Units keep their own status and opening. Other course enrolments and account login stay unchanged.`;
 
 // Side panel: change one course's status for one student, with a required reason and a confirmation tick.
 // Shared by the Students table (Manage) and the student's own page. `children` = extra sections (batch, account).
@@ -29,6 +32,8 @@ export default function CourseStatusDrawer({
   current,
   onClose,
   onSaved,
+  courseChoices,
+  onPickCourse,
   children,
 }: {
   student: { studentId: string; name: string };
@@ -36,6 +41,9 @@ export default function CourseStatusDrawer({
   current: CourseStatus;
   onClose: () => void;
   onSaved: (status: CourseStatus, change: StudentLogDTO) => void;
+  // the student's courses: with two or more, "Selected course" is a dropdown to pick which one to change
+  courseChoices?: { code: string; name: string; status: CourseStatus }[];
+  onPickCourse?: (code: string) => void;
   children?: ReactNode;
 }) {
   const [next, setNext] = useState<CourseStatus>(current);
@@ -104,13 +112,44 @@ export default function CourseStatusDrawer({
 
         <div className="space-y-1.5">
           <p className="text-sm font-semibold text-ink">Selected course</p>
-          <div className="rounded-xl bg-lilac/60 px-4 py-3">
-            <p className="font-semibold text-ink">{course.name}</p>
-            <p className="text-sm text-ink">
-              {course.code}
-              {course.detail ? ` · ${course.detail}` : ""}
-            </p>
-          </div>
+          {courseChoices && courseChoices.length > 1 && onPickCourse ? (
+            // one card per course; the full name wraps, so nothing is cut off
+            <div role="radiogroup" aria-label="Course to manage" className="space-y-2">
+              {courseChoices.map((c) => {
+                const on = c.code === course.code;
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    aria-label={`Manage course ${c.code}`}
+                    onClick={() => !on && onPickCourse(c.code)}
+                    className={`flex w-full items-start gap-3 rounded-xl px-4 py-3 text-left transition ${on ? "bg-lilac ring-2 ring-plum" : "bg-white ring-1 ring-ink/15 hover:bg-lilac/50"}`}
+                  >
+                    <span className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${on ? "border-plum" : "border-ink/40"}`}>
+                      {on && <span className="h-2 w-2 rounded-full bg-plum" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-ink">{c.name}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink">
+                        {c.code}
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${courseStatusStyle[c.status]}`}>{c.status}</span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-lilac/60 px-4 py-3">
+              <p className="font-semibold text-ink">{course.name}</p>
+              <p className="text-sm text-ink">
+                {course.code}
+                {course.detail ? ` · ${course.detail}` : ""}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -141,42 +180,50 @@ export default function CourseStatusDrawer({
           </select>
         </label>
 
-        <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-ink">
-            Reason for change <span className="text-rose-700">*</span>
-          </span>
-          <textarea
-            value={reason}
-            maxLength={COURSE_STATUS_REASON_MAX}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="e.g. Student requested a temporary study break."
-            className={`${field} resize-y`}
-          />
-        </label>
-
-        {changed && (
-          <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-            <p className="font-semibold text-ink">Review before saving</p>
-            <p className="text-sm text-ink">
-              {current} → {next}. {effect(next)}
-            </p>
-          </div>
+        {!changed && (
+          <p className="text-sm text-ink">
+            Choose a different status above to change it.
+          </p>
         )}
 
-        <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            disabled={!changed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-plum"
-          />
-          I confirm this change applies to the selected course.
-        </label>
-        <p className="text-sm text-ink">
-          Changes are recorded with your name, date and reason.
-        </p>
+        {/* Reason and confirmation only when the status is actually being changed */}
+        {changed && (
+          <>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold text-ink">
+                Reason for change <span className="text-rose-700">*</span>
+              </span>
+              <textarea
+                value={reason}
+                maxLength={COURSE_STATUS_REASON_MAX}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Student requested a temporary study break."
+                className={`${field} resize-y`}
+              />
+            </label>
+
+            <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="font-semibold text-ink">Review before saving</p>
+              <p className="text-sm text-ink">
+                {current} → {next}. {effect(next)}
+              </p>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-plum"
+              />
+              I confirm this change applies to the selected course.
+            </label>
+            <p className="text-sm text-ink">
+              Changes are recorded with your name, date and reason.
+            </p>
+          </>
+        )}
 
         {children}
       </div>

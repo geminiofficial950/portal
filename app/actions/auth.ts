@@ -18,7 +18,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (!username || !password) return { error: "Enter your ID and password.", username };
 
   if (isSuperAdmin(username, password)) {
-    await createSession({ sub: SUPER_ADMIN_ID, role: "admin", name: "Super Admin" });
+    await createSession({ sub: SUPER_ADMIN_ID, role: "admin", name: "Admin" });
     redirect("/superadmin");
   }
 
@@ -32,7 +32,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   if (adminLogin) {
     if (!adminLogin.ok) {
-      return { error: adminLogin.reason === "inactive" ? "Your admin access is switched off. Please contact Super Admin." : "Wrong ID or password.", username };
+      return { error: adminLogin.reason === "inactive" ? "Your admin access is switched off. Please contact the college." : "Wrong ID or password.", username };
     }
     await createSession({ sub: adminLogin.admin.adminId, role: "admin", name: adminLogin.admin.name });
     redirect("/admin"); // Admin accounts see the admin pages under /admin (proxy.ts)

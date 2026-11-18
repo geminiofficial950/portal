@@ -57,9 +57,22 @@ const now = () => (offset === null ? null : Math.floor((offset + performance.now
 const serverNow = () => null;
 
 // Live Melbourne time, shown in the portal header for every role
-export default function MelbourneClock() {
+export default function MelbourneClock({ student = false }: { student?: boolean }) {
   const seconds = useSyncExternalStore(subscribe, now, serverNow);
   const c = seconds === null ? null : melbourneClock(seconds * 1000);
+  if (student) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--s-line)] bg-[var(--s-card)] px-3 py-1.5 text-ink" data-clock-seconds={seconds ?? undefined}>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--s-icon)]">
+          <ClockIcon aria-hidden="true" className="h-4 w-4" />
+        </span>
+        <div className="leading-tight">
+          <p className="text-xs text-ink/75">Melbourne time</p>
+          <p className="text-sm font-semibold tabular-nums">{c?.time ?? "?"} <span className="hidden font-normal text-ink/75 sm:inline">{c ? "? " + c.date : ""}</span></p>
+        </div>
+      </div>
+    );
+  }
   return (
     <p
       className="inline-flex min-h-9 items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-1.5 text-sm text-ink shadow-sm"

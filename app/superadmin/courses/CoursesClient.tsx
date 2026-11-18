@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { ArrowRightIcon, BoxIcon, ClockIcon, PlusIcon, TrashIcon } from "../../dashboard/_components/icons";
 import { createCourseAction, deleteCourseAction, setPlacementHoursAction, updateCourseAction } from "./actions";
 import { COURSE_LIMITS, COURSE_UNITS_MAX, UNIT_TITLE_MAX } from "@/lib/course-meta";
-import { PLACEMENT_HOURS_MAX } from "@/lib/course-status";
+import { PLACEMENT_HOURS_MAX, PLACEMENT_NOTE_MAX, placementHoursLabel } from "@/lib/course-status";
 import type { CourseDTO, Unit } from "@/lib/courses";
 import type { AssessmentSummary } from "@/lib/assessment-meta";
 import type { UnitContentSummary } from "@/lib/unit-content";
@@ -221,7 +221,7 @@ export default function CoursesClient({
             <CourseDetails course={c} onSaved={(d) => setCourses((list) => list.map((x) => (x.code === c.code ? { ...x, ...d } : x)))} />
             <PlacementHours
               course={c}
-              onSaved={(hours) => setCourses((list) => list.map((x) => (x.code === c.code ? { ...x, placementHours: hours } : x)))}
+              onSaved={(hours, note) => setCourses((list) => list.map((x) => (x.code === c.code ? { ...x, placementHours: hours, placementHoursNote: note } : x)))}
             />
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/5 pt-4">
@@ -280,20 +280,22 @@ export default function CoursesClient({
 }
 
 // Work placement hours for a course (shown to its students on the Course page)
-function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hours: number | null) => void }) {
+function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hours: number | null, note: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(course.placementHours?.toString() ?? "");
+  const [note, setNote] = useState(course.placementHoursNote);
   const [saving, startSaving] = useTransition();
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     const hours = value.trim() === "" ? null : Number(value);
     startSaving(async () => {
-      const res = await setPlacementHoursAction(course.code, hours);
+      const res = await setPlacementHoursAction(course.code, hours, note);
       if (!res.ok) return void toast.error(res.error);
-      onSaved(res.hours);
+      onSaved(res.hours, res.note);
       setEditing(false);
-      toast.success(`${course.code}: work placement ${res.hours === null ? "cleared" : `set to ${res.hours} hours`}`);
+      const label = placementHoursLabel(res.hours, res.note);
+      toast.success(`${course.code}: work placement ${label ? `set to ${label}` : "cleared"}`);
     });
   };
 
@@ -301,7 +303,7 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
     return (
       <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink">
         <span className="font-medium text-ink">Work placement:</span>
-        {course.placementHours === null ? "not set" : `${course.placementHours} hours`}
+        {placementHoursLabel(course.placementHours, course.placementHoursNote) ?? "not set"}
         <button onClick={() => setEditing(true)} className="font-medium text-plum hover:underline">
           {course.placementHours === null ? "Set hours" : "Change"}
         </button>
@@ -311,6 +313,14 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
 
   return (
     <form onSubmit={save} className="mt-3 flex flex-wrap items-center gap-2">
+      <input
+        value={note}
+        maxLength={PLACEMENT_NOTE_MAX}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="e.g. Minimum, Maximum, At least"
+        aria-label={`Placement hours note for ${course.code}`}
+        className="w-52 rounded-lg bg-white px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/40"
+      />
       <input
         type="number"
         min={0}
@@ -335,7 +345,7 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
 }
 
 // The course description (students see it on their course page), and the other details, edited in place
-function CourseDetails({ course, onSaved }: { course: CourseDTO; onSaved: (d: Omit<CourseDTO, "code" | "units" | "placementHours" | "placementText">) => void }) {
+function CourseDetails({ course, onSaved }: { course: CourseDTO; onSaved: (d: Omit<CourseDTO, "code" | "units" | "placementHours" | "placementHoursNote" | "placementText">) => void }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: course.name, category: course.category, duration: course.duration, description: course.description });
   const [saving, startSaving] = useTransition();

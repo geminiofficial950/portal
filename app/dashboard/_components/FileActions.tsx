@@ -25,11 +25,13 @@ export default function FileActions({
   size = "md",
   downloadLabel = "Download",
   view = true,
+  neutralDownload = false,
 }: {
   file: FileRef;
   title?: string;
   size?: keyof typeof SIZES;
   downloadLabel?: string;
+  neutralDownload?: boolean;
   view?: boolean; // false: only Download (e.g. the student's course documents and placement pack)
 }) {
   const [open, setOpen] = useState(false);
@@ -52,7 +54,7 @@ export default function FileActions({
           View
         </button>
       )}
-      <a href={`/api/files/${file.id}`} className={`${btn} bg-plum text-white hover:bg-plum-light`}>
+      <a href={`/api/files/${file.id}`} className={`${btn} ${neutralDownload ? "border border-[var(--s-line)] bg-[var(--s-soft)] text-ink hover:bg-[var(--s-icon)]" : "bg-plum text-white hover:bg-plum-light"}`}>
         {downloadLabel}
       </a>
       {open &&

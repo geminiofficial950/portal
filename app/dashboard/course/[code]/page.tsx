@@ -5,7 +5,7 @@ import { listHiddenUnits } from "@/lib/hidden-units";
 import { listUnitRecords } from "@/lib/unit-records";
 import { unitAccess } from "@/lib/unit-status-meta";
 import { logStudent } from "@/lib/student-logs";
-import { getStudent, hasCourse } from "@/lib/students";
+import { getStudent, hasCourse, isWithdrawn } from "@/lib/students";
 
 // "Go to my course" → open the first unlocked unit in the player (or the first unit, which shows as locked)
 export default async function OpenCoursePage(props: PageProps<"/dashboard/course/[code]">) {
@@ -14,6 +14,7 @@ export default async function OpenCoursePage(props: PageProps<"/dashboard/course
   const student = await getStudent(session.sub);
   const course = student && hasCourse(student, code) ? await getCourse(code) : null;
   if (!student || !course) notFound();
+  if (isWithdrawn(student, course.code)) redirect("/dashboard/course"); // closed: the course card says Withdrawn
 
   await logStudent({ studentId: student.studentId, studentName: student.name, courseCode: course.code, action: "Opened course", detail: course.name }, 30);
   const [hidden, records] = await Promise.all([listHiddenUnits(student.studentId, course.code), listUnitRecords(student.studentId, course.code)]);

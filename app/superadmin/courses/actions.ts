@@ -10,7 +10,8 @@ import { deleteAssessment } from "@/lib/assessments";
 import { deleteUploads } from "@/lib/files";
 import { deleteUnitContent } from "@/lib/unit-content";
 import { addUnit, createCourse, deleteCourse, DuplicateCourseError, removeUnit, setPlacementHours, updateCourseDetails, type CourseDTO, type Unit } from "@/lib/courses";
-import { PLACEMENT_HOURS_MAX } from "@/lib/course-status";
+import { PLACEMENT_HOURS_MAX, PLACEMENT_NOTE_MAX } from "@/lib/course-status";
+import { editUnit } from "@/lib/unit-rename";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -31,17 +32,36 @@ export async function addUnitAction(courseCode: string, input: Unit): Promise<Re
   return { ok: true, unit };
 }
 
+// Fix a unit's code or name (e.g. a typo). The code only changes while no student has records in the unit.
+export async function editUnitAction(courseCode: string, fromCode: string, input: Unit): Promise<Result<{ unit: Unit }>> {
+  await requireAdmin();
+  const code = checkCode(input?.code, "Unit");
+  if ("error" in code) return { ok: false, error: code.error };
+  const unit = { code: code.code, title: String(input?.title ?? "").trim().replace(/\s+/g, " ") };
+  if (!unit.title) return { ok: false, error: "Enter the unit name." };
+  const res = await editUnit(courseCode, String(fromCode), unit);
+  if (res === "not-found") return { ok: false, error: "Unit not found." };
+  if (res === "duplicate") return { ok: false, error: `${unit.code} is already in this course.` };
+  if (res === "has-records") return { ok: false, error: `Students already have records in ${fromCode}, so its code can’t change. You can still fix the name.` };
+  await logActivity(await adminActor(), `edited unit ${fromCode}${unit.code !== fromCode ? ` → ${unit.code}` : ""} (${unit.title}) in ${courseCode}`, "course");
+  revalidatePath("/superadmin", "layout");
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/trainer", "layout");
+  return { ok: true, unit };
+}
+
 // Work placement hours shown on the student's Course page; null clears it
-export async function setPlacementHoursAction(courseCode: string, hours: number | null): Promise<Result<{ hours: number | null }>> {
+export async function setPlacementHoursAction(courseCode: string, hours: number | null, noteIn = ""): Promise<Result<{ hours: number | null; note: string }>> {
   await requireAdmin();
   if (hours !== null && (!Number.isInteger(hours) || hours < 0 || hours > PLACEMENT_HOURS_MAX)) {
     return { ok: false, error: `Placement hours must be a whole number from 0 to ${PLACEMENT_HOURS_MAX}.` };
   }
-  if (!(await setPlacementHours(courseCode, hours))) return { ok: false, error: "Course not found." };
+  const note = String(noteIn ?? "").trim().replace(/\s+/g, " ").slice(0, PLACEMENT_NOTE_MAX);
+  if (!(await setPlacementHours(courseCode, hours, note))) return { ok: false, error: "Course not found." };
   await logActivity(await adminActor(), `set work placement hours for ${courseCode}`, "course");
   revalidatePath("/superadmin/courses");
   revalidatePath("/dashboard/course");
-  return { ok: true, hours };
+  return { ok: true, hours, note };
 }
 
 // Super Admin and Admins can add a course

@@ -13,7 +13,7 @@ import { unitAccess, unitStatusStyle } from "@/lib/unit-status-meta";
 export default async function TrainingPlan({ student }: { student: StudentDTO }) {
   const courses = (
     await Promise.all(
-      student.courses.map(async (c) => {
+      student.courses.filter((c) => c.status !== "Withdrawn").map(async (c) => {
         const [course, hidden, records, dues, subs] = await Promise.all([
           getCourse(c.code),
           listHiddenUnits(student.studentId, c.code),

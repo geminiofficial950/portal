@@ -2,8 +2,8 @@
 
 export const SWITCHES = [
   { key: "registrations", label: "Allow new enrolments", hint: "Students can sign up and request a course." },
-  { key: "proctoring", label: "Photo on submit", hint: "Students take a photo with their camera when they submit an assessment. Only Super Admin sees it." },
-  { key: "emailAlerts", label: "Email alerts for new tickets", hint: "Super Admin gets an email when a student raises a ticket." },
+  { key: "proctoring", label: "Photo on submit", hint: "Students take a photo with their camera when they submit an assessment. Students and trainers don’t see it." },
+  { key: "emailAlerts", label: "Email alerts for new tickets", hint: "The college admin email gets a message when a student raises a ticket." },
   { key: "mailCourseUpdates", label: "Email students: new course or unit", hint: "A student gets a short “You have 1 new update” email with a Login button when they’re enrolled in a course or a unit is opened for them." },
   { key: "mailFeedback", label: "Email students: feedback", hint: "A student gets the same short email when a trainer publishes feedback on their work." },
   { key: "mailStaffCourseUpdates", label: "Email admins & trainers: new course or unit", hint: "Admin accounts and the student’s batch trainers get the same short email (counted, e.g. “2 new updates”) when a student is enrolled or a unit is opened." },

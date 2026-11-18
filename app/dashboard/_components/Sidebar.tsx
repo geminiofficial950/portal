@@ -83,7 +83,7 @@ const variants = {
 // Full screen: hides the purple menu so the white page fills the screen (desktop). Remembered in this browser.
 const FULL_KEY = "portal-full";
 const FULL_EVENT = "portal-full-change";
-const subscribeFull = (cb: () => void) => {
+export const subscribeFull = (cb: () => void) => {
   window.addEventListener(FULL_EVENT, cb);
   window.addEventListener("storage", cb);
   return () => {
@@ -91,14 +91,14 @@ const subscribeFull = (cb: () => void) => {
     window.removeEventListener("storage", cb);
   };
 };
-const readFull = () => {
+export const readFull = () => {
   try {
     return localStorage.getItem(FULL_KEY) === "1";
   } catch {
     return false;
   }
 };
-const setFull = (on: boolean) => {
+export const setFull = (on: boolean) => {
   try {
     localStorage.setItem(FULL_KEY, on ? "1" : "0");
   } catch {

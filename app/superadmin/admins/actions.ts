@@ -25,7 +25,7 @@ export async function addAdminAction(input: {
 
   try {
     const admin = await createAdmin({ name, email, password: input.password });
-    await logActivity("Super Admin", `added admin ${admin.name} (${admin.adminId})`, "settings");
+    await logActivity("Admin", `added admin ${admin.name} (${admin.adminId})`, "settings");
     revalidatePath("/superadmin", "layout");
     return { ok: true, admin };
   } catch (err) {
@@ -39,7 +39,7 @@ export async function setAdminActiveAction(adminId: string, active: boolean): Pr
   await requireSuperAdmin();
   const doc = await setAdminActive(adminId, active);
   if (!doc) return { ok: false, error: "Admin not found." };
-  await logActivity("Super Admin", `${active ? "turned on" : "switched off"} admin access for ${doc.name}`, "settings");
+  await logActivity("Admin", `${active ? "turned on" : "switched off"} admin access for ${doc.name}`, "settings");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
 }
@@ -49,7 +49,7 @@ export async function resetAdminPasswordAction(adminId: string, password: string
   if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
   const found = await resetAdminPassword(adminId, password);
   if (!found) return { ok: false, error: "Admin not found." };
-  await logActivity("Super Admin", `reset the password for ${adminId}`, "settings");
+  await logActivity("Admin", `reset the password for ${adminId}`, "settings");
   return { ok: true };
 }
 
@@ -57,7 +57,7 @@ export async function deleteAdminAction(adminId: string): Promise<Result> {
   await requireSuperAdmin();
   const doc = await deleteAdmin(adminId);
   if (!doc) return { ok: false, error: "Admin not found." };
-  await logActivity("Super Admin", `removed admin ${doc.name}`, "settings");
+  await logActivity("Admin", `removed admin ${doc.name}`, "settings");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
 }

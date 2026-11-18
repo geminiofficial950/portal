@@ -13,6 +13,7 @@ export default async function BatchesPage() {
       courses={courses.map((c) => ({ code: c.code, name: c.name }))}
       trainers={trainers.filter((t) => t.active).map((t) => ({ trainerId: t.trainerId, name: t.name }))}
       base={admin.isSuper ? "/superadmin/batches" : "/admin/batches"}
+      showDates={admin.isSuper}
     />
   );
 }

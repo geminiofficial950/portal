@@ -121,7 +121,7 @@ export default function MarkingInbox({
 
       {!canMark && (
         <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-900">
-          Super Admin has turned off assessment marking for trainers, so you can view work but not mark it.
+          Assessment marking is turned off for trainers, so you can view work but not mark it.
         </p>
       )}
 

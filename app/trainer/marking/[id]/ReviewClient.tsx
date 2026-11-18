@@ -257,7 +257,7 @@ export default function ReviewClient({
               </button>
             </div>
           ) : (
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Super Admin has turned off marking for trainers.</p>
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Marking is turned off for trainers.</p>
           )}
         </aside>
       </div>

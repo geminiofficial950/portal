@@ -11,7 +11,6 @@ import {
   cleanLine,
   DOC_NOTE_MAX,
   DOC_TITLE_MAX,
-  PLACEMENT_DOC_TYPES,
   PLACEMENT_TEXT_MAX,
   type DocumentRequestDTO,
   type PlacementDocDTO,
@@ -25,7 +24,7 @@ import {
   fulfilRequest,
   getPlacementDoc,
   getRequest,
-  listPlacementDocs,
+  listSignedForDoc,
   addSignedDoc,
   removePlacementDoc,
   reviewRequest,
@@ -33,7 +32,8 @@ import {
   TooManySignedError,
 } from "@/lib/documents";
 import { ownedUploads } from "@/lib/files";
-import { getStudent, hasCourse } from "@/lib/students";
+import { getStudent, hasCourse, isWithdrawn } from "@/lib/students";
+import { WITHDRAWN_NOTE } from "@/lib/course-status";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -58,12 +58,7 @@ export async function addPlacementDocAction(
   if (!(await getCourse(courseCode))) return { ok: false, error: "Course not found." };
   const section = extra.section === "course" ? "course" : "placement";
   const instructions = String(extra.instructions ?? "").trim().slice(0, DOC_NOTE_MAX);
-  // Each document name is used once per course
-  const existing = await listPlacementDocs([courseCode]);
-  if (existing.some((d) => d.title.toLowerCase() === title.toLowerCase())) {
-    const standard = PLACEMENT_DOC_TYPES.some((t) => t.toLowerCase() === title.toLowerCase());
-    return { ok: false, error: `${title} is already uploaded${standard ? " — remove it first to upload a new one" : ". Use a different name"}.` };
-  }
+  // The same document name can be used more than once (asked 18 Nov 2026): each upload is its own form
   const [file] = await ownedUploads([String(fileId)], session.sub);
   if (!file) return { ok: false, error: "Upload the document first." };
   const doc = await addPlacementDoc(courseCode, title, file, { section, instructions });
@@ -160,6 +155,7 @@ export async function uploadSignedDocAction(docId: string, fileId: string): Prom
   if (!student) return { ok: false, error: "Your account isn’t active." };
   const doc = await getPlacementDoc(docId);
   if (!doc || !hasCourse(student, doc.courseCode)) return { ok: false, error: "This document isn’t for your course." };
+  if (isWithdrawn(student, doc.courseCode)) return { ok: false, error: WITHDRAWN_NOTE };
   if (doc.section === "course") return { ok: false, error: "This course document is for reading only." };
   const [file] = await ownedUploads([String(fileId)], student.studentId);
   if (!file) return { ok: false, error: "Your file didn’t upload — try again." };
@@ -189,4 +185,14 @@ export async function uploadRequestedDocAction(requestId: string, fileId: string
   await logStudent({ studentId: student.studentId, studentName: student.name, action: "Uploaded requested document", detail: `${request.name} · ${file.name}` });
   refresh(student.studentId);
   return { ok: true, request: saved };
+}
+
+/** Admin: who uploaded a placement form — each student's name, ID, files and review status, newest upload first */
+export async function listSignedCopiesAction(docId: string): Promise<Result<{ copies: (SignedDocDTO & { name: string })[] }>> {
+  await requireAdmin();
+  const copies = await listSignedForDoc(String(docId));
+  const named = await Promise.all(copies.map(async (c) => ({ ...c, name: (await getStudent(c.studentId))?.name ?? c.studentId })));
+  const latest = (c: SignedDocDTO) => c.uploads.reduce((m, u) => (u.uploadedAt > m ? u.uploadedAt : m), "");
+  named.sort((a, b) => latest(b).localeCompare(latest(a)));
+  return { ok: true, copies: named };
 }

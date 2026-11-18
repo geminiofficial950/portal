@@ -52,18 +52,21 @@ export async function createBatchAction(input: {
   startDate?: string;
   endDate?: string;
   timezone?: string;
-  trainerId?: string; // optional: first trainer, for every unit
+  trainerId?: string; // older form: one trainer, for every unit
+  trainerIds?: string[]; // optional: one or more trainers, each for every unit
 }): Promise<Result<{ batch: BatchDTO }>> {
   const admin = await requireAdmin();
   const name = checkBatchName(input?.name);
   if ("error" in name) return { ok: false, error: name.error };
-  const details = checkBatchDetails(input ?? {});
+  // planned start / end dates: Super Admin only (an Admin account creates the batch without them)
+  const details = checkBatchDetails(admin.isSuper ? (input ?? {}) : { ...input, startDate: "", endDate: "" });
   if (!details.ok) return details;
   const course = await getCourse(String(input?.courseCode ?? ""));
   if (!course) return { ok: false, error: "Choose the course this batch is for." };
   const units = course.units.map((u) => u.code);
-  const trainers = input?.trainerId ? checkTrainerAssignments([{ trainerId: input.trainerId, unitCodes: units }], units, await activeTrainerIds()) : [];
-  if (input?.trainerId && !trainers.length) return { ok: false, error: "That trainer isn’t active." };
+  const picked = [...new Set([...(Array.isArray(input?.trainerIds) ? input.trainerIds : []), ...(input?.trainerId ? [input.trainerId] : [])].map(String).filter(Boolean))];
+  const trainers = picked.length ? checkTrainerAssignments(picked.map((trainerId) => ({ trainerId, unitCodes: units })), units, await activeTrainerIds()) : [];
+  if (trainers.length !== picked.length) return { ok: false, error: picked.length > 1 ? "One of the chosen trainers isn’t active." : "That trainer isn’t active." };
   try {
     const batch = await createBatch({ name: name.name, ...details.value, courseCode: course.code, units, trainers });
     await logActivity(admin.label, `created the batch ${batch.name} for ${course.code}`, "student");
@@ -82,10 +85,13 @@ export async function updateBatchDetailsAction(
   const admin = await requireAdmin();
   const name = checkBatchName(input?.name);
   if ("error" in name) return { ok: false, error: name.error };
-  const details = checkBatchDetails(input ?? {});
+  const details = checkBatchDetails(admin.isSuper ? (input ?? {}) : { ...input, startDate: "", endDate: "" });
   if (!details.ok) return details;
+  // an Admin account never sees the dates, so its save leaves them as they are
+  const { code, timezone } = details.value;
+  const patch = admin.isSuper ? { name: name.name, ...details.value } : { name: name.name, code, timezone };
   try {
-    if (!(await updateBatch(String(batchId), { name: name.name, ...details.value }))) return { ok: false, error: "Batch not found." };
+    if (!(await updateBatch(String(batchId), patch))) return { ok: false, error: "Batch not found." };
   } catch (err) {
     if (err instanceof DuplicateBatchError) return { ok: false, error: "A batch with this name already exists." };
     throw err;

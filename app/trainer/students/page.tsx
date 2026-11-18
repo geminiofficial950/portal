@@ -52,7 +52,14 @@ export default async function TrainerStudentsPage() {
                         </span>
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-xs font-semibold text-plum">{s.courseCodes.join(", ")}</td>
+                    <td className="px-5 py-3.5 text-xs font-semibold text-plum">
+                      {s.courseCodes.map((code) => (
+                        <span key={code} className="block">
+                          {code}
+                          {s.withdrawn.includes(code) && <span className="ml-1.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800">Withdrawn</span>}
+                        </span>
+                      ))}
+                    </td>
                     <td className="px-5 py-3.5 text-xs text-ink">
                       {batchesOf(s.studentId).map((b) => (
                         <span key={b.batchId} className="block">

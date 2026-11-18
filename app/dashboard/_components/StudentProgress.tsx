@@ -88,7 +88,7 @@ export default function StudentProgress({
 
       {!canGrade && (
         <p className="rounded-2xl bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          Super Admin has turned off assessment marking for trainers, so you can view statuses but not change them.
+          Assessment marking is turned off for trainers, so you can view statuses but not change them.
         </p>
       )}
 

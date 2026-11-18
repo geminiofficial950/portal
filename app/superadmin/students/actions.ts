@@ -24,6 +24,7 @@ import {
   type StudentDTO,
   type StudentStatus,
 } from "@/lib/students";
+import { getStudentProgress, type StudentProgressDTO } from "@/lib/progress";
 import { logStudent, type StudentLogDTO } from "@/lib/student-logs";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -47,6 +48,8 @@ export async function createStudentAction(input: {
   password: string;
   studentId?: string; // blank = next S-number
   batchIds?: string[]; // optional: a batch for any of the chosen courses (one per course)
+  startDate: string; // required, YYYY-MM-DD
+  endDate: string;
 }): Promise<Result<{ student: StudentDTO }>> {
   const admin = await requireAdmin();
 
@@ -57,6 +60,10 @@ export async function createStudentAction(input: {
   if ("error" in courses) return { ok: false, error: courses.error };
   if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email." };
   if (input.password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+  if (!isDay(input.startDate)) return { ok: false, error: "Enter the student’s start date." };
+  if (!isDay(input.endDate)) return { ok: false, error: "Enter the student’s end date." };
+  if (input.endDate < input.startDate) return { ok: false, error: "The end date must be after the start date." };
 
   // batches picked while enrolling: each must exist and belong to one of the chosen courses, one per course
   const picked = [...new Set((Array.isArray(input.batchIds) ? input.batchIds : []).map(String).filter(Boolean))];
@@ -74,7 +81,7 @@ export async function createStudentAction(input: {
   }
 
   try {
-    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId });
+    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId, startDate: input.startDate, endDate: input.endDate });
     await logActivity(student.name, `was enrolled in ${courses.codes.join(", ")} (${student.studentId})`, "student");
     if (batches.length) {
       await setStudentBatches(student.studentId, picked);
@@ -163,6 +170,45 @@ export async function setStudentCoursesAction(studentId: string, codesIn: string
   const added = courses.codes.filter((c) => !before.has(c));
   if (added.length) await mailUpdates({ studentIds: [studentId], kind: "course", courseCodes: added }); // enrolled in a new course
   await logActivity(await adminActor(), `set ${studentId}’s courses to ${courses.codes.join(", ")}`, "student");
+  revalidatePath("/superadmin", "layout");
+  revalidatePath("/trainer", "layout");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+// Admin: one course's units, results and dates for a student (shown in the profile's View popup)
+export async function getCourseProgressAction(studentId: string, courseCode: string): Promise<Result<{ progress: StudentProgressDTO }>> {
+  await requireAdmin();
+  const student = await getStudent(String(studentId));
+  if (!student || !student.courses.some((c) => c.code === courseCode)) return { ok: false, error: "This course isn’t on the student’s record." };
+  const progress = await getStudentProgress(student.studentId, String(courseCode));
+  if (!progress) return { ok: false, error: "Couldn’t load the course. Try again." };
+  return { ok: true, progress };
+}
+
+// Admin adds one course to a student together with its batch (a batch is required when the course has any)
+export async function addStudentCourseAction(studentId: string, courseCode: string, batchId: string | null): Promise<Result> {
+  const admin = await requireAdmin();
+  const student = await getStudent(String(studentId));
+  if (!student) return { ok: false, error: "Student not found." };
+  const code = String(courseCode ?? "");
+  if (!code) return { ok: false, error: "Select a course." };
+  if (student.courses.some((c) => c.code === code)) return { ok: false, error: `${student.name} is already in ${code}.` };
+  const courses = await checkCourses([...student.courses.map((c) => c.code), code]);
+  if ("error" in courses) return { ok: false, error: courses.error };
+  const forCourse = (await listBatches()).filter((b) => b.courseCode === code);
+  const batch = batchId ? forCourse.find((b) => b.batchId === batchId) : null;
+  if (batchId && !batch) return { ok: false, error: "That batch isn’t for this course." };
+  if (forCourse.length && !batch) return { ok: false, error: "Select a batch for this course." };
+
+  await setStudentCourses(student.studentId, courses.codes);
+  await logActivity(admin.label, `enrolled ${student.name} in ${code}${batch ? ` (${batch.name})` : ""}`, "student");
+  if (batch) {
+    await setStudentBatches(student.studentId, [...student.batchIds, batch.batchId]);
+    await logStudent({ studentId: student.studentId, studentName: student.name, courseCode: code, action: "Batch changed", detail: `added to ${batch.name} by ${admin.label} (when enrolled in ${code})` });
+  }
+  // after the batch is set, so the batch's trainers are told too
+  await mailUpdates({ studentIds: [student.studentId], kind: "course", courseCodes: [code] });
   revalidatePath("/superadmin", "layout");
   revalidatePath("/trainer", "layout");
   revalidatePath("/dashboard", "layout");
