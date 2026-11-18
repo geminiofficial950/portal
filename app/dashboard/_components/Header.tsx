@@ -1,4 +1,5 @@
 import MelbourneClock from "../../components/MelbourneClock";
+import StudentTypography from "./StudentTypography";
 import type { PortalVariant } from "./Sidebar";
 
 type HeaderUser = { initials: string; email: string };
@@ -20,8 +21,9 @@ export default function Header({
     // Spacer under the mobile top bar, then the live Melbourne clock (Dark mode and full screen are in the sidebar)
     <header className="shrink-0">
       <div aria-hidden className="h-16 lg:hidden" />
-      <div className="flex justify-end px-4 pb-1 pt-3">
-        <MelbourneClock />
+      <div className={`flex flex-wrap items-center gap-2 px-4 pb-2 pt-3 ${variant === "student" ? "justify-between lg:justify-end" : "justify-end"}`}>
+        {variant === "student" && <StudentTypography />}
+        <MelbourneClock student={variant === "student"} />
       </div>
     </header>
   );

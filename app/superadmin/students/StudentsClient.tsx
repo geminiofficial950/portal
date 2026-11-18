@@ -7,6 +7,7 @@ import { CheckIcon, ClockIcon, DownloadIcon, InfoIcon, PlusIcon, SearchIcon, Tra
 import CredentialsCard, { type Credentials } from "../_components/CredentialsCard";
 import { transferWithChecks } from "../batches/transfer-flow";
 import LoginDetailsForm from "../_components/LoginDetailsForm";
+import { useTableColumns } from "../_components/useTableColumns";
 import CourseStatusDrawer from "./CourseStatusDrawer";
 import type { BatchDTO } from "@/lib/batch-meta";
 import { courseStatusStyle, parseStatusChange, type CourseStatus } from "@/lib/course-status";
@@ -25,7 +26,7 @@ const accountWord: Record<StudentStatus, string> = { Active: "Enabled", Pending:
 const NO_BATCH = "none";
 const fmtDay = (iso: string) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
 
-// Students: one row per course enrolment (a student in two courses has two rows). Status badges are read-only —
+// Students: one row per student, with each of their courses (and its status) listed in the row. Status badges are read-only —
 // Manage opens a side panel to change the course status (reason required, recorded), the batch, or the account.
 // Delete is Super Admin only; Admins disable the account instead.
 export default function StudentsClient({
@@ -43,7 +44,7 @@ export default function StudentsClient({
   batchesHref: string;
   recentChanges: StudentLogDTO[];
 }) {
-  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "", batches: {} as Record<string, string> };
+  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "", startDate: "", endDate: "", batches: {} as Record<string, string> };
   const [list, setList] = useState(initialStudents);
   const [recent, setRecent] = useState(recentChanges);
   const [query, setQuery] = useState("");
@@ -55,6 +56,8 @@ export default function StudentsClient({
   const [saving, startSaving] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [managing, setManaging] = useState<{ studentId: string; code: string } | null>(null);
+  // batch chosen in the Manage panel, saved only when "Save batch" is clicked
+  const [batchPick, setBatchPick] = useState<{ for: string; batchId: string } | null>(null);
 
   const batchName = (id: string) => batches.find((b) => b.batchId === id)?.name;
   const courseTitle = (code: string) => courses.find((c) => c.code === code)?.title ?? code;
@@ -67,7 +70,15 @@ export default function StudentsClient({
       (batchFilter === "All" || (batchFilter === NO_BATCH ? s.batchIds.length === 0 : s.batchIds.includes(batchFilter))) &&
       (!q || s.name.toLowerCase().includes(q) || s.email.includes(q) || s.studentId.toLowerCase().includes(q)),
   );
-  const rows = visible.flatMap((s) => s.courses.map((c) => ({ s, c })));
+  // one row per student; their courses are listed inside the row (Manage has a course dropdown)
+  const rows = visible.filter((s) => s.courses.length > 0);
+  const table = useTableColumns("stella.students.columns", [
+    { key: "student", label: "Student", width: 240, min: 140 },
+    { key: "course", label: "Course", width: 360, min: 160 },
+    { key: "status", label: "Course status", width: 170, min: 120 },
+    { key: "account", label: "Account", width: 150, min: 110 },
+    { key: "actions", label: "Actions", width: 140, min: 120 },
+  ]);
   const tabs: { key: "All" | StudentStatus; label: string }[] = [
     { key: "All", label: "All students" },
     { key: "Active", label: "Active" },
@@ -80,7 +91,7 @@ export default function StudentsClient({
     if (form.courses.length === 0) return void toast.error("Pick at least one course.");
     startSaving(async () => {
       const batchIds = form.courses.map((code) => form.batches[code]).filter(Boolean);
-      const res = await createStudentAction({ name: form.name, email: form.email, courses: form.courses, password: form.password, studentId: form.studentId, batchIds });
+      const res = await createStudentAction({ name: form.name, email: form.email, courses: form.courses, password: form.password, studentId: form.studentId, startDate: form.startDate, endDate: form.endDate, batchIds });
       if (!res.ok) return void toast.error(res.error);
       setList((l) => [res.student, ...l]);
       setCredentials({ title: `${res.student.name} added`, idLabel: "Student ID", id: res.student.studentId, email: res.student.email, password: form.password });
@@ -157,6 +168,8 @@ export default function StudentsClient({
   const sideBtn = "rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-60";
   const open = managing ? list.find((x) => x.studentId === managing.studentId) : undefined;
   const openCourse = open?.courses.find((c) => c.code === managing?.code);
+  const pickKey = open && openCourse ? `${open.studentId}-${openCourse.code}` : "";
+  const pickedBatch = batchPick?.for === pickKey ? batchPick.batchId : open && openCourse ? batchOf(open, openCourse.code) : "";
 
   return (
     // While the Manage panel is open the page makes room on the right, so the table stays visible beside it
@@ -216,6 +229,14 @@ export default function StudentsClient({
             aria-label="Student ID"
             className={`${inputClass} font-mono placeholder:font-sans`}
           />
+          <label className="block space-y-1 text-sm font-semibold text-ink">
+            Start date
+            <input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} aria-label="Start date" className={`${inputClass} w-full font-normal`} />
+          </label>
+          <label className="block space-y-1 text-sm font-semibold text-ink">
+            End date
+            <input required type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} aria-label="End date" className={`${inputClass} w-full font-normal`} />
+          </label>
           <fieldset className="rounded-xl bg-white p-3 ring-1 ring-ink/10 sm:col-span-2 lg:col-span-3">
             <legend className="sr-only">Courses</legend>
             <p className="px-1 pb-2 text-xs font-medium text-ink">Courses (tick one or more)</p>
@@ -351,51 +372,95 @@ export default function StudentsClient({
       <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white">
         {/* Table from tablet width up; on a phone each enrolment is a card (below) so Manage is never off-screen */}
         <div className="overflow-x-auto max-md:hidden">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="table-fixed border-collapse text-left text-sm" style={{ width: Math.max(table.totalWidth, 0), minWidth: "100%" }}>
+            <colgroup>
+              {table.cols.map((col) => (
+                <col key={col.key} style={{ width: col.width }} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="border-b border-ink/10 text-sm font-semibold text-ink">
-                <th className="px-3 py-3">Student</th>
-                <th className="px-3 py-3">Course</th>
-                <th className="px-3 py-3">Course status</th>
-                <th className="px-3 py-3">Account</th>
-                <th className="px-3 py-3 text-right">Actions</th>
+                {table.cols.map((col) => (
+                  <th
+                    key={col.key}
+                    {...table.dragProps(col.key)}
+                    title="Drag to move this column · drag the right edge to resize"
+                    className={`group relative cursor-grab select-none border-r border-ink/10 px-3 py-3 last:border-r-0 active:cursor-grabbing ${col.key === "actions" ? "text-right" : ""} ${table.dragKey === col.key ? "bg-lilac/70" : ""} ${table.overKey === col.key && table.dragKey !== col.key ? "bg-plum/10 shadow-[inset_3px_0_0_var(--color-plum)]" : ""}`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate" style={{ justifyContent: col.key === "actions" ? "flex-end" : undefined }}>
+                      <span aria-hidden className="text-ink opacity-0 transition group-hover:opacity-100">⋮⋮</span>
+                      {col.label}
+                    </span>
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${col.label} column`}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                      onPointerDown={(e) => table.startResize(col.key, e)}
+                      className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize after:absolute after:inset-y-2 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-transparent hover:after:bg-plum"
+                    />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
-              {rows.map(({ s, c }) => {
-                const batch = batchOf(s, c.code);
+              {rows.map((s) => {
+                const cell = {
+                  student: (
+                    <Link href={`/superadmin/students/${s.studentId}`} title="Open progress" className="group block min-w-0">
+                      <span className="block truncate font-semibold text-ink group-hover:text-plum group-hover:underline">{s.name}</span>
+                      <span className="block truncate text-xs text-ink">{s.studentId}</span>
+                    </Link>
+                  ),
+                  course: (
+                    <span className="block space-y-2">
+                      {s.courses.map((c) => {
+                        const batch = batchOf(s, c.code);
+                        return (
+                          <span key={c.code} className="flex h-10 flex-col justify-center">
+                            <span className="block truncate text-ink" title={courseTitle(c.code)}>
+                              {courseTitle(c.code)}
+                            </span>
+                            <span className="block truncate text-xs text-ink">
+                              {c.code}
+                              {batch ? ` · ${batchName(batch)}` : " · No batch"}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </span>
+                  ),
+                  // one chip per course, level with that course in the Course column
+                  status: (
+                    <span className="block space-y-2">
+                      {s.courses.map((c) => (
+                        <span key={c.code} className="flex h-10 items-center">
+                          <span title={c.code} className={`rounded-full px-3 py-1 text-xs font-semibold ${courseStatusStyle[c.status]}`}>
+                            {c.status}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  ),
+                  account: <span className={`rounded-full px-3 py-1 text-xs font-semibold ${accountTone[s.status]}`}>{accountWord[s.status]}</span>,
+                  actions: (
+                    <button
+                      onClick={() => setManaging({ studentId: s.studentId, code: s.courses[0].code })}
+                      aria-label={`Manage ${s.name}`}
+                      className="rounded-xl border border-plum/50 px-4 py-1.5 text-sm font-semibold text-plum transition hover:bg-plum hover:text-white"
+                    >
+                      Manage
+                    </button>
+                  ),
+                };
                 return (
-                  <tr key={`${s.studentId}-${c.code}`} className={`transition hover:bg-lilac/30 ${busyId === s.studentId ? "opacity-60" : ""}`}>
-                    <td className="px-3 py-3">
-                      <Link href={`/superadmin/students/${s.studentId}`} title="Open progress" className="group block">
-                        <span className="block whitespace-nowrap font-semibold text-ink group-hover:text-plum group-hover:underline">{s.name}</span>
-                        <span className="block text-xs text-ink">{s.studentId}</span>
-                      </Link>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="block max-w-[15rem] truncate text-ink" title={courseTitle(c.code)}>
-                        {courseTitle(c.code)}
-                      </span>
-                      <span className="block text-xs text-ink">
-                        {c.code}
-                        {batch ? ` · ${batchName(batch)}` : " · No batch"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${courseStatusStyle[c.status]}`}>{c.status}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${accountTone[s.status]}`}>{accountWord[s.status]}</span>
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <button
-                        onClick={() => setManaging({ studentId: s.studentId, code: c.code })}
-                        aria-label={`Manage ${s.name} ${c.code}`}
-                        className="rounded-xl border border-plum/50 px-4 py-1.5 text-sm font-semibold text-plum transition hover:bg-plum hover:text-white"
-                      >
-                        Manage
-                      </button>
-                    </td>
+                  <tr key={s.studentId} className={`transition hover:bg-lilac/30 ${busyId === s.studentId ? "opacity-60" : ""}`}>
+                    {table.cols.map((col) => (
+                      <td key={col.key} className={`overflow-hidden border-r border-ink/5 px-3 py-3 last:border-r-0 ${col.key === "actions" ? "text-right" : ""}`}>
+                        {cell[col.key]}
+                      </td>
+                    ))}
                   </tr>
                 );
               })}
@@ -403,33 +468,38 @@ export default function StudentsClient({
           </table>
         </div>
         <ul className="divide-y divide-ink/10 md:hidden" aria-label="Students">
-          {rows.map(({ s, c }) => {
-            const batch = batchOf(s, c.code);
+          {rows.map((s) => {
             return (
-              <li key={`${s.studentId}-${c.code}`} className={`space-y-2.5 px-4 py-4 ${busyId === s.studentId ? "opacity-60" : ""}`}>
+              <li key={s.studentId} className={`space-y-2.5 px-4 py-4 ${busyId === s.studentId ? "opacity-60" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
                   <Link href={`/superadmin/students/${s.studentId}`} className="min-w-0">
                     <span className="block font-semibold text-ink underline-offset-2 hover:underline">{s.name}</span>
                     <span className="block text-xs text-ink">{s.studentId}</span>
                   </Link>
                   <button
-                    onClick={() => setManaging({ studentId: s.studentId, code: c.code })}
+                    onClick={() => setManaging({ studentId: s.studentId, code: s.courses[0].code })}
                     className="shrink-0 rounded-xl border border-plum/50 px-4 py-2 text-sm font-semibold text-plum transition hover:bg-plum hover:text-white"
                   >
                     Manage
                   </button>
                 </div>
-                <p className="text-sm text-ink">
-                  {courseTitle(c.code)}
-                  <span className="block text-xs text-ink">
-                    {c.code}
-                    {batch ? ` · ${batchName(batch)}` : " · No batch"}
-                  </span>
-                </p>
+                {s.courses.map((c) => {
+                  const batch = batchOf(s, c.code);
+                  return (
+                    <div key={c.code} className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 text-sm text-ink">
+                        {courseTitle(c.code)}
+                        <span className="block text-xs text-ink">
+                          {c.code}
+                          {batch ? ` · ${batchName(batch)}` : " · No batch"}
+                        </span>
+                      </p>
+                      <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${courseStatusStyle[c.status]}`}>{c.status}</span>
+                    </div>
+                  );
+                })}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-ink">Course status</span>
-                  <span className={`rounded-full px-3 py-1 font-semibold ${courseStatusStyle[c.status]}`}>{c.status}</span>
-                  <span className="ml-2 text-ink">Account</span>
+                  <span className="text-ink">Account</span>
                   <span className={`rounded-full px-3 py-1 font-semibold ${accountTone[s.status]}`}>{accountWord[s.status]}</span>
                 </div>
               </li>
@@ -479,6 +549,8 @@ export default function StudentsClient({
           student={{ studentId: open.studentId, name: open.name }}
           course={{ code: openCourse.code, name: courseTitle(openCourse.code), detail: batchName(batchOf(open, openCourse.code)) }}
           current={openCourse.status}
+          courseChoices={open.courses.map((c) => ({ code: c.code, name: courseTitle(c.code), status: c.status }))}
+          onPickCourse={(code) => setManaging({ studentId: open.studentId, code })}
           onClose={() => setManaging(null)}
           onSaved={(status: CourseStatus, change) => {
             setList((l) => l.map((x) => (x.studentId === open.studentId ? { ...x, courses: x.courses.map((c) => (c.code === openCourse.code ? { ...c, status } : c)) } : x)));
@@ -489,10 +561,11 @@ export default function StudentsClient({
           <div className="space-y-2 border-t border-ink/10 pt-5">
             <p className="text-sm font-semibold text-ink">Batch for {openCourse.code}</p>
             {batches.some((b) => b.courseCode === openCourse.code) ? (
+              <>
               <select
-                value={batchOf(open, openCourse.code)}
+                value={pickedBatch}
                 disabled={busyId === open.studentId}
-                onChange={(e) => changeBatch(open, openCourse.code, batchOf(open, openCourse.code) || null, e.target.value || null)}
+                onChange={(e) => setBatchPick({ for: pickKey, batchId: e.target.value })}
                 aria-label={`${openCourse.code} batch for ${open.name}`}
                 className="w-full rounded-xl bg-white px-3.5 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-2 focus:ring-plum/40"
               >
@@ -505,6 +578,18 @@ export default function StudentsClient({
                     </option>
                   ))}
               </select>
+              <button
+                type="button"
+                disabled={pickedBatch === batchOf(open, openCourse.code) || busyId === open.studentId}
+                onClick={async () => {
+                  await changeBatch(open, openCourse.code, batchOf(open, openCourse.code) || null, pickedBatch || null);
+                  setBatchPick(null);
+                }}
+                className="rounded-xl bg-plum px-4 py-2 text-sm font-semibold text-white transition hover:bg-plum-light disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busyId === open.studentId ? "Saving…" : "Save batch"}
+              </button>
+              </>
             ) : (
               <p className="text-sm text-ink">No batch has been made for this course yet.</p>
             )}

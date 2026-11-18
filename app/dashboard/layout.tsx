@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { DM_Sans } from "next/font/google";
-import Sidebar from "./_components/Sidebar";
+import { Urbanist } from "next/font/google";
+import StudentSidebar from "./_components/StudentSidebar";
 import Header from "./_components/Header";
 import AppToaster from "./_components/AppToaster";
 import ServerClock from "./_components/ServerClock";
@@ -9,8 +9,8 @@ import { requireStudent } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { getStudent } from "@/lib/students";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const urbanist = Urbanist({
+  variable: "--font-urbanist",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
@@ -18,6 +18,13 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Dashboard | Stella College",
 };
+
+// The menu shows the student's name and email at the bottom
+async function StudentMenu() {
+  const session = await requireStudent();
+  const student = await getStudent(session.sub);
+  return <StudentSidebar me={{ name: student?.name ?? session.name, email: student?.email ?? "", initials: initials(student?.name ?? session.name) }} />;
+}
 
 // Session data streams in behind Suspense so the shell can render first
 async function StudentHeader() {
@@ -30,10 +37,12 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
   return (
     <div
       id="portal-root"
-      className={`${dmSans.variable} flex min-h-dvh flex-1 bg-plum font-dm text-ink lg:p-2 lg:pl-0`}
+      className={`${urbanist.variable} student-ui flex min-h-dvh flex-1 font-dm text-ink lg:gap-2 lg:p-3`}
     >
-      <Sidebar />
-      <div className="portal-main flex min-w-0 flex-1 flex-col bg-page lg:rounded-[2rem]">
+      <Suspense fallback={<StudentSidebar me={null} />}>
+        <StudentMenu />
+      </Suspense>
+      <div className="portal-main flex min-w-0 flex-1 flex-col">
         <Suspense fallback={<Header />}>
           <StudentHeader />
         </Suspense>

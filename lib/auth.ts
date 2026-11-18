@@ -14,7 +14,7 @@ export async function requireAdmin() {
   if (session?.role !== "admin") redirect("/");
   const isSuper = session.sub === SUPER_ADMIN_ID;
   if (!isSuper && !(await getAdmin(session.sub))?.active) redirect("/logout");
-  return { ...session, isSuper, label: isSuper ? "Super Admin" : `${session.name} (Admin)` };
+  return { ...session, isSuper, label: isSuper ? "Admin" : `${session.name} (Admin)` };
 }
 
 // For route handlers (no redirect): is the caller Super Admin or an active Admin?
@@ -37,9 +37,9 @@ export async function adminActor() {
 }
 
 // Admins can do everything except change dates
-export const DATES_SUPER_ADMIN_ONLY = "Only Super Admin can change dates.";
+export const DATES_SUPER_ADMIN_ONLY = "Dates can’t be changed from this account.";
 // …and except deleting (students, trainers, batches, courses, units). Admins deactivate instead.
-export const DELETE_SUPER_ADMIN_ONLY = "Only Super Admin can delete. You can disable the account instead.";
+export const DELETE_SUPER_ADMIN_ONLY = "This account can’t delete. You can disable the account instead.";
 
 // A disabled student still holding a cookie goes to /logout (which clears it); "/" would send them straight back here
 export async function requireStudent() {

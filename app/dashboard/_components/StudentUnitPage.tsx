@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import UnitWork, { type OutlineUnit } from "../assessment/[unit]/UnitWork";
 import { emptyAssessment, forStudent } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
@@ -10,7 +10,7 @@ import { listHiddenUnits } from "@/lib/hidden-units";
 import { liveModules, markableModules, needsSubmission } from "@/lib/module-meta";
 import { getSettings } from "@/lib/settings";
 import { forStudentSub, type SubmissionDTO } from "@/lib/submission-meta";
-import { getStudent, hasCourse } from "@/lib/students";
+import { canStudy, getStudent, isWithdrawn, studyCodes } from "@/lib/students";
 import { listStudentSubmissions } from "@/lib/submissions";
 import { getUnitContent, listCourseOutline } from "@/lib/unit-content";
 import { listUnitRecords } from "@/lib/unit-records";
@@ -26,7 +26,8 @@ export default async function StudentUnitPage({ unitCode, courseCode, item }: { 
   const session = await requireStudent();
   const student = await getStudent(session.sub);
   if (!student) notFound();
-  const codes = courseCode && hasCourse(student, courseCode) ? [courseCode] : student.courses.map((c) => c.code);
+  if (courseCode && isWithdrawn(student, courseCode)) redirect("/dashboard/course"); // closed: the course card says Withdrawn
+  const codes = courseCode && canStudy(student, courseCode) ? [courseCode] : studyCodes(student);
   const courses = await Promise.all(codes.map((c) => getCourse(c)));
   const course = courses.find((c) => c?.units.some((u) => u.code === unitCode));
   const unit = course?.units.find((u) => u.code === unitCode);

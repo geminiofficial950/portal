@@ -4,7 +4,7 @@ import { isUnitOpenFor } from "@/lib/unit-records";
 import { getUpload } from "@/lib/files";
 import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
-import { getStudent, hasCourse } from "@/lib/students";
+import { canStudy, getStudent } from "@/lib/students";
 import { getTrainer } from "@/lib/trainers";
 import { getUnitContent } from "@/lib/unit-content";
 import { makeZip } from "@/lib/zip";
@@ -22,7 +22,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/supporting/[cou
     const student = await getStudent(session.sub);
     allowed =
       student?.status === "Active" &&
-      hasCourse(student, course) &&
+      canStudy(student, course) &&
       !(await isUnitHidden(session.sub, course, unit)) &&
       (await isUnitOpenFor(session.sub, course, unit));
     studentName = student?.name ?? null;

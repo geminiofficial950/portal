@@ -15,7 +15,8 @@ import { getSettings } from "@/lib/settings";
 import { logStudent } from "@/lib/student-logs";
 import { FILE_RULES, type SubmissionContent, type SubmissionDTO } from "@/lib/submission-meta";
 import { getSubmission, LockedError, respondToFeedback, ResponseError, saveWork } from "@/lib/submissions";
-import { getStudent, hasCourse } from "@/lib/students";
+import { canStudy, getStudent, hasCourse, isWithdrawn } from "@/lib/students";
+import { WITHDRAWN_NOTE } from "@/lib/course-status";
 import { getUnitRecord } from "@/lib/unit-records";
 import { unitAccess } from "@/lib/unit-status-meta";
 
@@ -36,6 +37,7 @@ async function load(courseCode: string, unitCode: string, moduleId: string) {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
   if (!student || student.status !== "Active") return { error: "Your account isn’t active." } as const;
+  if (isWithdrawn(student, courseCode)) return { error: WITHDRAWN_NOTE } as const;
   const course = hasCourse(student, courseCode) ? await getCourse(courseCode) : null;
   const unit = course?.units.find((u) => u.code === unitCode);
   if (!course || !unit || (await isUnitHidden(student.studentId, course.code, unit.code))) return { error: "This unit isn’t in your course." } as const;
@@ -147,7 +149,7 @@ export async function submitModuleAction(
 export async function logUnitViewAction(courseCode: string, unitCode: string, itemKey: string): Promise<void> {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
-  const course = student && hasCourse(student, courseCode) ? await getCourse(courseCode) : null;
+  const course = student && canStudy(student, courseCode) ? await getCourse(courseCode) : null;
   const unit = course?.units.find((u) => u.code === unitCode);
   if (!student || !course || !unit) return;
   let label: string | null = itemKey === "resources" ? "Resources" : null;

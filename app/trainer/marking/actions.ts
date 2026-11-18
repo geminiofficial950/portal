@@ -25,7 +25,7 @@ const refresh = () => {
 async function staffFor(submissionId: string) {
   const staff = await requireStaff();
   if (staff.role === "trainer" && !(await getSettings()).trainerPermissions.markAssessments) {
-    return { error: "Super Admin has turned off assessment marking for trainers." } as const;
+    return { error: "Assessment marking is turned off for trainers." } as const;
   }
   const sub = await getSubmission(submissionId);
   if (!sub || sub.status === "Draft") return { error: "Submission not found." } as const;

@@ -62,6 +62,7 @@ export default function BatchDetail({
   data,
   role,
   canDelete,
+  showDates = false,
   backHref,
   initialTab,
   initialUnit,
@@ -70,6 +71,7 @@ export default function BatchDetail({
   data: BatchDetailData;
   role: "admin" | "trainer";
   canDelete: boolean;
+  showDates?: boolean; // Super Admin only: planned start / end dates (trainers and Admin accounts don't see them)
   backHref: string;
   initialTab?: string;
   initialUnit?: string; // Deadlines tab: open on this unit (from ?unit=)
@@ -116,12 +118,14 @@ export default function BatchDetail({
               Trainers: <span className="font-semibold">{batch.trainers.length ? batch.trainers.map((t) => trainerName(t.trainerId)).join(", ") : "none yet"}</span>
             </dd>
           </div>
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-plum" />
-            <dd>
-              {fmtDate(batch.startDate)} – {fmtDate(batch.endDate)}
-            </dd>
-          </div>
+          {showDates && (
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-plum" />
+              <dd>
+                {fmtDate(batch.startDate)} – {fmtDate(batch.endDate)}
+              </dd>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <ClockIcon className="h-4 w-4 text-plum" />
             <dd>{batch.timezone}</dd>
@@ -200,6 +204,7 @@ export default function BatchDetail({
           batch={batch}
           admin={admin}
           canDelete={canDelete}
+          showDates={showDates}
           members={members.length}
           onSaved={setBatch}
           onDeleted={() => router.push(backHref)}
@@ -734,6 +739,7 @@ function DetailsTab({
   batch,
   admin,
   canDelete,
+  showDates,
   members,
   onSaved,
   onDeleted,
@@ -741,6 +747,7 @@ function DetailsTab({
   batch: BatchDTO;
   admin: boolean;
   canDelete: boolean;
+  showDates: boolean;
   members: number;
   onSaved: (b: BatchDTO) => void;
   onDeleted: () => void;
@@ -776,14 +783,18 @@ function DetailsTab({
           Batch code
           <input disabled={!admin} value={form.code} maxLength={BATCH_CODE_MAX} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="e.g. IS-2027-01" className={`${field} w-full font-normal`} />
         </label>
-        <label className="space-y-1 text-sm font-semibold text-ink">
-          Planned start date
-          <input type="date" disabled={!admin} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className={`${field} w-full font-normal`} />
-        </label>
-        <label className="space-y-1 text-sm font-semibold text-ink">
-          Planned end date
-          <input type="date" disabled={!admin} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className={`${field} w-full font-normal`} />
-        </label>
+        {showDates && (
+          <>
+            <label className="space-y-1 text-sm font-semibold text-ink">
+              Planned start date
+              <input type="date" disabled={!admin} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className={`${field} w-full font-normal`} />
+            </label>
+            <label className="space-y-1 text-sm font-semibold text-ink">
+              Planned end date
+              <input type="date" disabled={!admin} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className={`${field} w-full font-normal`} />
+            </label>
+          </>
+        )}
         <label className="space-y-1 text-sm font-semibold text-ink">
           Timezone
           <select disabled={!admin} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className={`${field} w-full font-normal`}>

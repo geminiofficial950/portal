@@ -4,11 +4,13 @@ import CourseTabs from "../../../dashboard/_components/CourseTabs";
 import { BackIcon } from "../../../dashboard/_components/icons";
 import StudentProgress from "../../../dashboard/_components/StudentProgress";
 import StudentDocumentsPanel from "../../../superadmin/students/[id]/StudentDocumentsPanel";
+import StudentNotes from "../../../superadmin/students/[id]/StudentNotes";
 import { listPlacementDocs, listRequests, listSignedDocs } from "@/lib/documents";
 import { requireTrainer } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
 import { getStudentProgress } from "@/lib/progress";
 import { getSettings } from "@/lib/settings";
+import { listStudentNotes } from "@/lib/student-notes";
 import { getStudent } from "@/lib/students";
 import { trainerScope } from "@/lib/trainer-access";
 
@@ -57,6 +59,8 @@ export default async function TrainerStudentProgressPage(props: PageProps<"/trai
         signed={await listSignedDocs(student.studentId)}
         initialRequests={await listRequests(student.studentId)}
       />
+      {/* staff notes: the trainer's own notes and the Admin notes shared with them */}
+      <StudentNotes studentId={student.studentId} role="trainer" initial={await listStudentNotes(student.studentId, { role: "trainer", id: trainer.trainerId })} />
     </div>
   );
 }

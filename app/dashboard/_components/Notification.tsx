@@ -21,24 +21,21 @@ export default async function Notification() {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-ink">Notification</h2>
+      <h2 className="text-lg font-semibold text-ink">Notifications</h2>
 
-      <div className="relative mt-4 overflow-hidden rounded-xl bg-plum p-4 text-white sm:px-4 sm:py-5">
-        <span className="absolute -bottom-10 -right-6 h-24 w-24 rounded-full border border-white/20" />
-        <span className="absolute -bottom-6 -right-2 h-16 w-16 rounded-full border border-white/20" />
-
-        <div className="relative flex gap-4">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-white/20">
+      <div className="mt-3 rounded-2xl bg-[var(--s-soft)] p-3.5 text-ink">
+        <div className="flex items-start gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--s-icon)]">
             <EditIcon className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-medium sm:text-base">
-              Your course materials are ready — continue where you left off
+            <p className="text-sm font-semibold leading-snug">
+              Course materials are ready
             </p>
-            <p className="mt-1 text-[11px] text-white">Open your course to view units and resources</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink/75">Pick up where you left off.</p>
             <Link
               href={courseHref}
-              className="mt-3 inline-block rounded-md bg-peach px-4 py-1.5 text-[11px] font-medium text-white transition hover:brightness-95"
+              className="mt-2.5 inline-block rounded-full bg-[var(--s-dark)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
             >
               Go to my course
             </Link>
@@ -46,7 +43,7 @@ export default async function Notification() {
         </div>
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 space-y-2">
         <NotificationFeed items={notes.map((n) => ({ id: n.id, kind: n.kind, text: n.text, ago: timeAgo(new Date(n.at), now) }))} />
       </div>
     </section>

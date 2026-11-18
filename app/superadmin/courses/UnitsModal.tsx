@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { ClipboardIcon, CloseIcon, PlusIcon, SearchIcon, TrashIcon } from "../../dashboard/_components/icons";
+import { ClipboardIcon, CloseIcon, EditIcon, PlusIcon, SearchIcon, TrashIcon } from "../../dashboard/_components/icons";
 import type { AssessmentSummary } from "@/lib/assessment-meta";
 import type { UnitContentSummary } from "@/lib/unit-content";
 import type { CourseDTO, Unit } from "@/lib/courses";
-import { addUnitAction, previewUnitRemovalAction, removeUnitAction } from "./actions";
+import { addUnitAction, editUnitAction, previewUnitRemovalAction, removeUnitAction } from "./actions";
 
 export default function UnitsModal({
   course,
@@ -29,6 +29,25 @@ export default function UnitsModal({
   const [draft, setDraft] = useState({ code: "", title: "" });
   const [adding, startAdding] = useTransition();
   const [removing, setRemoving] = useState<string | null>(null);
+  // editing a unit's code / name in place (for typos)
+  const [editing, setEditing] = useState<string | null>(null);
+  const [edit, setEdit] = useState({ code: "", title: "" });
+  const [savingEdit, startSavingEdit] = useTransition();
+  // a renamed unit still finds its content and module counts (stored under the old code until the page reloads)
+  const [was, setWas] = useState<Record<string, string>>({});
+  const key = (code: string) => `${course.code}/${was[code] ?? code}`;
+
+  const saveEdit = (e: React.FormEvent, from: string) => {
+    e.preventDefault();
+    startSavingEdit(async () => {
+      const res = await editUnitAction(course.code, from, edit);
+      if (!res.ok) return void toast.error(res.error);
+      onUnitsChange((units) => units.map((u) => (u.code === from ? res.unit : u)));
+      if (res.unit.code !== from) setWas((w) => ({ ...w, [res.unit.code]: w[from] ?? from }));
+      setEditing(null);
+      toast.success(`${res.unit.code} saved`);
+    });
+  };
 
   // Esc closes; lock page scroll behind the dialog
   useEffect(() => {
@@ -136,12 +155,37 @@ No student has work or a status in it. Its overview, resources and modules are d
                   {n}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium text-plum">{u.code}</p>
-                  <p className="text-sm leading-snug text-ink">{u.title}</p>
+                  {editing === u.code ? (
+                    <form onSubmit={(e) => saveEdit(e, u.code)} className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={edit.code}
+                        onChange={(e) => setEdit({ ...edit, code: e.target.value.toUpperCase() })}
+                        aria-label={`Unit code for ${u.code}`}
+                        className="w-32 rounded-lg bg-white px-3 py-1.5 font-mono text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-plum/40"
+                      />
+                      <input
+                        value={edit.title}
+                        onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                        aria-label={`Unit name for ${u.code}`}
+                        className="min-w-0 flex-1 basis-40 rounded-lg bg-white px-3 py-1.5 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-plum/40"
+                      />
+                      <button type="submit" disabled={savingEdit} className="rounded-full bg-plum px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+                        {savingEdit ? "Saving…" : "Save"}
+                      </button>
+                      <button type="button" onClick={() => setEditing(null)} className="rounded-full px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-lilac">
+                        Cancel
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-medium text-plum">{u.code}</p>
+                      <p className="text-sm leading-snug text-ink">{u.title}</p>
+                    </>
+                  )}
                   {/* What the Super Admin has added so far — students only see the green ones */}
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {(() => {
-                      const c = content[`${course.code}/${u.code}`];
+                      const c = content[key(u.code)];
                       return (
                         <>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c?.overviewSnippet ? "bg-emerald-100 text-emerald-700" : "bg-lilac text-ink"}`}>
@@ -154,7 +198,7 @@ No student has work or a status in it. Its overview, resources and modules are d
                       );
                     })()}
                     {(() => {
-                      const s = summaries[`${course.code}/${u.code}`];
+                      const s = summaries[key(u.code)];
                       return (
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${s?.modules ? "bg-emerald-100 text-emerald-800" : "bg-lilac text-ink"}`}>
                           {s?.modules ? `${s.modules} module${s.modules === 1 ? "" : "s"} · ${s.marked} marked` : "No modules yet"}
@@ -163,6 +207,20 @@ No student has work or a status in it. Its overview, resources and modules are d
                     })()}
                   </div>
                 </div>
+                {editing !== u.code && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(u.code);
+                      setEdit({ code: u.code, title: u.title });
+                    }}
+                    aria-label={`Edit ${u.code}`}
+                    title="Edit code or name"
+                    className="shrink-0 rounded-full p-2 text-ink transition hover:bg-lilac"
+                  >
+                    <EditIcon className="h-4 w-4" />
+                  </button>
+                )}
                 <Link
                   href={`/superadmin/courses/${encodeURIComponent(course.code)}/${encodeURIComponent(u.code)}`}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-plum px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-plum-light"

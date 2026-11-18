@@ -4,7 +4,7 @@ import { getMeeting } from "@/lib/meetings";
 import { meetingEnd } from "@/lib/meetings-meta";
 import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
-import { getStudent, hasCourse } from "@/lib/students";
+import { canStudy, getStudent } from "@/lib/students";
 
 // "Join": a class link or a scheduled meeting. Checks the student is in the course (and, for a one-to-one meeting,
 // that it's theirs), notes it in their activity log, then sends them to Google Meet. Staff can open it too (to try the link).
@@ -35,7 +35,7 @@ export async function GET(req: Request, ctx: RouteContext<"/classroom/[id]">) {
   if (session.role === "student") {
     const student = await getStudent(session.sub);
     const allowed =
-      student?.status === "Active" && hasCourse(student, target.courseCode) && (!meeting?.studentId || meeting.studentId === student.studentId);
+      student?.status === "Active" && canStudy(student, target.courseCode) && (!meeting?.studentId || meeting.studentId === student.studentId);
     if (!allowed) return new Response("This isn’t for you.", { status: 403 });
     if (meeting && Date.now() >= meetingEnd(meeting)) return new Response("This meeting has ended.", { status: 410 });
     await logStudent(

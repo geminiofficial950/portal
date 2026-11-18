@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { ArrowRightIcon, PlusIcon } from "../../dashboard/_components/icons";
+import { useTableColumns } from "../_components/useTableColumns";
 import { createBatchAction } from "./actions";
 import { BATCH_CODE_MAX, BATCH_NAME_MAX, DEFAULT_TZ, formatClassTime, TIMEZONES, type BatchDTO } from "@/lib/batch-meta";
 
 const field = "rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/30";
 
-// Batches: pick a course, name the batch and give it a trainer; then open it to add students and the class times
+// Batches: pick a course, name the batch and tick its trainers; then open it to add students and the class times
 export default function BatchesClient({
   initial,
   courses,
   trainers,
   base,
+  showDates = false,
 }: {
+  showDates?: boolean; // Super Admin only: a batch's planned start / end dates (hidden from Admin accounts and trainers)
   initial: BatchDTO[];
   courses: { code: string; name: string }[];
   trainers: { trainerId: string; name: string }[];
@@ -24,10 +27,20 @@ export default function BatchesClient({
   const [batches, setBatches] = useState(initial);
   const [course, setCourse] = useState("All");
   const [adding, setAdding] = useState(false);
-  const emptyForm = { name: "", code: "", courseCode: courses[0]?.code ?? "", trainerId: "", startDate: "", endDate: "", timezone: DEFAULT_TZ };
+  const emptyForm = { name: "", code: "", courseCode: courses[0]?.code ?? "", trainerIds: [] as string[], startDate: "", endDate: "", timezone: DEFAULT_TZ };
   const [form, setForm] = useState(emptyForm);
   const [saving, startSaving] = useTransition();
   const trainerNames = (b: BatchDTO) => b.trainers.map((t) => trainers.find((x) => x.trainerId === t.trainerId)?.name ?? t.trainerId).join(", ");
+  // resizable, movable columns (remembered in this browser), like the Students table
+  const table = useTableColumns("stella.batches.columns", [
+    { key: "name", label: "Batch", width: 280, min: 140 },
+    { key: "code", label: "Code", width: 180, min: 100 },
+    { key: "course", label: "Course", width: 130, min: 100 },
+    { key: "trainers", label: "Trainers", width: 260, min: 120 },
+    { key: "students", label: "Students", width: 110, min: 90 },
+    { key: "classes", label: "Classes", width: 170, min: 110 },
+    { key: "open", label: "", width: 130, min: 110 },
+  ]);
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,27 +101,53 @@ export default function BatchesClient({
             aria-label="Batch code"
             className={`${field} font-mono placeholder:font-sans`}
           />
-          <label className="flex items-center gap-2 text-sm text-ink">
-            Start
-            <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} aria-label="Planned start date" className={`${field} flex-1`} />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            End
-            <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} aria-label="Planned end date" className={`${field} flex-1`} />
-          </label>
+          {showDates && (
+            <>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                Start
+                <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} aria-label="Planned start date" className={`${field} flex-1`} />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                End
+                <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} aria-label="Planned end date" className={`${field} flex-1`} />
+              </label>
+            </>
+          )}
           <select value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} aria-label="Timezone" className={field}>
             {TIMEZONES.map((t) => (
               <option key={t}>{t}</option>
             ))}
           </select>
-          <select value={form.trainerId} onChange={(e) => setForm({ ...form, trainerId: e.target.value })} aria-label="Trainer" className={field}>
-            <option value="">First trainer, for every unit (optional)</option>
-            {trainers.map((t) => (
-              <option key={t.trainerId} value={t.trainerId}>
-                {t.name} ({t.trainerId})
-              </option>
-            ))}
-          </select>
+          {/* one or more trainers; each starts with every unit (change units per trainer inside the batch) */}
+          <fieldset className="rounded-xl bg-white p-3 ring-1 ring-ink/10 sm:col-span-2 lg:col-span-4">
+            <legend className="sr-only">Trainers</legend>
+            <p className="px-1 pb-2 text-sm font-semibold text-ink">Trainers (optional — tick one or more)</p>
+            {trainers.length ? (
+              <div className="flex flex-wrap gap-2">
+                {trainers.map((t) => {
+                  const on = form.trainerIds.includes(t.trainerId);
+                  return (
+                    <label
+                      key={t.trainerId}
+                      className={`flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-sm text-ink transition ${on ? "bg-plum/10 ring-2 ring-plum" : "bg-lilac/50 ring-1 ring-ink/15 hover:bg-lilac"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => setForm({ ...form, trainerIds: e.target.checked ? [...form.trainerIds, t.trainerId] : form.trainerIds.filter((x) => x !== t.trainerId) })}
+                        aria-label={`Trainer ${t.name}`}
+                        className="h-4 w-4 accent-plum"
+                      />
+                      {t.name} ({t.trainerId})
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="px-1 text-sm text-ink">No active trainers yet.</p>
+            )}
+            <p className="px-1 pt-2 text-xs text-ink">Each ticked trainer covers every unit to start with. You can change which units each trainer teaches inside the batch.</p>
+          </fieldset>
           <button
             type="submit"
             disabled={saving}
@@ -133,30 +172,52 @@ export default function BatchesClient({
 
       <div className="overflow-hidden rounded-[1.75rem] border border-ink/10 bg-white shadow-[0_12px_40px_-16px_rgba(91,63,153,0.15)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="table-fixed border-collapse text-left text-sm" style={{ width: table.totalWidth, minWidth: "100%" }}>
+            <colgroup>
+              {table.cols.map((col) => (
+                <col key={col.key} style={{ width: col.width }} />
+              ))}
+            </colgroup>
             <thead className="bg-ink text-[11px] uppercase tracking-wide text-white">
               <tr>
-                <th className="px-5 py-3 font-medium">Batch</th>
-                <th className="px-5 py-3 font-medium">Code</th>
-                <th className="px-5 py-3 font-medium">Course</th>
-                <th className="px-5 py-3 font-medium">Trainers</th>
-                <th className="px-5 py-3 font-medium">Students</th>
-                <th className="px-5 py-3 font-medium">Classes</th>
-                <th className="px-5 py-3" />
+                {table.cols.map((col) => (
+                  <th
+                    key={col.key}
+                    {...table.dragProps(col.key)}
+                    title="Drag to move this column · drag the right edge to resize"
+                    className={`group relative cursor-grab select-none border-r border-white/15 px-5 py-3 font-medium last:border-r-0 active:cursor-grabbing ${table.dragKey === col.key ? "bg-white/15" : ""} ${table.overKey === col.key && table.dragKey !== col.key ? "bg-plum shadow-[inset_3px_0_0_white]" : ""}`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span aria-hidden className="opacity-0 transition group-hover:opacity-100">⋮⋮</span>
+                      {col.label}
+                    </span>
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${col.label || "Open"} column`}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                      onPointerDown={(e) => table.startResize(col.key, e)}
+                      className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize after:absolute after:inset-y-2 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-transparent hover:after:bg-white"
+                    />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
-              {shown.map((b) => (
-                <tr key={b.batchId} className="transition hover:bg-lilac/30">
-                  <td className="px-5 py-3.5 font-medium text-ink">{b.name}</td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-ink">{b.code || "—"}</td>
-                  <td className="px-5 py-3.5 text-xs font-semibold text-plum">{b.courseCode ?? <span className="text-amber-800">No course</span>}</td>
-                  <td className="px-5 py-3.5 text-ink">{trainerNames(b) || <span className="text-amber-800">Not assigned</span>}</td>
-                  <td className="px-5 py-3.5 text-ink">{b.students}</td>
-                  <td className="px-5 py-3.5 text-xs text-ink">
-                    {b.classes.length ? b.classes.map((c) => <span key={c.id} className="block">{`${c.day} ${formatClassTime(c.time)}`}</span>) : "—"}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
+              {shown.map((b) => {
+                const cell = {
+                  name: <span className="block truncate font-medium text-ink">{b.name}</span>,
+                  code: <span className="block truncate font-mono text-xs text-ink">{b.code || "—"}</span>,
+                  course: <span className="text-xs font-semibold text-plum">{b.courseCode ?? <span className="text-amber-800">No course</span>}</span>,
+                  trainers: <span className="text-ink">{trainerNames(b) || <span className="text-amber-800">Not assigned</span>}</span>,
+                  students: <span className="text-ink">{b.students}</span>,
+                  classes: (
+                    <span className="block text-xs text-ink">
+                      {b.classes.length ? b.classes.map((c) => <span key={c.id} className="block">{`${c.day} ${formatClassTime(c.time)}`}</span>) : "—"}
+                    </span>
+                  ),
+                  open: (
                     <Link
                       href={`${base}/${b.batchId}`}
                       className="inline-flex items-center gap-1.5 rounded-full bg-plum px-4 py-2 text-xs font-medium text-white transition hover:bg-plum-light"
@@ -164,9 +225,18 @@ export default function BatchesClient({
                       Open
                       <ArrowRightIcon className="h-3.5 w-3.5" />
                     </Link>
-                  </td>
-                </tr>
-              ))}
+                  ),
+                };
+                return (
+                  <tr key={b.batchId} className="transition hover:bg-lilac/30">
+                    {table.cols.map((col) => (
+                      <td key={col.key} className={`overflow-hidden border-r border-ink/5 px-5 py-3.5 last:border-r-0 ${col.key === "open" ? "text-right" : ""}`}>
+                        {cell[col.key]}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

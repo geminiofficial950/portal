@@ -11,7 +11,8 @@ const SHOWN = 500;
 
 // Everything this student did in the portal, newest first, with a CSV download (Admins and Super Admin)
 export default async function StudentLogsPage(props: PageProps<"/superadmin/students/[id]/logs">) {
-  await requireAdmin();
+  // Super Admin only; for anyone else the page doesn't exist
+  if (!(await requireAdmin()).isSuper) notFound();
   const [{ id }, { course }] = await Promise.all([props.params, props.searchParams]);
   const studentId = decodeURIComponent(id);
   const picked = typeof course === "string" && course ? course : null;

@@ -14,25 +14,28 @@ type CourseDoc = {
   duration: string;
   units: Unit[];
   placementHours?: number | null; // work placement hours, set by Super Admin
+  placementHoursNote?: string; // typed with the hours, e.g. "Minimum" → "Minimum 120 hours"
   placementText?: string; // placement information for students, set by Super Admin
   description?: string; // what the course is about, shown on the student's course page
   deleted?: boolean; // deleted by Super Admin: hidden everywhere (kept so the starter courses aren't added back)
   createdAt: Date;
 };
 
-export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementText" | "description" | "deleted" | "release"> & {
+export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementHoursNote" | "placementText" | "description" | "deleted" | "release"> & {
   placementHours: number | null;
+  placementHoursNote: string;
   placementText: string;
   description: string;
 };
 
-const toDTO = ({ code, name, category, duration, units, placementHours, placementText, description }: CourseDoc): CourseDTO => ({
+const toDTO = ({ code, name, category, duration, units, placementHours, placementHoursNote, placementText, description }: CourseDoc): CourseDTO => ({
   code,
   name,
   category,
   duration,
   units,
   placementHours: placementHours ?? null,
+  placementHoursNote: placementHoursNote ?? "",
   placementText: placementText ?? "",
   description: description ?? "",
 });
@@ -105,8 +108,8 @@ export async function deleteCourse(code: string) {
   return res.matchedCount === 1;
 }
 
-export async function setPlacementHours(code: string, hours: number | null) {
-  const res = await (await collection()).updateOne({ code }, { $set: { placementHours: hours } });
+export async function setPlacementHours(code: string, hours: number | null, note = "") {
+  const res = await (await collection()).updateOne({ code }, { $set: { placementHours: hours, placementHoursNote: note } });
   return res.matchedCount === 1;
 }
 

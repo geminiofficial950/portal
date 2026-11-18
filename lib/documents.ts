@@ -103,6 +103,12 @@ export async function countSigned(docIds: string[]) {
   return Object.fromEntries(rows.map((r) => [r._id, r.n])) as Record<string, number>;
 }
 
+/** Every student's signed copies of one placement form (Admin: the form's row on the course's placement page) */
+export async function listSignedForDoc(docId: string) {
+  const docs = await (await cols()).signed.find({ docId: String(docId) }).toArray();
+  return docs.map(signedDTO);
+}
+
 export async function listSignedDocs(studentId: string) {
   const docs = await (await cols()).signed.find({ studentId }).toArray();
   return docs.map(signedDTO);

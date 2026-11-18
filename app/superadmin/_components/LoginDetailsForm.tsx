@@ -40,7 +40,7 @@ export default function LoginDetailsForm({
   const field = "w-full rounded-xl bg-white px-3.5 py-2.5 text-sm text-ink outline-none ring-1 ring-ink/15 focus:ring-2 focus:ring-plum/40";
   return (
     <form onSubmit={submit} className="space-y-3" aria-label={`Login details for ${who}`}>
-      <p className="text-sm font-semibold text-ink">Login details (Super Admin only)</p>
+      <p className="text-sm font-semibold text-ink">Login details</p>
       <label className="block space-y-1">
         <span className="text-xs font-semibold text-ink">Email</span>
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" className={field} />

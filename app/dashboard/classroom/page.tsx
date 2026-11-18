@@ -7,7 +7,7 @@ import { listClassLinks } from "@/lib/classroom";
 import { getCourse } from "@/lib/courses";
 import { listUpcomingMeetings } from "@/lib/meetings";
 import { lengthLabel, meetingState, meetingWhen } from "@/lib/meetings-meta";
-import { getStudent } from "@/lib/students";
+import { getStudent, studyCodes } from "@/lib/students";
 import { listSessions } from "@/lib/class-sessions";
 import {
   canJoin,
@@ -36,7 +36,7 @@ export default async function ClassroomPage() {
   const now = requestTime();
   const student = await getStudent(session.sub);
   const codes =
-    student?.status === "Active" ? student.courses.map((c) => c.code) : [];
+    student?.status === "Active" ? studyCodes(student) : [];
   const [links, meetings, courses] = await Promise.all([
     listClassLinks(codes),
     codes.length

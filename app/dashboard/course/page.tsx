@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowRightIcon, BookIcon, BoxIcon, CheckIcon, ClipboardIcon, ClockIcon } from "../_components/icons";
+import CourseDescription from "./CourseDescription";
 import CourseIllustration from "./CourseIllustration";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
-import { courseStatusStyle } from "@/lib/course-status";
+import { courseStatusStyle, placementHoursLabel, WITHDRAWN_NOTE } from "@/lib/course-status";
 import { listPlacementDocs, listSignedDocs } from "@/lib/documents";
 import { listHiddenUnits } from "@/lib/hidden-units";
 import { getStudent } from "@/lib/students";
@@ -33,7 +34,7 @@ export default async function CoursePage() {
 
   if (!student || courses.length === 0) {
     return (
-      <div className="animate-fade-up rounded-[1.75rem] bg-lilac/70 px-6 py-12 text-center text-sm text-ink">
+      <div className="animate-fade-up rounded-[1.75rem] s-card px-6 py-12 text-center text-sm text-ink">
         You’re not enrolled in a course yet. Please contact the college.
       </div>
     );
@@ -48,18 +49,18 @@ export default async function CoursePage() {
       {/* Overview */}
       <section aria-labelledby="overview-heading" className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Overview</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">Overview</p>
           <h1 id="overview-heading" className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">
             My learning
           </h1>
           <p className="mt-1 text-base text-ink">A quick look at what you’re studying.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-5 rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.2)] sm:p-6">
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-lilac text-plum">
+        <div className="flex flex-wrap items-center gap-5 s-card rounded-[1.5rem] p-5 sm:p-6">
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-[var(--s-icon)] text-ink">
             <BookIcon className="h-8 w-8" />
           </span>
           <div className="min-w-40 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Current learning</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">Current learning</p>
             <p className="mt-1 text-3xl font-semibold text-ink">{courses.length}</p>
             <p className="text-base text-ink">
               Enrolled {courses.length === 1 ? "course" : "courses"} · {totalUnits} units
@@ -67,7 +68,7 @@ export default async function CoursePage() {
           </div>
           <a
             href="#my-courses"
-            className="w-full rounded-xl border border-plum/30 bg-lilac px-5 py-3 text-center text-sm font-semibold text-plum transition hover:bg-plum hover:text-white sm:w-auto"
+            className="w-full rounded-full border border-[var(--s-line)] bg-[var(--s-soft)] px-5 py-3 text-center text-sm font-semibold text-ink transition hover:bg-[var(--s-icon)] sm:w-auto"
           >
             View my courses
           </a>
@@ -83,7 +84,7 @@ export default async function CoursePage() {
             </h2>
             <p className="mt-1 text-base text-ink">Continue learning from your enrolled courses.</p>
           </div>
-          <span className="rounded-full border border-ink/15 bg-white px-4 py-2 text-sm font-semibold text-ink">
+          <span className="rounded-full border border-[var(--s-line)] bg-[var(--s-soft)] px-4 py-2 text-sm font-semibold text-ink">
             {courses.length} {courses.length === 1 ? "course" : "courses"}
           </span>
         </div>
@@ -93,29 +94,29 @@ export default async function CoursePage() {
             <li key={course.code}>
               <article
                 aria-label={course.name}
-                className="grid gap-6 rounded-[1.5rem] border border-ink/10 bg-white p-5 shadow-[0_12px_40px_-16px_rgba(91,63,153,0.2)] sm:p-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+                className="grid gap-6 s-card s-course-card rounded-[1.5rem] p-5 sm:p-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
               >
                 {/* the picture keeps its own shape (320 × 220): never stretched to the card's height or cropped */}
                 <div className="relative self-start overflow-hidden rounded-2xl border border-ink/10 lg:self-center">
                   <CourseIllustration className="block aspect-[32/22] h-auto w-full" />
-                  <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-plum shadow-sm">
+                  <span className="absolute left-3 top-3 rounded-full bg-[var(--s-card)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink/75 shadow-sm">
                     Course
                   </span>
                 </div>
 
                 <div className="flex min-w-0 flex-col gap-5">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">Your course</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">Your course</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-3">
                       <h3 className="text-xl font-semibold leading-snug text-ink sm:text-2xl">{course.name}</h3>
                     </div>
                     <p className="mt-2 flex items-center gap-2 text-base text-ink">
-                      <span className="text-lg font-semibold text-plum">#</span>
+                      <span className="text-lg font-semibold text-ink/75">#</span>
                       <span className="font-mono">{course.code}</span>
                       <span aria-hidden>·</span>
                       {course.category}
                     </p>
-                    {course.description && <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-ink">{course.description}</p>}
+                    {course.description && <CourseDescription text={course.description} className="mt-3 text-base" />}
                   </div>
 
                   <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
@@ -124,12 +125,12 @@ export default async function CoursePage() {
                       { label: "Duration", value: course.duration, icon: ClockIcon },
                       {
                         label: "Work placement",
-                        value: course.placementHours === null ? "To be confirmed" : `${course.placementHours} hours`,
+                        value: placementHoursLabel(course.placementHours, course.placementHoursNote) ?? "To be confirmed",
                         icon: ClipboardIcon,
                       },
                     ].map(({ label, value, icon: Icon }) => (
                       <div key={label} className="flex items-center gap-3">
-                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--s-icon)] text-ink">
                           <Icon className="h-5 w-5" />
                         </span>
                         <span className="min-w-0">
@@ -140,7 +141,7 @@ export default async function CoursePage() {
                     ))}
                     {/* Course status */}
                     <div className="flex items-center gap-3">
-                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lilac text-plum">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--s-icon)] text-ink">
                         <CheckIcon className="h-5 w-5" />
                       </span>
                       <span className="min-w-0">
@@ -152,14 +153,18 @@ export default async function CoursePage() {
                     </div>
                   </dl>
 
-                  <Link
-                    href={`/dashboard/course/${encodeURIComponent(course.code)}`}
-                    className="group mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl bg-plum px-6 py-4 text-base font-semibold text-white shadow-lg shadow-plum/25 transition hover:bg-plum-light sm:w-fit"
-                  >
-                    <BookIcon className="h-5 w-5" />
-                    Go to my course
-                    <ArrowRightIcon className="h-5 w-5 transition group-hover:translate-x-0.5" />
-                  </Link>
+                  {status === "Withdrawn" ? (
+                    <p className="mt-auto rounded-2xl bg-rose-50 px-5 py-4 text-base font-semibold text-rose-800">{WITHDRAWN_NOTE}</p>
+                  ) : (
+                    <Link
+                      href={`/dashboard/course/${encodeURIComponent(course.code)}`}
+                      className="group mt-auto inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--s-dark)] px-6 py-4 text-base font-semibold text-white transition hover:brightness-110 sm:w-fit"
+                    >
+                      <BookIcon className="h-5 w-5" />
+                      Go to my course
+                      <ArrowRightIcon className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                    </Link>
+                  )}
                 </div>
               </article>
             </li>
@@ -169,7 +174,7 @@ export default async function CoursePage() {
 
       <div>
         <StudentDocuments
-          placement={courses.map(({ course }) => ({
+          placement={courses.filter(({ status }) => status !== "Withdrawn").map(({ course }) => ({
             code: course.code,
             name: course.name,
             text: course.placementText,

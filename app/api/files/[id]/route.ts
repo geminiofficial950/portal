@@ -8,7 +8,7 @@ import { isUnitOpenFor } from "@/lib/unit-records";
 import { getUpload } from "@/lib/files";
 import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
-import { getStudent, hasCourse } from "@/lib/students";
+import { canStudy, getStudent } from "@/lib/students";
 import { findSubmissionWithFile } from "@/lib/submissions";
 import { getTrainer } from "@/lib/trainers";
 import { findResourceFile } from "@/lib/unit-content";
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/files/[id]">
       const unitFile = resource ?? task;
       const courseCode = unitFile?.courseCode ?? placement?.courseCode;
       const student = courseCode ? await getStudent(session.sub) : null;
-      allowed = !!courseCode && student?.status === "Active" && hasCourse(student, courseCode);
+      allowed = !!courseCode && student?.status === "Active" && canStudy(student, courseCode);
       if (allowed && unitFile) {
         allowed =
           !(await isUnitHidden(session.sub, unitFile.courseCode, unitFile.unitCode)) &&

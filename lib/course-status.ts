@@ -21,6 +21,9 @@ export type CourseStatus = (typeof COURSE_STATUSES)[number];
 // Student-log action for a course status change; its detail reads "<from> → <to> · <reason> · by <staff>"
 export const COURSE_STATUS_LOG = "Course status changed";
 export const COURSE_STATUS_REASON_MAX = 500;
+
+// A Withdrawn course is closed for the student (units, quizzes, uploads, files, classes); their work is kept
+export const WITHDRAWN_NOTE = "You’ve been withdrawn from this course, so it’s closed. Please contact the college.";
 export const parseStatusChange = (detail: string) => {
   const parts = detail.split(" · ");
   const by = parts.length > 2 && parts.at(-1)!.startsWith("by ") ? parts.pop()!.slice(3) : "";
@@ -52,3 +55,11 @@ export const courseStatusStyle: Record<CourseStatus, string> = {
 export const accountLabel = (s: "Active" | "Pending" | "Suspended") => (s === "Suspended" ? "Disabled" : s);
 
 export const PLACEMENT_HOURS_MAX = 2000;
+export const PLACEMENT_NOTE_MAX = 40;
+
+/** Work placement hours as shown everywhere, with the typed word in front: "Minimum 120 hours" (or "120 hours") */
+export function placementHoursLabel(hours: number | null, note = "") {
+  const n = note.trim();
+  if (hours === null) return n || null;
+  return `${n ? `${n} ` : ""}${hours} hours`;
+}
