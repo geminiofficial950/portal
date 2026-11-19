@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { logout } from "../../actions/auth";
 import ThemeToggle from "../../components/ThemeToggle";
-import { BookIcon, BoxIcon, ChatIcon, ClipboardIcon, CloseIcon, CompressIcon, ExpandIcon, HomeIcon, LogoutIcon, MenuIcon, TicketIcon, VideoIcon } from "./icons";
+import { CloseIcon, CompressIcon, ExpandIcon, LogoutIcon, MenuIcon } from "./icons";
+import { StudentNavIcon } from "./StudentNavIcon";
 import { readFull, setFull, subscribeFull } from "./Sidebar";
 
 // The student's menu: flat navigation, each item an icon in a round chip, the open page as a dark pill,
@@ -15,23 +16,23 @@ const GROUPS = [
   {
     heading: "Menu",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: HomeIcon },
-      { label: "Courses", href: "/dashboard/course", icon: BoxIcon },
-      { label: "My classes", href: "/dashboard/classroom", icon: VideoIcon },
+      { label: "Dashboard", href: "/dashboard", icon: "Dashboard" },
+      { label: "Courses", href: "/dashboard/course", icon: "Courses" },
+      { label: "My classes", href: "/dashboard/classroom", icon: "Classes" },
     ],
   },
   {
     heading: "My work",
     items: [
-      { label: "Requests", href: "/dashboard/requests", icon: ClipboardIcon },
-      { label: "Feedback", href: "/dashboard/feedback", icon: ChatIcon },
+      { label: "Requests", href: "/dashboard/requests", icon: "Requests" },
+      { label: "Feedback", href: "/dashboard/feedback", icon: "Feedback" },
     ],
   },
   {
     heading: "Help",
     items: [
-      { label: "Student support", href: "/dashboard/tickets", icon: TicketIcon },
-      { label: "Portal help", href: "/dashboard/user-guide", icon: BookIcon },
+      { label: "Student support", href: "/dashboard/tickets", icon: "Support" },
+      { label: "Portal help", href: "/dashboard/user-guide", icon: "Guide" },
     ],
   },
 ] as const;
@@ -54,7 +55,7 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
         <div key={g.heading}>
           <p className="mb-2 px-2 text-sm font-semibold text-ink">{g.heading}</p>
           <ul className="space-y-1">
-            {g.items.map(({ label, href, icon: Icon }) => {
+            {g.items.map(({ label, href, icon }) => {
               const active = isActive(href, pathname);
               return (
                 <li key={href}>
@@ -67,7 +68,7 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                     }`}
                   >
                     <span className={`s-nav-icon grid h-9 w-9 shrink-0 place-items-center rounded-full ${active ? "bg-white/15 text-white" : "bg-[var(--s-icon)] text-ink"}`}>
-                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
+                      <StudentNavIcon name={icon} />
                     </span>
                     {label}
                   </Link>

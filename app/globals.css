@@ -496,10 +496,6 @@ html:not([data-theme="dark"]) .student-ui a:not([aria-current="page"]) .s-nav-ic
   color: #10181a;
 }
 
-html:not([data-theme="dark"]) .student-ui .s-nav-icon svg rect[width="7"] {
-  fill: currentColor;
-}
-
 html:not([data-theme="dark"]) .student-ui .s-profile-avatar {
   background: linear-gradient(145deg, #f2faf8, #c5ddd9);
   color: #173a37;
