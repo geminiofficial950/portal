@@ -81,7 +81,8 @@ export async function sendUpdateEmail(to: string, count = 1) {
 
 async function safeSend(to: string, count: number, who: string) {
   try {
-    await sendUpdateEmail(to, count);
+    const res = await sendUpdateEmail(to, count);
+    if (!res.sent) console.info(`[student-mail] not emailing ${who}: ${res.reason}`); // e.g. MAIL_ONLY_TO, no SMTP
   } catch (err) {
     console.error(`[student-mail] couldn't email ${who}:`, err instanceof Error ? err.message : err);
   }
