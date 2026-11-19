@@ -42,11 +42,11 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       <Suspense fallback={<StudentSidebar me={null} />}>
         <StudentMenu />
       </Suspense>
-      <div className="portal-main flex min-w-0 flex-1 flex-col">
+      <div className="portal-main relative flex min-w-0 flex-1 flex-col">
         <Suspense fallback={<Header />}>
           <StudentHeader />
         </Suspense>
-        <main className="flex-1 px-4 pb-6 sm:px-4 lg:px-4">
+        <main className="flex-1 px-4 pb-6 sm:px-4 lg:px-4 lg:pt-4">
           <Suspense>{children}</Suspense>
         </main>
       </div>

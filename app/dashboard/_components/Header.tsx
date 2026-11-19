@@ -18,8 +18,9 @@ export default function Header({
   user?: HeaderUser;
 }) {
   return (
-    // Spacer under the mobile top bar, then the live Melbourne clock (Dark mode and full screen are in the sidebar)
-    <header className="shrink-0">
+    // Spacer under the mobile top bar, then the live Melbourne clock (Dark mode and full screen are in the sidebar).
+    // Student, large screens: it sits in the top-right corner beside the page title instead of taking its own row.
+    <header className={`shrink-0 ${variant === "student" ? "lg:absolute lg:right-0 lg:top-0 lg:z-20" : ""}`}>
       <div aria-hidden className="h-16 lg:hidden" />
       <div className={`flex flex-wrap items-center gap-2 px-4 pb-2 pt-3 ${variant === "student" ? "justify-between lg:justify-end" : "justify-end"}`}>
         {variant === "student" && <StudentTypography />}

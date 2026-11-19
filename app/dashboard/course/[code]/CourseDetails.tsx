@@ -168,12 +168,12 @@ export default function CourseDetails({
               )}
               {units.length ? (
                 <div className={`${glass} overflow-x-auto rounded-2xl`}>
-                  <table className="w-full min-w-[520px] text-left">
+                  <table className="w-full min-w-[560px] text-left">
                     <thead className="border-b border-[var(--s-line)] text-sm font-semibold text-ink">
                       <tr>
                         <th className="px-6 py-4">Unit Code &amp; Name</th>
-                        <th className="py-4 pl-10 pr-6">Status</th>
-                        <th className="py-4 pl-12 pr-6">Action</th>
+                        <th className="w-px whitespace-nowrap py-4 pl-10 pr-6">Status</th>
+                        <th className="w-px whitespace-nowrap py-4 pl-12 pr-6">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--s-line)]">
@@ -183,13 +183,13 @@ export default function CourseDetails({
                             <p className="font-semibold text-ink">{u.title}</p>
                             <p className="text-sm text-ink/70">{u.code}</p>
                           </td>
-                          <td className="px-6 py-5">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ${pill[u.state]}`}>
+                          <td className="whitespace-nowrap px-6 py-5">
+                            <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${pill[u.state]}`}>
                               {!u.open && u.state !== "closed" && <LockIcon className="h-4 w-4" />}
                               {u.label}
                             </span>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className="whitespace-nowrap px-6 py-5">
                             {u.open ? (
                               <Link
                                 href={u.href}

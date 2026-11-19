@@ -76,7 +76,7 @@ export default async function CourseDetailsPage(props: PageProps<"/dashboard/cou
   const status = student.courses.find((c) => c.code === course.code)?.status ?? "Active";
 
   return (
-    <div className="s-dashboard-center animate-fade-up space-y-6 pt-6 sm:pt-10">
+    <div className="s-dashboard-center animate-fade-up space-y-6 pt-6 sm:pt-10 lg:pt-16">
       {/* Header: course picture, breadcrumb, name, code and status; Need help on the right */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-5">
