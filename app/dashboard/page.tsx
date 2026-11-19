@@ -4,7 +4,7 @@ import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
 import PortalPromotions from "./_components/PortalPromotions";
 import SupportHub from "./_components/SupportHub";
-import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
+import { ArrowRightIcon, BoxIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
 import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
@@ -135,10 +135,9 @@ async function Profile() {
     { label: "Student ID", value: session.sub, icon: ClipboardIcon },
     { label: "Email", value: student?.email, icon: MailIcon },
     { label: "Phone", value: student?.phone, icon: PhoneIcon },
-    { label: "State", value: student?.state, icon: HomeIcon },
   ];
   const activity = [
-    { label: "Enrolled since", value: student?.enrolled, icon: CalendarIcon, className: "@[23rem]:col-span-2 @[43rem]:col-span-1" },
+    { label: "State", value: student?.state, icon: HomeIcon, className: "@[23rem]:col-span-2 @[43rem]:col-span-1" },
     { label: "Account status", value: student?.status, icon: ShieldIcon },
     { label: "Student portal requests", value: requests.length, icon: TicketIcon, href: "/dashboard/requests" },
   ];
