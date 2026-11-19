@@ -14,14 +14,14 @@ export type SupportGroup = {
   where: string; // the line next to the pin icon
   lines: [string, string];
   options: SupportOption[];
-  formLink?: boolean; // no booking: the card shows "Open a form link" (not clickable for now)
+  formLink?: boolean; // no booking: shown as the "Feedback and concerns" row with an Open form button (no form link yet)
 };
 
 export const SUPPORT_GROUPS: SupportGroup[] = [
   {
     id: "learning",
     title: "Learning support",
-    subtitle: "Course content, study skills and assessments",
+    subtitle: "Study skills and assessments",
     icon: "learning",
     tone: "bg-[#e9e2fb] text-[#5b3f99]",
     pill: "bg-emerald-600 text-white",
@@ -37,7 +37,7 @@ export const SUPPORT_GROUPS: SupportGroup[] = [
   {
     id: "access",
     title: "Access and equity",
-    subtitle: "Reasonable adjustments and access",
+    subtitle: "Learning adjustments and access",
     icon: "access",
     tone: "bg-sky-100 text-sky-800",
     pill: "bg-sky-700 text-white",
@@ -50,7 +50,7 @@ export const SUPPORT_GROUPS: SupportGroup[] = [
   {
     id: "placement",
     title: "Placement and progress",
-    subtitle: "Work placement and progress check-ins",
+    subtitle: "Placement help and check-ins",
     icon: "placement",
     tone: "bg-amber-100 text-amber-800",
     pill: "bg-amber-600 text-white",
@@ -64,7 +64,7 @@ export const SUPPORT_GROUPS: SupportGroup[] = [
   {
     id: "wellbeing",
     title: "Student wellbeing",
-    subtitle: "Wellbeing and welfare support",
+    subtitle: "Personal wellbeing and welfare",
     icon: "wellbeing",
     tone: "bg-rose-100 text-rose-800",
     pill: "bg-rose-600 text-white",
@@ -77,7 +77,7 @@ export const SUPPORT_GROUPS: SupportGroup[] = [
   {
     id: "admin",
     title: "Admin and finance",
-    subtitle: "Enrolment, credit transfer and fees",
+    subtitle: "Enrolment, credit and fees",
     icon: "admin",
     tone: "bg-emerald-100 text-emerald-800",
     pill: "bg-emerald-700 text-white",

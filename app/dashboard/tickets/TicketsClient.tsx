@@ -112,6 +112,7 @@ export default function TicketsClient({ initialTickets, me }: { initialTickets: 
       {/* Book support: one card per support group (Learning support, Access and equity, …) */}
       <SupportCards
         me={me}
+        bookings={requests.length}
         onBooked={(t) => {
           setRequests((list) => [t, ...list]);
           setSelectedId(t.ticketId);

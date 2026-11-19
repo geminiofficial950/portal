@@ -1,150 +1,216 @@
 "use client";
 
-import { useState } from "react";
-import { CheckIcon } from "../_components/icons";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import toast from "react-hot-toast";
+import { CalendarIcon, CloseIcon, InfoIcon, PhoneIcon } from "../_components/icons";
 import BookingPanel from "./BookingPanel";
 import SupportIcon from "./SupportIcons";
 import { SUPPORT_GROUPS, type SupportGroup } from "@/lib/support-booking-meta";
 import type { TicketDTO } from "@/lib/ticket-meta";
 
-const PinIcon = ({ className = "" }: { className?: string }) => (
+const PHONE = { text: "1800 069 877", href: "tel:1800069877" };
+
+const Chevron = ({ className = "" }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
-    <circle cx="12" cy="9.5" r="2.5" />
+    <path d="m9 6 6 6-6 6" />
   </svg>
 );
 
-// "Book support": one card per support group, laid out like a booking directory. The student ticks the options they
-// need on a card, then Book support asks for a preferred time; the booking appears in their requests below and in
-// Admin → Support (where it gets a priority and is assigned).
-export default function SupportCards({ me, onBooked }: { me: { name: string; studentId: string; email: string }; onBooked: (t: TicketDTO) => void }) {
-  const [picked, setPicked] = useState<Record<string, string[]>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [booking, setBooking] = useState<SupportGroup | null>(null);
+const ArrowUpRight = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M7 17 17 7M8 7h9v9" />
+  </svg>
+);
 
-  const toggle = (g: string, o: string) =>
-    setPicked((p) => {
-      const cur = p[g] ?? [];
-      return { ...p, [g]: cur.includes(o) ? cur.filter((x) => x !== o) : [...cur, o] };
-    });
+// "Support, made simple": one card per support group. Selecting a card opens the booking form for that group, where
+// the student ticks what they need and picks a time; the booking appears under "Your bookings" and in Admin → Support.
+// "Feedback and concerns" has no booking — it's the row with the form button under the cards.
+export default function SupportCards({
+  me,
+  bookings,
+  onBooked,
+}: {
+  me: { name: string; studentId: string; email: string };
+  bookings: number;
+  onBooked: (t: TicketDTO) => void;
+}) {
+  const [booking, setBooking] = useState<SupportGroup | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const bookable = SUPPORT_GROUPS.filter((g) => !g.formLink);
+  const forms = SUPPORT_GROUPS.filter((g) => g.formLink);
+
+  const showBookings = () => {
+    const el = document.getElementById("my-bookings-heading");
+    if (!el) return void toast("You haven’t booked any support yet.");
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
-    <section aria-labelledby="book-support-heading" className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 id="book-support-heading" className="text-2xl font-semibold text-ink">
-          Book support
-        </h1>
-        <span className="rounded-full bg-lilac px-2.5 py-0.5 text-xs font-semibold text-ink">{SUPPORT_GROUPS.length}</span>
-        <p className="w-full text-sm text-ink">Tick what you need on a card, then select Book support to choose a time.</p>
+    <section aria-labelledby="support-heading" className="space-y-4">
+      {/* lg: pushed down a little so My bookings sits below the Text Style / clock bar in the top-right corner */}
+      <div className="flex flex-wrap items-end justify-between gap-3 lg:pt-7">
+        <div>
+          <h1 id="support-heading" className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+            Support, made simple.
+          </h1>
+          <p className="mt-1.5 text-base text-ink/80">Choose what you need help with.</p>
+        </div>
+        <button
+          type="button"
+          onClick={showBookings}
+          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--s-line)] bg-[var(--s-card)] px-3.5 py-1.5 text-sm font-semibold text-ink transition hover:bg-[var(--s-soft)]"
+        >
+          <CalendarIcon className="h-4 w-4" />
+          My bookings
+          {bookings > 0 && <span className="rounded-full bg-[var(--s-soft)] px-2 text-xs tabular-nums">{bookings}</span>}
+        </button>
       </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SUPPORT_GROUPS.map((g) => {
-          const sel = picked[g.id] ?? [];
-          const showAll = expanded[g.id] || g.options.length <= 3;
-          const shown = showAll ? g.options : g.options.slice(0, 3);
-          return (
+      <div className="s-card space-y-4 rounded-[1.75rem] p-4 backdrop-blur-xl backdrop-saturate-150 sm:p-5">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {bookable.map((g) => (
             <li key={g.id}>
-              <article aria-label={g.title} className="s-glass-card flex h-full flex-col rounded-2xl p-4 backdrop-blur-xl backdrop-saturate-150">
-                <div className="flex items-start gap-3">
-                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full shadow-sm ring-2 ring-white ${g.tone}`}>
+              <button
+                type="button"
+                onClick={() => setBooking(g)}
+                aria-label={`${g.title}: ${g.subtitle}. Book support`}
+                className="group flex h-full w-full flex-col rounded-2xl border border-[var(--s-line)] bg-[var(--s-card)] p-5 text-left shadow-[0_8px_24px_-18px_rgba(19,33,36,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(19,33,36,0.45)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--s-dark)]/20"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${g.tone}`}>
                     <SupportIcon name={g.icon} className="h-6 w-6" />
                   </span>
-                  <span className="min-w-0">
-                    <span className="block text-base font-semibold leading-snug text-ink">{g.title}</span>
-                    <span className="block text-sm text-ink">{g.subtitle}</span>
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${g.pill}`}>
-                    <CheckIcon className="h-3.5 w-3.5" />
-                    {g.options.length} option{g.options.length === 1 ? "" : "s"}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-sm text-ink">
-                    <PinIcon className="h-4 w-4 text-plum" />
-                    {g.where}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-ink">{g.lines[0]}</p>
-                <p className="text-xs text-ink">{g.lines[1]}</p>
-
-                <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label={`${g.title} options`}>
-                  {shown.map((o) => {
-                    const on = sel.includes(o.id);
-                    // a form-link group has nothing to tick: its option is just shown
-                    if (g.formLink)
-                      return (
-                        <span key={o.id} title={o.detail} className="inline-flex items-center rounded-full bg-[var(--s-soft)] px-3 py-1.5 text-xs font-medium text-ink">
-                          {o.label}
-                        </span>
-                      );
-                    return (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => toggle(g.id, o.id)}
-                        aria-pressed={on}
-                        title={o.detail}
-                        className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                          on ? "bg-plum text-white shadow-sm" : "bg-[var(--s-soft)] text-ink hover:bg-[var(--s-badge-hover)]"
-                        }`}
-                      >
-                        {on && <CheckIcon className="h-3.5 w-3.5" />}
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                  {!showAll && (
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((e) => ({ ...e, [g.id]: true }))}
-                      aria-label={`Show ${g.options.length - 3} more ${g.title} options`}
-                      className="rounded-full border border-ink/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-lilac"
-                    >
-                      +{g.options.length - 3}
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                  <span>
-                    <span className="block text-sm font-bold text-ink">Free</span>
-                    <span className="block text-xs text-ink">{sel.length ? `${sel.length} ticked` : "For enrolled students"}</span>
-                  </span>
-                  {g.formLink ? (
-                    // not clickable for now
-                    <span className="cursor-default rounded-full bg-plum px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-plum/25">Open a form link</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setBooking(g)}
-                      className="rounded-full bg-plum px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-plum/25 transition hover:bg-plum-light"
-                    >
-                      Book support
-                    </button>
-                  )}
-                </div>
-              </article>
+                  <Chevron className="h-5 w-5 text-ink transition group-hover:translate-x-0.5" />
+                </span>
+                <span className="mt-3 block text-xl font-bold leading-snug text-ink">{g.title}</span>
+                <span className="mt-0.5 block text-sm text-ink/75">{g.subtitle}</span>
+              </button>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+
+        {forms.map((g) => (
+          <div key={g.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-[var(--s-line)] bg-[var(--s-card)] px-5 py-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--s-soft)] text-ink">
+              <SupportIcon name={g.icon} className="h-6 w-6" />
+            </span>
+            {/* min width: on a phone the button wraps below instead of squeezing the text */}
+            <span className="min-w-[12rem] flex-1">
+              <span className="block text-lg font-bold text-ink">{g.title}</span>
+              <span className="block text-sm text-ink/75">{g.subtitle}</span>
+            </span>
+            {/* no form link yet: the button says so instead of going nowhere */}
+            <button
+              type="button"
+              onClick={() => toast(`The ${g.title.toLowerCase()} form is coming soon. For now, call ${PHONE.text}.`)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--s-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Open form
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl bg-[#132124] px-5 py-4 text-white sm:px-7">
+        <p className="text-lg font-bold">Not sure who to contact?</p>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <button
+            type="button"
+            onClick={() => setChoosing(true)}
+            aria-haspopup="dialog"
+            className="rounded-full bg-[#d6f5e3] px-6 py-2.5 text-sm font-semibold text-[#132124] transition hover:bg-[#c2efd5]"
+          >
+            Help me choose
+          </button>
+          <span aria-hidden className="hidden h-8 w-px bg-white/25 sm:block" />
+          <a href={PHONE.href} className="inline-flex items-center gap-2 text-lg font-semibold hover:underline">
+            <PhoneIcon className="h-5 w-5" />
+            {PHONE.text}
+          </a>
+        </div>
+      </div>
+
+      <p className="flex items-center gap-2 px-1 text-sm text-ink/75">
+        <InfoIcon className="h-4 w-4 shrink-0" />
+        Support is free for enrolled students.
+      </p>
+
+      {choosing && (
+        <HelpMeChoose
+          groups={bookable}
+          onClose={() => setChoosing(false)}
+          onPick={(g) => {
+            setChoosing(false);
+            setBooking(g);
+          }}
+        />
+      )}
 
       {booking && (
         <BookingPanel
           group={booking}
           me={me}
-          // the form starts with the card's ticks (a one-option group starts ticked); changes in the form stay in the form
-          ticked={picked[booking.id]?.length ? picked[booking.id] : booking.options.length === 1 ? [booking.options[0].id] : []}
+          // a one-option group starts ticked; otherwise the student ticks what they need in the form
+          ticked={booking.options.length === 1 ? [booking.options[0].id] : []}
           onClose={() => setBooking(null)}
           onDone={(t) => {
-            setPicked((p) => ({ ...p, [booking.id]: [] }));
             setBooking(null);
             onBooked(t);
           }}
         />
       )}
     </section>
+  );
+}
+
+// "Help me choose": every group with what it covers, so the student can find the right one and book it
+function HelpMeChoose({ groups, onClose, onPick }: { groups: SupportGroup[]; onClose: () => void; onPick: (g: SupportGroup) => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/40 p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-choose-heading"
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-ink/10 px-5 py-4">
+          <span>
+            <span id="help-choose-heading" className="block text-lg font-semibold text-ink">
+              Which support do I need?
+            </span>
+            <span className="block text-sm text-ink/75">Find what you need help with, then book it.</span>
+          </span>
+          <button type="button" onClick={onClose} aria-label="Close" autoFocus className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink hover:bg-lilac">
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <ul className="divide-y divide-ink/10">
+          {groups.map((g) => (
+            <li key={g.id}>
+              <button type="button" onClick={() => onPick(g)} className="flex w-full items-start gap-3 px-5 py-4 text-left transition hover:bg-lilac/60">
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${g.tone}`}>
+                  <SupportIcon name={g.icon} className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-ink">{g.title}</span>
+                  <span className="block text-sm text-ink/75">{g.options.map((o) => o.detail).join(" · ")}</span>
+                </span>
+                <Chevron className="mt-2.5 h-4 w-4 shrink-0 text-ink" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>,
+    document.body,
   );
 }
