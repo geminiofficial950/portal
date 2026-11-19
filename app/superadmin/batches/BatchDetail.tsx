@@ -50,7 +50,7 @@ const fmtStamp = (iso: string) => new Date(iso).toLocaleString("en-AU", { day: "
 const TABS = [
   { key: "plan", label: "Training plan" },
   { key: "students", label: "Students" },
-  { key: "classes", label: "Classes" },
+  { key: "classes", label: "Class schedule" },
   { key: "deadlines", label: "Deadlines" },
   { key: "details", label: "Details" },
 ] as const;
@@ -643,16 +643,32 @@ function StudentsTab({
 // ---------- Classes ----------
 
 function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolean; onChange: (c: ClassSession[]) => void }) {
-  const [cls, setCls] = useState({ day: "Monday", time: "", link: "", meetingId: "", passcode: "" });
+  // One schedule: the class days (pick several), one time and one link. Saved as one weekly class per day.
+  const [days, setDays] = useState<string[]>([]);
+  const [cls, setCls] = useState({ time: "", link: "", meetingId: "", passcode: "" });
   const [busy, start] = useTransition();
+  const room = CLASSES_MAX - batch.classes.length;
+  const toggleDay = (d: string) => setDays((list) => (list.includes(d) ? list.filter((x) => x !== d) : [...list, d]));
   const add = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!days.length) return void toast.error("Pick the class days.");
+    if (days.length > room) return void toast.error(`A batch can have up to ${CLASSES_MAX} classes a week (${room} left).`);
     start(async () => {
-      const res = await addBatchClassAction(batch.batchId, cls);
-      if (!res.ok) return void toast.error(res.error);
-      onChange(sortClasses([...batch.classes, res.session]));
-      setCls({ day: cls.day, time: "", link: "", meetingId: "", passcode: "" });
-      toast.success("Class added — students of this batch can see it");
+      const added: ClassSession[] = [];
+      for (const day of CLASS_DAYS.filter((d) => days.includes(d))) {
+        if (batch.classes.some((c) => c.day === day && c.time === cls.time)) continue; // already on the schedule
+        const res = await addBatchClassAction(batch.batchId, { day, ...cls });
+        if (!res.ok) {
+          toast.error(`${day}: ${res.error}`);
+          break;
+        }
+        added.push(res.session);
+      }
+      if (!added.length) return;
+      onChange(sortClasses([...batch.classes, ...added]));
+      setDays([]);
+      setCls({ time: "", link: "", meetingId: "", passcode: "" });
+      toast.success(`${added.length === 1 ? "Class" : `${added.length} classes`} added — students of this batch can see ${added.length === 1 ? "it" : "them"}`);
     });
   };
   const remove = (c: ClassSession) => {
@@ -667,7 +683,7 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
     <section className={`${card} space-y-4`}>
       <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
         <VideoIcon className="h-5 w-5 text-plum" />
-        Weekly classes
+        Class schedule (weekly)
       </h2>
       <p className="text-sm text-ink">Day, time ({batch.timezone}) and link of each class — paste the Google Meet link, or just the Meeting ID (e.g. abc-defg-hij), plus a code if there is one. Students of this batch see these read-only.</p>
       {batch.classes.length ? (
@@ -714,19 +730,35 @@ function ClassesTab({ batch, admin, onChange }: { batch: BatchDTO; admin: boolea
         <p className="rounded-xl bg-lilac px-4 py-3 text-sm text-ink">No classes yet.</p>
       )}
       {admin && batch.classes.length < CLASSES_MAX && (
-        <form onSubmit={add} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_8rem_minmax(0,1fr)_11rem_9rem_auto]">
-          <select value={cls.day} onChange={(e) => setCls({ ...cls, day: e.target.value })} aria-label="Day of class" className={field}>
-            {CLASS_DAYS.map((d) => (
-              <option key={d}>{d}</option>
-            ))}
-          </select>
+        <form onSubmit={add} className="space-y-3">
+          <fieldset>
+            <legend className="mb-1.5 text-xs font-semibold text-ink">Class days</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {CLASS_DAYS.map((d) => {
+                const on = days.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(d)}
+                    aria-pressed={on}
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${on ? "bg-plum text-white" : "bg-lilac text-ink hover:bg-plum/10"}`}
+                  >
+                    {d.slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1fr)_11rem_9rem_auto]">
           <input type="time" required value={cls.time} onChange={(e) => setCls({ ...cls, time: e.target.value })} aria-label="Time of class" className={field} />
           <input value={cls.link} onChange={(e) => setCls({ ...cls, link: e.target.value })} placeholder="Class link (https://…)" inputMode="url" aria-label="Class link" className={field} />
           <input value={cls.meetingId} maxLength={40} onChange={(e) => setCls({ ...cls, meetingId: e.target.value })} placeholder="Meeting ID" aria-label="Meeting ID" className={field} />
           <input value={cls.passcode} maxLength={40} onChange={(e) => setCls({ ...cls, passcode: e.target.value })} placeholder="Code (optional)" aria-label="Meeting code" className={field} />
           <button type="submit" disabled={busy} className={`${btn} bg-plum py-2.5 text-white hover:bg-plum-light`}>
-            Add class
+            {days.length > 1 ? `Add ${days.length} classes` : "Add class"}
           </button>
+          </div>
         </form>
       )}
     </section>

@@ -5,6 +5,7 @@ import StudentCoursesPanel from "./StudentCoursesPanel";
 import StudentDocumentsPanel from "./StudentDocumentsPanel";
 import StudentNotes from "./StudentNotes";
 import StudentProfileCard from "./StudentProfileCard";
+import StudentPortalUpdate from "./StudentPortalUpdate";
 import { requireAdmin } from "@/lib/auth";
 import { listCourses } from "@/lib/courses";
 import { listPlacementDocs, listRequests, listSignedDocs } from "@/lib/documents";
@@ -52,6 +53,8 @@ export default async function AdminStudentProgressPage(props: PageProps<"/supera
 
       {/* Student details (Edit details: Admin edits name, phone, state, notes; Super Admin also the login) */}
       <StudentProfileCard key={student.studentId} student={student} batchNames={batchNames} canEditLogin={admin.isSuper} />
+
+      {student.status !== "Suspended" && <StudentPortalUpdate studentId={student.studentId} />}
 
       <StudentCoursesPanel
         key={student.courses.map((c) => c.code).join()}

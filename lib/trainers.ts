@@ -5,6 +5,7 @@ import { nextSeq } from "./counters";
 import { getDb } from "./db";
 import { formatDate } from "./format";
 import type { TrainerDTO } from "./trainer-meta";
+import type { FileRef } from "./submission-meta";
 
 type TrainerDoc = {
   _id?: ObjectId;
@@ -13,10 +14,12 @@ type TrainerDoc = {
   email: string;
   active: boolean;
   passwordHash: string;
+  photo?: FileRef | null; // profile picture
   createdAt: Date;
 };
 
-const toDTO = ({ trainerId, name, email, active, createdAt }: TrainerDoc): TrainerDTO => ({
+const toDTO = ({ trainerId, name, email, active, createdAt, photo }: TrainerDoc): TrainerDTO => ({
+  photo: photo ?? null,
   trainerId,
   name,
   email,
@@ -71,6 +74,12 @@ export async function createTrainer(input: { name: string; email: string; passwo
     throw err;
   }
   return toDTO(doc);
+}
+
+/** Sets (or clears, `null`) a trainer's profile picture. Returns the previous picture so the caller can delete its file. */
+export async function setTrainerPhoto(trainerId: string, file: FileRef | null) {
+  const doc = await (await collection()).findOneAndUpdate({ trainerId }, { $set: { photo: file } }, { returnDocument: "before" });
+  return doc ? { ok: true as const, previous: doc.photo ?? null } : { ok: false as const };
 }
 
 export async function setTrainerActive(trainerId: string, active: boolean) {

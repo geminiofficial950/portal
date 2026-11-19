@@ -11,7 +11,7 @@ const paths = {
 
 export function StudentNavIcon({ name }: { name: keyof typeof paths }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="block size-[17px] lg:size-[15px]">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="block size-[18px]">
       <path fillRule="evenodd" d={paths[name]} />
     </svg>
   );

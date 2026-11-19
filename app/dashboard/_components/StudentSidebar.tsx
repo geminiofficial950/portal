@@ -8,6 +8,7 @@ import { logout } from "../../actions/auth";
 import ThemeToggle from "../../components/ThemeToggle";
 import { CloseIcon, CompressIcon, ExpandIcon, LogoutIcon, MenuIcon } from "./icons";
 import { StudentNavIcon } from "./StudentNavIcon";
+import TechSupport from "./TechSupport";
 import { readFull, setFull, subscribeFull } from "./Sidebar";
 
 // The student's menu: flat navigation, filled navigation icons and a highlighted current page,
@@ -53,7 +54,7 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
     <div className="space-y-6 lg:space-y-5">
       {GROUPS.map((g) => (
         <div key={g.heading}>
-          <p className="mb-2 px-2 text-sm font-semibold text-ink">{g.heading}</p>
+          <p className="mb-2 px-2 text-base font-semibold text-ink/75">{g.heading}</p>
           <ul className="space-y-1 lg:space-y-0.5">
             {g.items.map(({ label, href, icon }) => {
               const active = isActive(href, pathname);
@@ -63,11 +64,11 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                     href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`flex min-h-11 items-center gap-3 rounded-full px-1.5 pr-4 text-[15px] transition lg:min-h-10 lg:gap-2.5 ${
-                      active ? "bg-[var(--s-nav-active)] font-semibold text-ink" : "font-medium text-ink hover:bg-[var(--s-card)]"
+                    className={`s-nav-link relative flex min-h-12 items-center gap-3 rounded-full px-1.5 pr-6 text-[length:calc(17px*var(--student-text-scale))] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--s-logo-gold)] lg:min-h-11 lg:gap-2.5 ${
+                      active ? "font-semibold" : "font-medium text-ink"
                     }`}
                   >
-                    <span className="grid size-8 shrink-0 place-items-center text-[var(--s-nav-icon-ink)] lg:size-7">
+                    <span className={`grid size-8 shrink-0 place-items-center rounded-full ${active ? "bg-[var(--s-nav-chip)] text-[var(--s-nav-chip-ink)]" : "text-[var(--s-nav-icon-ink)]"}`}>
                       <StudentNavIcon name={icon} />
                     </span>
                     {label}
@@ -118,23 +119,25 @@ export default function StudentSidebar({ me }: { me: Me }) {
         }`}
       >
         <div className="flex items-center justify-between px-1">
-          <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} preload className="h-12 w-auto" />
+          <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} preload className="h-20 w-auto lg:h-22" />
           <button onClick={() => setOpen(false)} aria-label="Close menu" className="grid h-9 w-9 place-items-center rounded-full text-ink hover:bg-[var(--s-soft)] lg:hidden">
             <CloseIcon className="h-5 w-5" />
           </button>
+        </div>
+        <div className="mt-5 flex items-center justify-between gap-2 border-b border-[var(--s-line)] px-1 pb-2">
+          <p className="text-lg font-semibold text-ink">Stella Portal</p>
           <button
             type="button"
             onClick={() => setFull(true)}
             aria-label="Full screen (hide menu)"
             title="Full screen (hide menu)"
-            className="hidden h-9 w-9 place-items-center rounded-full text-ink transition hover:bg-[var(--s-card)] lg:grid"
+            className="hidden size-11 place-items-center rounded-full text-ink transition hover:bg-[var(--s-card)] lg:grid"
           >
-            <ExpandIcon className="h-[18px] w-[18px]" />
+            <ExpandIcon className="size-6" />
           </button>
         </div>
-        <p className="mt-2 px-1 text-sm font-semibold text-ink">Student Portal</p>
 
-        <nav className="mt-6 flex-1">
+        <nav aria-label="Student portal" className="mt-6 flex-1">
           <Suspense fallback={<Links onNavigate={() => setOpen(false)} />}>
             <ActiveLinks onNavigate={() => setOpen(false)} />
           </Suspense>
@@ -142,24 +145,26 @@ export default function StudentSidebar({ me }: { me: Me }) {
 
         {/* the student's card */}
         <div className="s-sidebar-account mt-6 rounded-[1.5rem] p-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Tech support (left), dark mode + logout (right) */}
+            <TechSupport onNavigate={() => setOpen(false)} />
             <ThemeToggle look="icon" />
             <form action={logout}>
               <button
                 type="submit"
                 aria-label="Logout"
                 title="Logout"
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--s-soft)] text-ink transition hover:bg-[var(--s-dark)] hover:text-white"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--s-soft)] text-ink transition hover:bg-[var(--s-dark)] hover:text-white"
               >
                 <LogoutIcon className="h-5 w-5" />
               </button>
             </form>
           </div>
           <div className="mt-3 flex items-center gap-3 border-t border-[var(--s-line)] pt-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--s-dark)] text-sm font-bold text-white">{me?.initials ?? ""}</span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--s-dark)] text-sm font-bold text-white">{me?.initials ?? ""}</span>
             <span className="min-w-0">
-              <span className="s-student-name block truncate text-base font-semibold text-ink">{me?.name ?? " "}</span>
-              <span className="block truncate text-xs text-ink">{me?.email ?? ""}</span>
+              <span className="s-student-name block truncate text-base font-semibold text-[var(--s-logo-gold)]">{me?.name ?? " "}</span>
+              <span className="block truncate text-xs text-ink/75">{me?.email ?? ""}</span>
             </span>
           </div>
         </div>

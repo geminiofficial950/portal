@@ -5,8 +5,8 @@ import { logActivity } from "@/lib/activity";
 import { adminActor, requireAdmin } from "@/lib/auth";
 import { listAdmins } from "@/lib/admins";
 import { listTrainers } from "@/lib/trainers";
-import { TICKET_PRIORITIES, TICKET_STATUSES, type TicketDTO, type TicketPriority, type TicketStatus } from "@/lib/ticket-meta";
-import { addTicketMessage, updateTicket } from "@/lib/tickets";
+import { TECH_SUPPORT_TOPIC, TICKET_PRIORITIES, TICKET_STATUSES, type TicketDTO, type TicketPriority, type TicketStatus } from "@/lib/ticket-meta";
+import { addTicketMessage, getTicketTopic, updateTicket } from "@/lib/tickets";
 
 type Result = { ok: true; ticket: TicketDTO } | { ok: false; error: string };
 
@@ -21,6 +21,8 @@ const done = (ticket: TicketDTO | null): Result => {
 // trainerId: an active trainer's ID or an Admin account's ID; null = unassign
 export async function assignTicketAction(ticketId: string, trainerId: string | null): Promise<Result> {
   await requireAdmin();
+  // Tech support tickets stay with Admin: they are never assigned to anyone
+  if ((await getTicketTopic(ticketId)) === TECH_SUPPORT_TOPIC) return { ok: false, error: "Tech support tickets aren’t assigned. Admin handles them." };
   const actor = await adminActor();
   let assignee = "Unassigned";
   if (trainerId) {

@@ -4,6 +4,7 @@ import { nextSeq } from "./counters";
 import { getDb } from "./db";
 import { formatDate, formatDateTime } from "./format";
 import type { BookingSummary, TicketDTO, TicketPriority, TicketStatus } from "./ticket-meta";
+import type { FileRef } from "./submission-meta";
 
 type EventDoc = { at: Date; by: string; text: string };
 /** a progress step to record with a change */
@@ -24,6 +25,7 @@ type TicketDoc = {
   assigneeId: string | null;
   messages: MessageDoc[];
   booking?: BookingSummary | null;
+  attachments?: FileRef[]; // screenshots (tech support)
   events?: EventDoc[];
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +44,7 @@ const toDTO = (t: TicketDoc): TicketDTO => ({
   created: formatDate(t.createdAt),
   messages: t.messages.map((m) => ({ from: m.from, name: m.name, text: m.text, time: formatDateTime(m.at) })),
   booking: t.booking ?? null,
+  attachments: t.attachments ?? [],
   // requests made before progress was recorded start with their "Submitted" step too
   events: (t.events?.[0]?.text === "Submitted" ? t.events : [{ at: t.createdAt, by: t.studentName, text: "Submitted" }, ...(t.events ?? [])]).map((e) => ({
     by: e.by,
@@ -66,6 +69,18 @@ async function collection() {
 export async function listTickets(filter: { studentId?: string; assigneeId?: string } = {}) {
   const col = await collection();
   return (await col.find(filter).sort({ updatedAt: -1 }).toArray()).map(toDTO);
+}
+
+// A ticket's topic (e.g. to stop tech support tickets being assigned)
+export async function getTicketTopic(ticketId: string) {
+  const doc = await (await collection()).findOne({ ticketId: String(ticketId) }, { projection: { topic: 1 } });
+  return doc?.topic ?? null;
+}
+
+// The ticket a screenshot belongs to (for file access: its student, Admin, and the trainer it's assigned to)
+export async function findTicketFile(fileId: string) {
+  const doc = await (await collection()).findOne({ "attachments.id": String(fileId) }, { projection: { studentId: 1, assigneeId: 1 } });
+  return doc ? { studentId: doc.studentId, assigneeId: doc.assigneeId ?? null } : null;
 }
 
 export async function countOpenTickets() {
@@ -94,6 +109,7 @@ export async function createTicket(input: {
   subject: string;
   text: string;
   booking?: BookingSummary | null;
+  attachments?: FileRef[];
 }) {
   const col = await collection();
   const now = new Date();
@@ -109,6 +125,7 @@ export async function createTicket(input: {
     assigneeId: null,
     messages: [{ from: "student", name: input.studentName, text: input.text, at: now }],
     booking: input.booking ?? null,
+    attachments: input.attachments ?? [],
     events: [{ at: now, by: input.studentName, text: "Submitted" }],
     createdAt: now,
     updatedAt: now,

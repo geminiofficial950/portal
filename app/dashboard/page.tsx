@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
 import PortalPromotions from "./_components/PortalPromotions";
+import SupportHub from "./_components/SupportHub";
 import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
 import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
@@ -80,7 +81,7 @@ async function DueCalendar() {
           const rec = records[u.code] ?? null;
           const open = !hidden.has(u.code) && (rec?.status ?? "Active") === "Active";
           return iso && open
-            ? [{ id: `${code}/${u.code}`, iso, label: `Due: ${u.code} – ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
+            ? [{ id: `${code}/${u.code}`, iso, label: `${u.code} - ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
             : [];
         });
       }),
@@ -210,7 +211,7 @@ const placeholder: Card[] = [
 export default function DashboardPage() {
   return (
     <div className="animate-fade-up space-y-5">
-      <h1 className="text-3xl font-semibold text-ink sm:text-4xl">My Dashboard</h1>
+      <h1 className="text-3xl font-semibold text-[var(--s-logo-gold)] sm:text-4xl">My Dashboard</h1>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
         <div className="s-dashboard-center min-w-0 space-y-5">
@@ -225,6 +226,7 @@ export default function DashboardPage() {
               <DueCalendar />
             </Suspense>
           </section>
+          <SupportHub />
         </div>
         <aside className="min-w-0 space-y-5">
           <div className="s-card rounded-[1.75rem] p-5">

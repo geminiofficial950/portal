@@ -174,6 +174,14 @@ export const MailIcon = (p: P) => (
   </svg>
 );
 
+export const HeadsetIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M4 14v-2a8 8 0 1 1 16 0v2m0 3v1a3 3 0 0 1-3 3h-4" />
+    <rect x="3" y="12" width="4" height="6" rx="1.5" />
+    <rect x="17" y="12" width="4" height="6" rx="1.5" />
+  </svg>
+);
+
 export const PhoneIcon = (p: P) => (
   <svg {...base} {...p}>
     <path d="M8.5 3.5h2.2l1.1 3.2-1.6 1.1a12 12 0 0 0 5.5 5.5l1.1-1.6 3.2 1.1v2.2a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 3.5 5.7a2 2 0 0 1 2-2.2Z" />

@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import type { NextRequest } from "next/server";
 import { findAssessmentFile } from "@/lib/assessments";
+import { isDisplayImage } from "@/lib/display-images";
 import { findPlacementFile } from "@/lib/documents";
 import { isUnitHidden } from "@/lib/hidden-units";
 import { trainerCanSee, trainerTeachesUnit } from "@/lib/trainer-access";
@@ -10,6 +11,7 @@ import { getSession } from "@/lib/session";
 import { logStudent } from "@/lib/student-logs";
 import { canStudy, getStudent } from "@/lib/students";
 import { findSubmissionWithFile } from "@/lib/submissions";
+import { findTicketFile } from "@/lib/tickets";
 import { getTrainer } from "@/lib/trainers";
 import { findResourceFile } from "@/lib/unit-content";
 
@@ -54,10 +56,14 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/files/[id]">
       if (sub) allowed = await trainerCanSee(trainer.trainerId, sub.studentId, sub.unitCode);
       else {
         const unitFile = (await findResourceFile(id)) ?? (await findAssessmentFile(id));
-        allowed = !!unitFile && (await trainerTeachesUnit(trainer.trainerId, unitFile.courseCode, unitFile.unitCode));
+        if (unitFile) allowed = await trainerTeachesUnit(trainer.trainerId, unitFile.courseCode, unitFile.unitCode);
+        // a screenshot on a support ticket assigned to this trainer
+        else allowed = (await findTicketFile(id))?.assigneeId === trainer.trainerId;
       }
     }
   }
+  // course thumbnails and trainer profile pictures: any logged-in user
+  if (!allowed && (await isDisplayImage(id))) allowed = true;
   if (!allowed) return new Response("You can’t open this file.", { status: 403 });
 
   const inline =
