@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
+import PortalPromotions from "./_components/PortalPromotions";
 import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
 import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
@@ -216,8 +217,13 @@ export default function DashboardPage() {
             </Suspense>
           </section>
         </div>
-        <aside className="s-card h-fit rounded-[1.75rem] p-5">
-          <Notification />
+        <aside className="min-w-0 space-y-5">
+          <div className="s-card rounded-[1.75rem] p-5">
+            <Notification />
+          </div>
+          <Suspense>
+            <PortalPromotions />
+          </Suspense>
         </aside>
       </div>
     </div>
