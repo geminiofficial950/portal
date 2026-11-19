@@ -2,6 +2,7 @@ import "server-only";
 import { listBatches } from "./groups";
 import { getStudent, listStudents } from "./students";
 import { trainerCanAccess } from "./unit-status-meta";
+import { imageUrl } from "./display-image-meta";
 
 // Trainer visibility (LMS guide): a trainer may see a student's unit only while the student is CURRENTLY in a batch
 // where that trainer is assigned to that unit. Applied to lists, submissions, downloads, feedback and direct URLs.
@@ -30,6 +31,30 @@ export async function trainerScope(trainerId: string) {
     can: (studentId: string, unitCode: string) => !!units.get(studentId)?.has(unitCode),
     unitsOf: (studentId: string) => units.get(studentId) ?? new Set<string>(),
   };
+}
+
+export type StudentTrainer = { trainerId: string; name: string; email: string; batch: string; unitCodes: string[]; photo: string | null };
+
+/**
+ * The trainers a student sees on My courses: active trainers of the student's CURRENT batches for this course,
+ * each with the units they cover. One entry per trainer (units merged across batches).
+ */
+export async function studentCourseTrainers(batchIds: string[], courseCode: string): Promise<StudentTrainer[]> {
+  if (!batchIds.length) return [];
+  const [{ listTrainers }, batches] = await Promise.all([import("./trainers"), listBatches()]);
+  const trainers = new Map((await listTrainers()).filter((t) => t.active).map((t) => [t.trainerId, t]));
+  const out = new Map<string, StudentTrainer>();
+  for (const b of batches) {
+    if (b.courseCode !== courseCode || !batchIds.includes(b.batchId)) continue;
+    for (const a of b.trainers) {
+      const t = trainers.get(a.trainerId);
+      if (!t) continue;
+      const row = out.get(t.trainerId) ?? { trainerId: t.trainerId, name: t.name, email: t.email, batch: b.name, unitCodes: [], photo: imageUrl(t.photo) };
+      row.unitCodes = [...new Set([...row.unitCodes, ...a.unitCodes])];
+      out.set(t.trainerId, row);
+    }
+  }
+  return [...out.values()];
 }
 
 /** Is the trainer assigned to this unit of this course in any batch? (for unit documents, not student work) */

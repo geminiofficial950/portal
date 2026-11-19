@@ -5,7 +5,8 @@ import { logActivity } from "@/lib/activity";
 import { requireStudent } from "@/lib/auth";
 import { logStudent } from "@/lib/student-logs";
 import { BOOKING_TOPIC_PREFIX, checkBooking, timeLabel, type BookingInput } from "@/lib/support-booking-meta";
-import { TICKET_TOPICS, type TicketDTO } from "@/lib/ticket-meta";
+import { ownedUploads } from "@/lib/files";
+import { TECH_SUPPORT_TOPIC, TICKET_ATTACHMENTS_MAX, TICKET_TOPICS, type TicketDTO } from "@/lib/ticket-meta";
 import { addTicketMessage, createTicket } from "@/lib/tickets";
 
 type Result = { ok: true; ticket: TicketDTO } | { ok: false; error: string };
@@ -27,6 +28,38 @@ export async function createTicketAction(input: { topicId: string; subject: stri
   });
   await logActivity(session.name, `raised ticket ${ticket.ticketId}`, "ticket");
   await logStudent({ studentId: session.sub, studentName: session.name, action: "Raised ticket", detail: `${ticket.ticketId} · ${subject}` });
+  revalidatePath("/dashboard/tickets");
+  revalidatePath("/superadmin", "layout");
+  return { ok: true, ticket };
+}
+
+// A tech support ticket from the sidebar's "Tech support" button. Goes to Admin (Support → Tech support).
+// `fileIds`: up to TICKET_ATTACHMENTS_MAX screenshots the student uploaded first (/api/files).
+export async function raiseTechSupportAction(input: { subject: string; details: string; fileIds?: string[] }): Promise<Result> {
+  const session = await requireStudent();
+  const subject = String(input.subject ?? "").trim();
+  const details = String(input.details ?? "").trim();
+  if (!subject) return { ok: false, error: "Add a short title." };
+  if (subject.length > 140) return { ok: false, error: "Keep the title under 140 characters." };
+  if (!details) return { ok: false, error: "Tell us what’s going wrong." };
+
+  // screenshots: only images this student uploaded themselves
+  const ids = [...new Set((Array.isArray(input.fileIds) ? input.fileIds : []).map(String))];
+  if (ids.length > TICKET_ATTACHMENTS_MAX) return { ok: false, error: `Add at most ${TICKET_ATTACHMENTS_MAX} screenshots.` };
+  const owned = await ownedUploads(ids, session.sub);
+  const attachments = owned.filter((f) => /\.(png|jpe?g)$/i.test(f.name));
+  if (attachments.length !== ids.length) return { ok: false, error: "A screenshot couldn’t be added. Upload it again (PNG or JPG)." };
+
+  const ticket = await createTicket({
+    studentId: session.sub,
+    studentName: session.name,
+    topic: TECH_SUPPORT_TOPIC,
+    subject,
+    text: details.slice(0, 4000),
+    attachments,
+  });
+  await logActivity(session.name, `raised tech support ticket ${ticket.ticketId}`, "ticket");
+  await logStudent({ studentId: session.sub, studentName: session.name, action: "Raised ticket", detail: `${ticket.ticketId} · Tech support · ${subject}` });
   revalidatePath("/dashboard/tickets");
   revalidatePath("/superadmin", "layout");
   return { ok: true, ticket };

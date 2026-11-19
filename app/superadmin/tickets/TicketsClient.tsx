@@ -6,6 +6,7 @@ import { ChatIcon, SearchIcon, TicketIcon } from "../../dashboard/_components/ic
 import TicketProgress from "../_components/TicketProgress";
 import TicketThreadModal from "../_components/TicketThreadModal";
 import {
+  TECH_SUPPORT_TOPIC,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   type TicketDTO,
@@ -33,8 +34,9 @@ type Assignee = { trainerId: string; name: string };
 
 export default function TicketsClient({ initialTickets, assignees }: { initialTickets: TicketDTO[]; assignees: Assignee[] }) {
   const [list, setList] = useState(initialTickets);
-  const [filter, setFilter] = useState<"All" | "Bookings" | TicketStatus>("All");
+  const [filter, setFilter] = useState<"All" | "Bookings" | "Tech support" | TicketStatus>("All");
   const isBooking = (t: TicketDTO) => t.topic.startsWith(BOOKING_TOPIC_PREFIX);
+  const isTech = (t: TicketDTO) => t.topic === TECH_SUPPORT_TOPIC; // raised from the student sidebar's "Tech support" button
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
   const q = query.trim().toLowerCase();
   const visible = list.filter(
     (t) =>
-      (filter === "All" || (filter === "Bookings" ? isBooking(t) : t.status === filter)) &&
+      (filter === "All" || (filter === "Bookings" ? isBooking(t) : filter === "Tech support" ? isTech(t) : t.status === filter)) &&
       (!q || t.subject.toLowerCase().includes(q) || t.studentName.toLowerCase().includes(q) || t.ticketId.toLowerCase().includes(q)),
   );
   const open = list.find((t) => t.ticketId === openId) ?? null;
@@ -87,7 +89,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {(["All", "Bookings", ...TICKET_STATUSES] as const).map((f) => (
+          {(["All", "Bookings", "Tech support", ...TICKET_STATUSES] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -96,6 +98,11 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
               }`}
             >
               {f}
+              {f === "Tech support" && list.some((t) => isTech(t) && t.status !== "Resolved") && (
+                <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                  {list.filter((t) => isTech(t) && t.status !== "Resolved").length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -123,6 +130,8 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
                 <span className="text-[11px] font-medium text-plum">{t.ticketId}</span>
                 {isBooking(t) ? (
                   <span className="rounded-full bg-plum px-2.5 py-0.5 text-xs font-semibold text-white">{t.topic}</span>
+                ) : isTech(t) ? (
+                  <span className="rounded-full bg-sky-600 px-2.5 py-0.5 text-xs font-semibold text-white">{t.topic}</span>
                 ) : (
                   <span className="text-[11px] text-ink">{t.topic}</span>
                 )}
@@ -130,6 +139,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
               <p className="mt-1.5 font-medium text-ink">{t.subject}</p>
               <p className="mt-0.5 text-[11px] text-ink">
                 {t.studentName} ({t.studentId}) · raised {t.created} · {t.messages.length} message{t.messages.length === 1 ? "" : "s"}
+                {t.attachments.length > 0 && ` · ${t.attachments.length} screenshot${t.attachments.length === 1 ? "" : "s"}`}
               </p>
               <TicketProgress ticket={t} />
             </div>
@@ -149,6 +159,11 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
                   <option key={p}>{p}</option>
                 ))}
               </select>
+              {isTech(t) ? (
+                <span className="rounded-full bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800" title="Tech support tickets aren’t assigned">
+                  Handled by Admin
+                </span>
+              ) : (
               <select
                 value={t.assigneeId ?? ""}
                 disabled={busyId === t.ticketId}
@@ -167,6 +182,7 @@ export default function TicketsClient({ initialTickets, assignees }: { initialTi
                   </option>
                 ))}
               </select>
+              )}
               <select
                 value={t.status}
                 disabled={busyId === t.ticketId}

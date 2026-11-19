@@ -2,11 +2,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
-import { ArrowRightIcon, ClipboardIcon, BoxIcon, TicketIcon } from "./_components/icons";
+import PortalPromotions from "./_components/PortalPromotions";
+import SupportHub from "./_components/SupportHub";
+import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
 import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
+import { listExtensionRequests } from "@/lib/deadlines";
 import { listRequests } from "@/lib/documents";
 import { listStudentDueDates } from "@/lib/due-dates";
 import { listHiddenUnits } from "@/lib/hidden-units";
@@ -78,7 +81,7 @@ async function DueCalendar() {
           const rec = records[u.code] ?? null;
           const open = !hidden.has(u.code) && (rec?.status ?? "Active") === "Active";
           return iso && open
-            ? [{ id: `${code}/${u.code}`, iso, label: `Due: ${u.code} – ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
+            ? [{ id: `${code}/${u.code}`, iso, label: `${u.code} - ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
             : [];
         });
       }),
@@ -122,35 +125,78 @@ function Cards({ links }: { links: Card[] }) {
   );
 }
 
-// The student's own card at the top: initials, name, ID, email and the courses they're in
 async function Profile() {
   const session = await requireStudent();
-  const student = await getStudent(session.sub);
-  const name = student?.name ?? session.name;
-  const courses = await Promise.all((student?.courses ?? []).map(async (c) => ({ code: c.code, name: (await getCourse(c.code))?.name ?? c.code })));
-  return <ProfileCard name={name} id={session.sub} email={student?.email ?? ""} courses={courses} />;
+  const [student, requests] = await Promise.all([
+    getStudent(session.sub),
+    listExtensionRequests({ studentId: session.sub }),
+  ]);
+  const details = [
+    { label: "Student ID", value: session.sub, icon: ClipboardIcon },
+    { label: "Email", value: student?.email, icon: MailIcon },
+    { label: "Phone", value: student?.phone, icon: PhoneIcon },
+    { label: "State", value: student?.state, icon: HomeIcon },
+  ];
+  const activity = [
+    { label: "Enrolled since", value: student?.enrolled, icon: CalendarIcon, className: "@[23rem]:col-span-2 @[43rem]:col-span-1" },
+    { label: "Account status", value: student?.status, icon: ShieldIcon },
+    { label: "Student portal requests", value: requests.length, icon: TicketIcon, href: "/dashboard/requests" },
+  ];
+
+  return <ProfileCard name={student?.name ?? session.name} details={details} activity={activity} />;
 }
 
-function ProfileCard({ name, id, email, courses }: { name: string; id: string; email: string; courses: { code: string; name: string }[] }) {
+type ProfileDetail = {
+  label: string;
+  value?: string | number;
+  icon: typeof BoxIcon;
+  className?: string;
+  href?: string;
+};
+
+function ProfileField({ label, value, icon: Icon, className = "", href }: ProfileDetail) {
+  if (value === undefined || value === "") return null;
+
   return (
-    <section aria-label="My details" className="s-card flex flex-wrap items-center gap-5 rounded-[1.75rem] p-5 sm:flex-nowrap">
-      <span className="grid h-24 w-24 shrink-0 place-items-center rounded-[1.5rem] bg-[var(--s-avatar)] text-3xl font-bold text-[var(--s-tile-ink)]">{initials(name) || "·"}</span>
-      <div className="min-w-0 flex-1">
-        <p className="text-2xl font-semibold leading-tight text-ink">{name}</p>
-        <p className="mt-1 text-base text-ink">
-          <span className="font-semibold">Student</span> · ID {id}
-        </p>
-        {email && <p className="mt-0.5 truncate text-base text-ink">{email}</p>}
-        {courses.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {courses.map((c) => (
-              <span key={c.code} className="rounded-full bg-[var(--s-soft)] px-3 py-1 text-sm font-medium text-ink">
-                {c.code} · {c.name}
-              </span>
-            ))}
-          </div>
-        )}
+    <div className={`grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5 ${className}`}>
+      <span aria-hidden="true" className="row-span-2 grid size-8 place-items-center rounded-lg bg-[var(--s-soft)]">
+        <Icon className="size-4" />
+      </span>
+      <dt className="text-xs font-medium text-ink/75">{label}</dt>
+      <dd className="wrap-anywhere text-sm font-semibold text-ink">
+        {href ? <Link href={href} aria-label={`${label}: ${value}`} className="hover:underline">{value}</Link> : value}
+      </dd>
+    </div>
+  );
+}
+
+function ProfileCard({ name, details, activity }: { name: string; details: ProfileDetail[]; activity: ProfileDetail[] }) {
+  return (
+    <section aria-label="My details" className="s-card @container rounded-[1.75rem] p-5 sm:p-6">
+      <div className="flex flex-wrap items-center gap-4 @[26rem]:flex-nowrap">
+        <span aria-hidden="true" className="s-profile-avatar grid size-16 shrink-0 place-items-center rounded-2xl text-2xl font-bold">
+          {initials(name)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="s-student-name wrap-anywhere text-3xl font-semibold leading-tight">{name}</h2>
+          <p className="mt-1 text-sm font-medium text-ink/75">Student</p>
+        </div>
+        <div className="w-full @[26rem]:w-auto">
+          <Link
+            href="/dashboard/course"
+            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--s-line)] bg-[var(--s-soft)] px-4 py-2 text-sm font-semibold text-ink transition hover:bg-[var(--s-badge-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--s-dark)]"
+          >
+            My Courses
+            <ArrowRightIcon className="size-4 -rotate-45" />
+          </Link>
+        </div>
       </div>
+      <dl className="mt-5 grid gap-x-5 gap-y-4 border-t border-[var(--s-line)] pt-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
+        {details.map((detail) => <ProfileField key={detail.label} {...detail} />)}
+      </dl>
+      <dl className="mt-4 grid gap-x-5 gap-y-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
+        {activity.map((detail) => <ProfileField key={detail.label} {...detail} />)}
+      </dl>
     </section>
   );
 }
@@ -165,11 +211,11 @@ const placeholder: Card[] = [
 export default function DashboardPage() {
   return (
     <div className="animate-fade-up space-y-5">
-      <h1 className="text-3xl font-semibold text-ink sm:text-4xl">My Dashboard</h1>
+      <h1 className="text-3xl font-semibold text-[var(--s-logo-gold)] sm:text-4xl">My Dashboard</h1>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-        <div className="min-w-0 space-y-5">
-          <Suspense fallback={<ProfileCard name="" id="" email="" courses={[]} />}>
+        <div className="s-dashboard-center min-w-0 space-y-5">
+          <Suspense fallback={<div aria-hidden="true" className="s-card min-h-40 rounded-[1.75rem]" />}>
             <Profile />
           </Suspense>
           <Suspense fallback={<Cards links={placeholder} />}>
@@ -180,9 +226,15 @@ export default function DashboardPage() {
               <DueCalendar />
             </Suspense>
           </section>
+          <SupportHub />
         </div>
-        <aside className="s-card h-fit rounded-[1.75rem] p-5">
-          <Notification />
+        <aside className="min-w-0 space-y-5">
+          <div className="s-card rounded-[1.75rem] p-5">
+            <Notification />
+          </div>
+          <Suspense>
+            <PortalPromotions />
+          </Suspense>
         </aside>
       </div>
     </div>

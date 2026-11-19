@@ -2,6 +2,7 @@ import "server-only";
 import type { ObjectId } from "mongodb";
 import { getDb } from "./db";
 import { certificateSeed } from "./course-seed";
+import type { FileRef } from "./submission-meta";
 
 export type Unit = { code: string; title: string };
 
@@ -17,18 +18,21 @@ type CourseDoc = {
   placementHoursNote?: string; // typed with the hours, e.g. "Minimum" → "Minimum 120 hours"
   placementText?: string; // placement information for students, set by Super Admin
   description?: string; // what the course is about, shown on the student's course page
+  thumbnail?: FileRef | null; // course picture, set by Super Admin / Admins (shown on the student's course cards)
   deleted?: boolean; // deleted by Super Admin: hidden everywhere (kept so the starter courses aren't added back)
   createdAt: Date;
 };
 
-export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementHoursNote" | "placementText" | "description" | "deleted" | "release"> & {
+export type CourseDTO = Omit<CourseDoc, "_id" | "createdAt" | "placementHours" | "placementHoursNote" | "placementText" | "description" | "deleted" | "release" | "thumbnail"> & {
+  thumbnail: FileRef | null;
   placementHours: number | null;
   placementHoursNote: string;
   placementText: string;
   description: string;
 };
 
-const toDTO = ({ code, name, category, duration, units, placementHours, placementHoursNote, placementText, description }: CourseDoc): CourseDTO => ({
+const toDTO = ({ code, name, category, duration, units, placementHours, placementHoursNote, placementText, description, thumbnail }: CourseDoc): CourseDTO => ({
+  thumbnail: thumbnail ?? null,
   code,
   name,
   category,
@@ -93,7 +97,7 @@ export async function createCourse(c: { code: string; name: string; category: st
   } else {
     await col.insertOne({ ...c, units, placementHours: null, placementText: "", createdAt: new Date() });
   }
-  return toDTO({ ...c, units, createdAt: new Date() });
+  return toDTO({ ...c, units, thumbnail: existing?.thumbnail ?? null, createdAt: new Date() });
 }
 
 // Name, category, duration and description (not the code: students and work are filed under it)
@@ -106,6 +110,12 @@ export async function updateCourseDetails(code: string, d: { name: string; categ
 export async function deleteCourse(code: string) {
   const res = await (await collection()).updateOne({ code, ...LIVE }, { $set: { deleted: true } });
   return res.matchedCount === 1;
+}
+
+/** Sets (or clears, `null`) the course picture. Returns the previous picture so the caller can delete its file. */
+export async function setCourseThumbnail(code: string, file: FileRef | null) {
+  const doc = await (await collection()).findOneAndUpdate({ code, ...LIVE }, { $set: { thumbnail: file } }, { returnDocument: "before" });
+  return doc ? { ok: true as const, previous: doc.thumbnail ?? null } : { ok: false as const };
 }
 
 export async function setPlacementHours(code: string, hours: number | null, note = "") {

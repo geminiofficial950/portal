@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import toast from "react-hot-toast";
 import { uploadRequestedDocAction, uploadSignedDocAction } from "../../actions/documents";
 import LocalTime from "../assessment/_components/LocalTime";
@@ -13,20 +13,24 @@ import FileActions from "../_components/FileActions";
 
 export type PlacementGroup = { code: string; name: string; text: string; docs: PlacementDocDTO[] };
 
-const card = "s-card rounded-[1.5rem] p-5 sm:p-6";
-const empty = "flex items-center gap-3 rounded-[1.5rem] bg-[var(--s-soft)] px-5 py-5 text-sm text-ink";
+const card = "s-card rounded-[1.5rem] p-5 sm:p-6 backdrop-blur-xl backdrop-saturate-150";
+const empty = "s-card flex items-center gap-3 rounded-[1.5rem] px-5 py-5 text-sm text-ink backdrop-blur-xl backdrop-saturate-150";
 const heading = "flex items-center gap-2.5 text-xl font-medium text-ink";
 const headingIcon = "grid h-9 w-9 place-items-center rounded-xl bg-[var(--s-icon)] text-ink";
 
 // Student: course documents to download and placement forms to sign and upload (Courses page)
+// `only`: show just one section (the Learning essentials pop-ups); both by default.
 export default function StudentDocuments({
   placement,
   initialSigned,
+  only,
 }: {
   placement: PlacementGroup[];
   initialSigned: SignedDocDTO[];
+  only?: "course" | "placement";
 }) {
   const [signed, setSigned] = useState(initialSigned);
+  const uid = useId(); // can be on a page more than once (one Learning essentials box per course)
   const multi = placement.length > 1;
 
   const uploadSigned = (doc: PlacementDocDTO) => async (file: { id: string }) => {
@@ -38,11 +42,25 @@ export default function StudentDocuments({
 
 
   return (
-    <div id="documents" className="space-y-10">
+    <div className="space-y-10">
       {/* Course documents: download only */}
-      {placement.some((g) => g.docs.some((d) => d.section === "course")) && (
-        <section aria-labelledby="course-docs-heading" className="space-y-3">
-          <h2 id="course-docs-heading" className={heading}>
+      {only === "course" && !placement.some((g) => g.docs.some((d) => d.section === "course")) && (
+        <section aria-labelledby={`${uid}-course`} className="space-y-3">
+          <h2 id={`${uid}-course`} className="flex items-center gap-3 text-2xl font-semibold text-ink">
+            <span className={headingIcon}>
+              <FileIcon className="h-5 w-5" />
+            </span>
+            Course documents
+          </h2>
+          <p className={empty}>
+            <FileIcon className="h-6 w-6 shrink-0 text-ink/75" />
+            No course documents yet. The college will add them here.
+          </p>
+        </section>
+      )}
+      {only !== "placement" && placement.some((g) => g.docs.some((d) => d.section === "course")) && (
+        <section aria-labelledby={`${uid}-course`} className="space-y-3">
+          <h2 id={`${uid}-course`} className={heading}>
             <span className={headingIcon}>
               <FileIcon className="h-5 w-5" />
             </span>
@@ -67,8 +85,9 @@ export default function StudentDocuments({
       )}
 
       {/* Placement pack */}
-      <section aria-labelledby="placement-heading" className="space-y-3">
-        <h2 id="placement-heading" className="flex items-center gap-3 text-2xl font-semibold text-ink">
+      {only !== "course" && (
+      <section aria-labelledby={`${uid}-placement`} className="space-y-3">
+        <h2 id={`${uid}-placement`} className="flex items-center gap-3 text-2xl font-semibold text-ink">
           <span className={headingIcon}>
             <ClipboardIcon className="h-5 w-5" />
           </span>
@@ -159,6 +178,7 @@ export default function StudentDocuments({
             </div>
           ))}
       </section>
+      )}
     </div>
   );
 }

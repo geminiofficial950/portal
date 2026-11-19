@@ -14,7 +14,11 @@ import {
   DuplicateTrainerEmailError,
   resetTrainerPassword,
   setTrainerActive,
+  setTrainerPhoto,
 } from "@/lib/trainers";
+import { deleteUploads, ownedUploads } from "@/lib/files";
+import { isImageName } from "@/lib/display-image-meta";
+import type { FileRef } from "@/lib/submission-meta";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -96,4 +100,22 @@ export async function changeTrainerLoginAction(trainerId: string, input: { email
   revalidatePath("/superadmin", "layout");
   revalidatePath("/trainer", "layout");
   return { ok: true, trainer, moved: res.moved };
+}
+
+// Trainer profile picture: `fileId` is an image this admin just uploaded (/api/files); null removes it
+export async function setTrainerPhotoAction(trainerId: string, fileId: string | null): Promise<Result<{ photo: FileRef | null }>> {
+  const admin = await requireAdmin();
+  let file: FileRef | null = null;
+  if (fileId) {
+    const [owned] = await ownedUploads([String(fileId)], admin.sub);
+    if (!owned || !isImageName(owned.name)) return { ok: false, error: "Upload a PNG or JPG picture." };
+    file = owned;
+  }
+  const res = await setTrainerPhoto(String(trainerId), file);
+  if (!res.ok) return { ok: false, error: "Trainer not found." };
+  if (res.previous && res.previous.id !== file?.id) await deleteUploads([res.previous.id]);
+  await logActivity(await adminActor(), `${file ? "set" : "removed"} the profile picture of ${trainerId}`, "trainer");
+  revalidatePath("/superadmin/trainers");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, photo: file };
 }

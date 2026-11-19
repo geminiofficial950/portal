@@ -4,7 +4,7 @@ import { getDb } from "./db";
 
 // What a student sees under "Notification" on their dashboard: changes staff made to their units
 // (unlocked, locked, hidden, shown again). Newest first; the oldest are dropped past KEEP per student.
-export type StudentNotificationKind = "unlocked" | "locked" | "hidden" | "shown" | "class";
+export type StudentNotificationKind = "unlocked" | "locked" | "hidden" | "shown" | "class" | "portal";
 export type StudentNotificationDTO = { id: string; kind: StudentNotificationKind; text: string; at: string };
 
 type NotificationDoc = { _id?: ObjectId; studentId: string; courseCode: string; kind: StudentNotificationKind; text: string; at: Date };
@@ -25,6 +25,7 @@ const VERB: Record<StudentNotificationKind, string> = {
   hidden: "removed from your course for now",
   shown: "added back to your course",
   class: "changed",
+  portal: "updated",
 };
 const VERB_MANY: Record<StudentNotificationKind, string> = { ...VERB, unlocked: "unlocked — you can start them now" };
 
@@ -44,7 +45,7 @@ export async function notifyUnitChange(
     const col = await collection();
     await col.insertOne({ studentId, courseCode, kind, text, at: new Date() });
     // keep only the newest KEEP for this student
-    const old = await col.find({ studentId }, { projection: { _id: 1 } }).sort({ at: -1 }).skip(KEEP).toArray();
+    const old = await col.find({ studentId }, { projection: { _id: 1 } }).sort({ at: -1, _id: -1 }).skip(KEEP).toArray();
     if (old.length) await col.deleteMany({ _id: { $in: old.map((d) => d._id!) } });
   } catch (err) {
     // a missed notification must never undo the change itself
@@ -53,7 +54,7 @@ export async function notifyUnitChange(
 }
 
 export async function listStudentNotifications(studentId: string) {
-  const docs = await (await collection()).find({ studentId }).sort({ at: -1 }).limit(KEEP).toArray();
+  const docs = await (await collection()).find({ studentId }).sort({ at: -1, _id: -1 }).limit(KEEP).toArray();
   return docs.map((d): StudentNotificationDTO => ({ id: d._id!.toString(), kind: d.kind, text: d.text, at: d.at.toISOString() }));
 }
 
@@ -67,4 +68,10 @@ export async function notifyStudents(studentIds: string[], courseCode: string, t
   } catch (err) {
     console.error("student notification failed:", err);
   }
+}
+
+// A staff message that only appears inside the student's portal.
+export async function notifyPortalUpdate(studentId: string, text: string) {
+  const col = await collection();
+  await col.insertOne({ studentId, courseCode: "", kind: "portal", text, at: new Date() });
 }

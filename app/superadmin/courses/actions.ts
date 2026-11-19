@@ -7,9 +7,11 @@ import { adminActor, DELETE_SUPER_ADMIN_ONLY, requireAdmin } from "@/lib/auth";
 import { checkCode, checkNewCourse, checkUnitList, type NewCourse } from "@/lib/course-meta";
 import { countStudentsInCourse } from "@/lib/students";
 import { deleteAssessment } from "@/lib/assessments";
-import { deleteUploads } from "@/lib/files";
+import { deleteUploads, ownedUploads } from "@/lib/files";
+import { isImageName } from "@/lib/display-image-meta";
+import type { FileRef } from "@/lib/submission-meta";
 import { deleteUnitContent } from "@/lib/unit-content";
-import { addUnit, createCourse, deleteCourse, DuplicateCourseError, removeUnit, setPlacementHours, updateCourseDetails, type CourseDTO, type Unit } from "@/lib/courses";
+import { addUnit, createCourse, deleteCourse, DuplicateCourseError, removeUnit, setCourseThumbnail, setPlacementHours, updateCourseDetails, type CourseDTO, type Unit } from "@/lib/courses";
 import { PLACEMENT_HOURS_MAX, PLACEMENT_NOTE_MAX } from "@/lib/course-status";
 import { editUnit } from "@/lib/unit-rename";
 
@@ -133,4 +135,22 @@ export async function removeUnitAction(courseCode: string, unitCode: string): Pr
   await logActivity(await adminActor(), `removed unit ${unitCode} from ${courseCode}`, "course");
   revalidatePath("/superadmin", "layout");
   return { ok: true };
+}
+
+// Course picture (thumbnail): `fileId` is an image this admin just uploaded (/api/files); null removes it
+export async function setCourseThumbnailAction(courseCode: string, fileId: string | null): Promise<Result<{ thumbnail: FileRef | null }>> {
+  const admin = await requireAdmin();
+  let file: FileRef | null = null;
+  if (fileId) {
+    const [owned] = await ownedUploads([String(fileId)], admin.sub);
+    if (!owned || !isImageName(owned.name)) return { ok: false, error: "Upload a PNG or JPG picture." };
+    file = owned;
+  }
+  const res = await setCourseThumbnail(String(courseCode), file);
+  if (!res.ok) return { ok: false, error: "Course not found." };
+  if (res.previous && res.previous.id !== file?.id) await deleteUploads([res.previous.id]);
+  await logActivity(await adminActor(), `${file ? "set" : "removed"} the picture of ${courseCode}`, "course");
+  revalidatePath("/superadmin/courses");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, thumbnail: file };
 }

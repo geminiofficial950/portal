@@ -8,6 +8,7 @@ import { logout } from "../../actions/auth";
 import ThemeToggle from "../../components/ThemeToggle";
 import {
   BookIcon,
+  BroadcastIcon,
   BoxIcon,
   CalendarIcon,
   ChatIcon,
@@ -73,6 +74,7 @@ const variants = {
       // Hidden for now (asked 6 Nov 2026) — the page still works at /superadmin/classroom; uncomment to bring the menu item back
       // { label: "Classes", href: "/superadmin/classroom", icon: VideoIcon },
       { label: "Requests", href: "/superadmin/requests", icon: ClipboardIcon },
+      { label: "Promotions", href: "/superadmin/promotions", icon: BroadcastIcon },
       { label: "Admins", href: "/superadmin/admins", icon: ShieldIcon, superOnly: true },
       { label: "Support", href: "/superadmin/tickets", icon: TicketIcon },
       { label: "Settings", href: "/superadmin/settings", icon: SettingsIcon, superOnly: true },

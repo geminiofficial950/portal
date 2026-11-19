@@ -6,32 +6,34 @@ import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { logout } from "../../actions/auth";
 import ThemeToggle from "../../components/ThemeToggle";
-import { BookIcon, BoxIcon, ChatIcon, ClipboardIcon, CloseIcon, CompressIcon, ExpandIcon, HomeIcon, LogoutIcon, MenuIcon, TicketIcon, VideoIcon } from "./icons";
+import { CloseIcon, CompressIcon, ExpandIcon, LogoutIcon, MenuIcon } from "./icons";
+import { StudentNavIcon } from "./StudentNavIcon";
+import TechSupport from "./TechSupport";
 import { readFull, setFull, subscribeFull } from "./Sidebar";
 
-// The student's menu: light glass panel, each item an icon in a round chip, the open page as a dark pill,
+// The student's menu: flat navigation, filled navigation icons and a highlighted current page,
 // grouped under small headings, and the student's own card at the bottom. Same pages and links as before.
 const GROUPS = [
   {
     heading: "Menu",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: HomeIcon },
-      { label: "Courses", href: "/dashboard/course", icon: BoxIcon },
-      { label: "My classes", href: "/dashboard/classroom", icon: VideoIcon },
+      { label: "Dashboard", href: "/dashboard", icon: "Dashboard" },
+      { label: "Courses", href: "/dashboard/course", icon: "Courses" },
+      { label: "My classes", href: "/dashboard/classroom", icon: "Classes" },
     ],
   },
   {
     heading: "My work",
     items: [
-      { label: "Requests", href: "/dashboard/requests", icon: ClipboardIcon },
-      { label: "Feedback", href: "/dashboard/feedback", icon: ChatIcon },
+      { label: "Requests", href: "/dashboard/requests", icon: "Requests" },
+      { label: "Feedback", href: "/dashboard/feedback", icon: "Feedback" },
     ],
   },
   {
     heading: "Help",
     items: [
-      { label: "Student support", href: "/dashboard/tickets", icon: TicketIcon },
-      { label: "Portal help", href: "/dashboard/user-guide", icon: BookIcon },
+      { label: "Student support", href: "/dashboard/tickets", icon: "Support" },
+      { label: "Portal help", href: "/dashboard/user-guide", icon: "Guide" },
     ],
   },
 ] as const;
@@ -49,12 +51,12 @@ function ActiveLinks({ onNavigate }: { onNavigate: () => void }) {
 
 function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathname?: string | null }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:space-y-5">
       {GROUPS.map((g) => (
         <div key={g.heading}>
-          <p className="mb-2 px-2 text-sm font-semibold text-ink">{g.heading}</p>
-          <ul className="space-y-1">
-            {g.items.map(({ label, href, icon: Icon }) => {
+          <p className="mb-2 px-2 text-base font-semibold text-ink/75">{g.heading}</p>
+          <ul className="space-y-1 lg:space-y-0.5">
+            {g.items.map(({ label, href, icon }) => {
               const active = isActive(href, pathname);
               return (
                 <li key={href}>
@@ -62,12 +64,12 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                     href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-full p-1.5 pr-4 text-[15px] font-medium transition ${
-                      active ? "bg-[var(--s-dark)] text-white" : "text-ink hover:bg-[var(--s-card)]"
+                    className={`s-nav-link relative flex min-h-12 items-center gap-3 rounded-full px-1.5 pr-6 text-[length:calc(17px*var(--student-text-scale))] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--s-logo-gold)] lg:min-h-11 lg:gap-2.5 ${
+                      active ? "font-semibold" : "font-medium text-ink"
                     }`}
                   >
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${active ? "bg-white/15 text-white" : "bg-[var(--s-icon)] text-ink"}`}>
-                      <Icon className="h-[18px] w-[18px]" />
+                    <span className={`grid size-8 shrink-0 place-items-center rounded-full ${active ? "bg-[var(--s-nav-chip)] text-[var(--s-nav-chip-ink)]" : "text-[var(--s-nav-icon-ink)]"}`}>
+                      <StudentNavIcon name={icon} />
                     </span>
                     {label}
                   </Link>
@@ -117,48 +119,52 @@ export default function StudentSidebar({ me }: { me: Me }) {
         }`}
       >
         <div className="flex items-center justify-between px-1">
-          <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} preload className="h-12 w-auto" />
+          <Image src="/stella-logo.png" alt="Stella College" width={400} height={207} preload className="h-20 w-auto lg:h-22" />
           <button onClick={() => setOpen(false)} aria-label="Close menu" className="grid h-9 w-9 place-items-center rounded-full text-ink hover:bg-[var(--s-soft)] lg:hidden">
             <CloseIcon className="h-5 w-5" />
           </button>
+        </div>
+        <div className="mt-5 flex items-center justify-between gap-2 border-b border-[var(--s-line)] px-1 pb-2">
+          <p className="text-lg font-semibold text-ink">Stella Portal</p>
           <button
             type="button"
             onClick={() => setFull(true)}
             aria-label="Full screen (hide menu)"
             title="Full screen (hide menu)"
-            className="hidden h-9 w-9 place-items-center rounded-full text-ink transition hover:bg-[var(--s-card)] lg:grid"
+            className="hidden size-11 place-items-center rounded-full text-ink transition hover:bg-[var(--s-card)] lg:grid"
           >
-            <ExpandIcon className="h-[18px] w-[18px]" />
+            <ExpandIcon className="size-6" />
           </button>
         </div>
-        <p className="mt-2 px-1 text-sm font-semibold text-ink">Student Portal</p>
 
-        <nav className="mt-6 flex-1">
+        <nav aria-label="Student portal" className="mt-6 flex-1">
           <Suspense fallback={<Links onNavigate={() => setOpen(false)} />}>
             <ActiveLinks onNavigate={() => setOpen(false)} />
           </Suspense>
         </nav>
 
         {/* the student's card */}
-        <div className="mt-6 s-card rounded-[1.5rem] p-3">
-          <div className="flex items-center gap-2">
+        <div className="s-sidebar-account mt-6 rounded-[1.5rem] p-3">
+          <div className="flex items-center gap-1.5">
+            {/* Tech support (left), dark mode + logout (right) */}
+            <TechSupport onNavigate={() => setOpen(false)} />
             <ThemeToggle look="icon" />
             <form action={logout}>
               <button
                 type="submit"
                 aria-label="Logout"
                 title="Logout"
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--s-soft)] text-ink transition hover:bg-[var(--s-dark)] hover:text-white"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--s-soft)] text-ink transition hover:bg-[var(--s-dark)] hover:text-white"
               >
                 <LogoutIcon className="h-5 w-5" />
               </button>
             </form>
           </div>
           <div className="mt-3 flex items-center gap-3 border-t border-[var(--s-line)] pt-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--s-dark)] text-sm font-bold text-white">{me?.initials ?? ""}</span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--s-dark)] text-sm font-bold text-white">{me?.initials ?? ""}</span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-ink">{me?.name ?? " "}</span>
-              <span className="block truncate text-xs text-ink">{me?.email ?? ""}</span>
+              <span className="s-student-name block truncate text-base font-semibold text-[var(--s-logo-gold)]">{me?.name ?? " "}</span>
+              <span className="block truncate text-xs text-ink/75">{me?.email ?? ""}</span>
             </span>
           </div>
         </div>

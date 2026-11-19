@@ -171,7 +171,7 @@ export default function BookingPanel({
           {/* 4. Meeting mode */}
           <fieldset>
             <legend className={label}>Meeting mode: video, phone or in person</legend>
-            <div role="radiogroup" aria-label="Meeting mode" className="grid grid-cols-3 gap-1 rounded-xl bg-[#f0eef6] p-1">
+            <div role="radiogroup" aria-label="Meeting mode" className="grid grid-cols-3 gap-1 rounded-xl border border-ink/15 bg-[var(--s-soft)] p-1">
               {SUPPORT_MODES.map((m) => (
                 <button
                   key={m}
@@ -179,7 +179,7 @@ export default function BookingPanel({
                   role="radio"
                   aria-checked={mode === m}
                   onClick={() => setMode(m)}
-                  className={`h-10 rounded-lg text-sm font-semibold transition ${mode === m ? "bg-plum text-white shadow-sm" : "text-ink hover:bg-lilac"}`}
+                  className={`h-10 rounded-lg text-sm font-semibold transition ${mode === m ? "bg-plum text-white shadow-sm" : "text-ink hover:bg-[var(--s-badge-hover)]"}`}
                 >
                   {m === "Video call" ? "Video" : m === "Phone call" ? "Phone" : "In person"}
                 </button>

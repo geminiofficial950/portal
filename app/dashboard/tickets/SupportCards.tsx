@@ -45,7 +45,7 @@ export default function SupportCards({ me, onBooked }: { me: { name: string; stu
           const shown = showAll ? g.options : g.options.slice(0, 3);
           return (
             <li key={g.id}>
-              <article aria-label={g.title} className="flex h-full flex-col rounded-2xl border border-ink/10 bg-white p-4 shadow-[0_8px_24px_-16px_rgba(31,27,46,0.3)]">
+              <article aria-label={g.title} className="s-glass-card flex h-full flex-col rounded-2xl p-4 backdrop-blur-xl backdrop-saturate-150">
                 <div className="flex items-start gap-3">
                   <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full shadow-sm ring-2 ring-white ${g.tone}`}>
                     <SupportIcon name={g.icon} className="h-6 w-6" />
@@ -75,7 +75,7 @@ export default function SupportCards({ me, onBooked }: { me: { name: string; stu
                     // a form-link group has nothing to tick: its option is just shown
                     if (g.formLink)
                       return (
-                        <span key={o.id} title={o.detail} className="inline-flex items-center rounded-full bg-[#efedf4] px-3 py-1.5 text-xs font-medium text-ink">
+                        <span key={o.id} title={o.detail} className="inline-flex items-center rounded-full bg-[var(--s-soft)] px-3 py-1.5 text-xs font-medium text-ink">
                           {o.label}
                         </span>
                       );
@@ -87,7 +87,7 @@ export default function SupportCards({ me, onBooked }: { me: { name: string; stu
                         aria-pressed={on}
                         title={o.detail}
                         className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                          on ? "bg-plum text-white shadow-sm" : "bg-[#efedf4] text-ink hover:bg-lilac"
+                          on ? "bg-plum text-white shadow-sm" : "bg-[var(--s-soft)] text-ink hover:bg-[var(--s-badge-hover)]"
                         }`}
                       >
                         {on && <CheckIcon className="h-3.5 w-3.5" />}

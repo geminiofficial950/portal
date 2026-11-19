@@ -80,6 +80,28 @@ export default function TicketThreadModal({
         </div>
 
         <div className="soft-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-7">
+          {/* screenshots the student added (tech support): click to open full size */}
+          {ticket.attachments.length > 0 && (
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-ink">Screenshots</p>
+              <ul className="mt-2 flex flex-wrap gap-2.5">
+                {ticket.attachments.map((f) => (
+                  <li key={f.id}>
+                    <a
+                      href={`/api/files/${f.id}?inline=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Open ${f.name}`}
+                      className="block size-24 overflow-hidden rounded-xl ring-1 ring-ink/10 transition hover:ring-2 hover:ring-plum"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- private file served by /api/files */}
+                      <img src={`/api/files/${f.id}?inline=1`} alt={f.name} className="size-full object-cover" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {ticket.messages.map((m, i) => (
             <div key={i} className={`flex ${m.from === "college" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${m.from === "college" ? "bg-plum text-white" : "bg-lilac text-ink"}`}>

@@ -5,11 +5,12 @@ import toast from "react-hot-toast";
 import { MailIcon, PlusIcon, TrashIcon, UserPlusIcon } from "../../dashboard/_components/icons";
 import CredentialsCard, { type Credentials } from "../_components/CredentialsCard";
 import LoginDetailsForm from "../_components/LoginDetailsForm";
+import PictureUpload from "../_components/PictureUpload";
 import Toggle from "../_components/Toggle";
 import { initials } from "@/lib/format";
 import { generatePassword } from "@/lib/password";
 import type { TrainerDTO } from "@/lib/trainer-meta";
-import { addTrainerAction, changeTrainerLoginAction, deleteTrainerAction, resetTrainerPasswordAction, setTrainerActiveAction } from "./actions";
+import { addTrainerAction, changeTrainerLoginAction, deleteTrainerAction, resetTrainerPasswordAction, setTrainerActiveAction, setTrainerPhotoAction } from "./actions";
 
 // canDelete: Super Admin only; Admins switch a trainer off instead
 export default function TrainersClient({ initialTrainers, canDelete }: { initialTrainers: TrainerDTO[]; canDelete: boolean }) {
@@ -141,9 +142,17 @@ export default function TrainersClient({ initialTrainers, canDelete }: { initial
                 } ${busy ? "pointer-events-none opacity-50" : ""}`}
               >
                 <div className="flex items-start gap-4">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-peach text-sm font-bold text-white">
-                    {initials(t.name)}
-                  </span>
+                  <PictureUpload
+                    file={t.photo}
+                    shape="round"
+                    label={`${t.name}'s photo`}
+                    fallback={<span className="grid size-full place-items-center bg-peach text-sm font-bold text-white">{initials(t.name)}</span>}
+                    onSave={async (fileId) => {
+                      const res = await setTrainerPhotoAction(t.trainerId, fileId);
+                      if (res.ok) setList((l) => l.map((x) => (x.trainerId === t.trainerId ? { ...x, photo: res.photo } : x)));
+                      return res;
+                    }}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-ink">{t.name}</p>
                     <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-ink">

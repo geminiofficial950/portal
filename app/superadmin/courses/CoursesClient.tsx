@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { ArrowRightIcon, BoxIcon, ClockIcon, PlusIcon, TrashIcon } from "../../dashboard/_components/icons";
-import { createCourseAction, deleteCourseAction, setPlacementHoursAction, updateCourseAction } from "./actions";
+import { createCourseAction, deleteCourseAction, setPlacementHoursAction, updateCourseAction, setCourseThumbnailAction } from "./actions";
 import { COURSE_LIMITS, COURSE_UNITS_MAX, UNIT_TITLE_MAX } from "@/lib/course-meta";
 import { PLACEMENT_HOURS_MAX, PLACEMENT_NOTE_MAX, placementHoursLabel } from "@/lib/course-status";
 import type { CourseDTO, Unit } from "@/lib/courses";
 import type { AssessmentSummary } from "@/lib/assessment-meta";
 import type { UnitContentSummary } from "@/lib/unit-content";
+import PictureUpload from "../_components/PictureUpload";
 import UnitsModal from "./UnitsModal";
 
 const tones = ["bg-[#ffe8d6]", "bg-lilac", "bg-[#e8f3ff]", "bg-emerald-50"];
@@ -213,6 +214,20 @@ export default function CoursesClient({
       <ul className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {courses.map((c, i) => (
           <li key={c.code} className={`flex flex-col rounded-[1.75rem] p-5 ${tones[i % tones.length]}`}>
+            {/* course picture, shown to students on their course cards */}
+            <div className="mb-4">
+              <PictureUpload
+                file={c.thumbnail}
+                shape="wide"
+                label={`${c.code} picture`}
+                fallback={<BoxIcon className="h-8 w-8 text-plum/40" />}
+                onSave={async (fileId) => {
+                  const res = await setCourseThumbnailAction(c.code, fileId);
+                  if (res.ok) setCourses((list) => list.map((x) => (x.code === c.code ? { ...x, thumbnail: res.thumbnail } : x)));
+                  return res;
+                }}
+              />
+            </div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-plum">
               {c.code}
             </p>
@@ -345,7 +360,7 @@ function PlacementHours({ course, onSaved }: { course: CourseDTO; onSaved: (hour
 }
 
 // The course description (students see it on their course page), and the other details, edited in place
-function CourseDetails({ course, onSaved }: { course: CourseDTO; onSaved: (d: Omit<CourseDTO, "code" | "units" | "placementHours" | "placementHoursNote" | "placementText">) => void }) {
+function CourseDetails({ course, onSaved }: { course: CourseDTO; onSaved: (d: Omit<CourseDTO, "code" | "units" | "placementHours" | "placementHoursNote" | "placementText" | "thumbnail">) => void }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: course.name, category: course.category, duration: course.duration, description: course.description });
   const [saving, startSaving] = useTransition();

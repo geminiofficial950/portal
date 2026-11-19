@@ -1,4 +1,5 @@
 // Shared by server code and client components (no server-only imports here).
+import type { FileRef } from "./submission-meta";
 
 export const TICKET_STATUSES = ["Open", "In progress", "Resolved"] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
@@ -13,6 +14,11 @@ export const TICKET_TOPICS = [
   { id: "course", label: "Course question", hint: "Modules, materials, trainer" },
   { id: "other", label: "Something else", hint: "Fees, ID card, general help" },
 ] as const;
+
+/** Topic of a ticket raised from the "Tech support" button in the student sidebar; Admin filters on it */
+export const TECH_SUPPORT_TOPIC = "Tech support";
+/** Screenshots a student can add to a tech support ticket */
+export const TICKET_ATTACHMENTS_MAX = 3;
 
 export type TicketMessage = { from: "student" | "college"; name: string; text: string; time: string };
 
@@ -32,6 +38,7 @@ export type TicketDTO = {
   created: string;
   messages: TicketMessage[];
   booking: BookingSummary | null; // set for support bookings
+  attachments: FileRef[]; // screenshots the student added (tech support), at most TICKET_ATTACHMENTS_MAX
   events: TicketEvent[]; // progress: submitted, assigned, status changes, replies — oldest first
 };
 

@@ -321,10 +321,7 @@ export default async function ClassroomPage() {
         </section>
       )}
 
-      {/* The units of each course with their status (moved here from the Courses page) */}
-      {student && <TrainingPlan student={student} />}
-
-      {/* My batch — below the training plan */}
+      {/* My batch — above the training plan */}
       <section aria-labelledby="batch-heading" className="space-y-4">
         <h2 id="batch-heading" className="text-xl font-semibold text-ink">
           My batch
@@ -438,6 +435,9 @@ export default async function ClassroomPage() {
           </p>
         )}
       </section>
+
+      {/* The units of each course with their status (moved here from the Courses page) */}
+      {student && <TrainingPlan student={student} />}
     </div>
   );
 }
