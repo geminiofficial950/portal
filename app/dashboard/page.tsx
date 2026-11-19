@@ -172,13 +172,22 @@ function ProfileField({ label, value, icon: Icon, className = "", href }: Profil
 function ProfileCard({ name, details, activity }: { name: string; details: ProfileDetail[]; activity: ProfileDetail[] }) {
   return (
     <section aria-label="My details" className="s-card @container rounded-[1.75rem] p-5 sm:p-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4 @[26rem]:flex-nowrap">
         <span aria-hidden="true" className="s-profile-avatar grid size-16 shrink-0 place-items-center rounded-2xl text-2xl font-bold">
           {initials(name)}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="s-student-name wrap-anywhere text-3xl font-semibold leading-tight">{name}</h2>
           <p className="mt-1 text-sm font-medium text-ink/75">Student</p>
+        </div>
+        <div className="w-full @[26rem]:w-auto">
+          <Link
+            href="/dashboard/course"
+            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--s-line)] bg-[var(--s-soft)] px-4 py-2 text-sm font-semibold text-ink transition hover:bg-[var(--s-badge-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--s-dark)]"
+          >
+            My Courses
+            <ArrowRightIcon className="size-4 -rotate-45" />
+          </Link>
         </div>
       </div>
       <dl className="mt-5 grid gap-x-5 gap-y-4 border-t border-[var(--s-line)] pt-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
