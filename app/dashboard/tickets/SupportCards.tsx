@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { CalendarIcon, CloseIcon, InfoIcon, PhoneIcon } from "../_components/icons";
-import BookingPanel from "./BookingPanel";
+import GuidedBooking from "./GuidedBooking";
 import SupportIcon from "./SupportIcons";
 import { SUPPORT_GROUPS, type SupportGroup } from "@/lib/support-booking-meta";
 import type { TicketDTO } from "@/lib/ticket-meta";
@@ -23,8 +23,8 @@ const ArrowUpRight = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
-// "Support, made simple": one card per support group. Selecting a card opens the booking form for that group, where
-// the student ticks what they need and picks a time; the booking appears under "Your bookings" and in Admin → Support.
+// "Support, made simple": one card per support group. Selecting a card grows it into the guided booking for that group
+// (needs → time → confirm); the booking appears under "Your bookings" and in Admin → Support.
 // "Feedback and concerns" has no booking — it's the row with the form button under the cards.
 export default function SupportCards({
   me,
@@ -35,10 +35,23 @@ export default function SupportCards({
   bookings: number;
   onBooked: (t: TicketDTO) => void;
 }) {
-  const [booking, setBooking] = useState<SupportGroup | null>(null);
+  // the group being booked, and where its card was on screen (the booking grows out of it)
+  const [booking, setBooking] = useState<{ group: SupportGroup; from: DOMRect | null } | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const bookable = SUPPORT_GROUPS.filter((g) => !g.formLink);
   const forms = SUPPORT_GROUPS.filter((g) => g.formLink);
+
+  const openForm = () => toast(`The feedback and complaints form is coming soon. For now, call ${PHONE.text}.`);
+  // back to the cards: the booking shrinks away first
+  const backToTopics = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return void setBooking(null);
+    setLeaving(true);
+    setTimeout(() => {
+      setLeaving(false);
+      setBooking(null);
+    }, 190);
+  };
 
   const showBookings = () => {
     const el = document.getElementById("my-bookings-heading");
@@ -50,11 +63,11 @@ export default function SupportCards({
     <section aria-labelledby="support-heading" className="space-y-4">
       {/* lg: pushed down a little so My bookings sits below the Text Style / clock bar in the top-right corner */}
       <div className="flex flex-wrap items-end justify-between gap-3 lg:pt-7">
-        <div>
+        <div key={booking ? "guided" : "cards"} className="support-rise">
           <h1 id="support-heading" className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            Support, made simple.
+            {booking ? "Let’s find the right support." : "Support, made simple."}
           </h1>
-          <p className="mt-1.5 text-base text-ink/80">Choose what you need help with.</p>
+          <p className="mt-1.5 text-base text-ink/80">{booking ? "A few simple steps to book the help you need." : "Choose what you need help with."}</p>
         </div>
         <button
           type="button"
@@ -67,13 +80,31 @@ export default function SupportCards({
         </button>
       </div>
 
+      {booking ? (
+        <div className={leaving ? "support-leave" : ""}>
+          <GuidedBooking
+            key={booking.group.id}
+            group={booking.group}
+            me={me}
+            from={booking.from}
+            onChangeTopic={backToTopics}
+            onOpenForm={openForm}
+            onHelpChoose={() => setChoosing(true)}
+            onDone={(t) => {
+              setBooking(null);
+              onBooked(t);
+            }}
+          />
+        </div>
+      ) : (
+      <div className="animate-fade-up space-y-4">
       <div className="s-card space-y-4 rounded-[1.75rem] p-4 backdrop-blur-xl backdrop-saturate-150 sm:p-5">
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bookable.map((g) => (
             <li key={g.id}>
               <button
                 type="button"
-                onClick={() => setBooking(g)}
+                onClick={(e) => setBooking({ group: g, from: e.currentTarget.getBoundingClientRect() })}
                 aria-label={`${g.title}: ${g.subtitle}. Book support`}
                 className="group flex h-full w-full flex-col rounded-2xl border border-[var(--s-line)] bg-[var(--s-card)] p-5 text-left shadow-[0_8px_24px_-18px_rgba(19,33,36,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(19,33,36,0.45)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--s-dark)]/20"
               >
@@ -103,7 +134,7 @@ export default function SupportCards({
             {/* no form link yet: the button says so instead of going nowhere */}
             <button
               type="button"
-              onClick={() => toast(`The ${g.title.toLowerCase()} form is coming soon. For now, call ${PHONE.text}.`)}
+              onClick={openForm}
               className="inline-flex items-center gap-1.5 rounded-full bg-[var(--s-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Open form
@@ -136,6 +167,8 @@ export default function SupportCards({
         <InfoIcon className="h-4 w-4 shrink-0" />
         Support is free for enrolled students.
       </p>
+      </div>
+      )}
 
       {choosing && (
         <HelpMeChoose
@@ -143,21 +176,7 @@ export default function SupportCards({
           onClose={() => setChoosing(false)}
           onPick={(g) => {
             setChoosing(false);
-            setBooking(g);
-          }}
-        />
-      )}
-
-      {booking && (
-        <BookingPanel
-          group={booking}
-          me={me}
-          // a one-option group starts ticked; otherwise the student ticks what they need in the form
-          ticked={booking.options.length === 1 ? [booking.options[0].id] : []}
-          onClose={() => setBooking(null)}
-          onDone={(t) => {
-            setBooking(null);
-            onBooked(t);
+            setBooking({ group: g, from: null });
           }}
         />
       )}
