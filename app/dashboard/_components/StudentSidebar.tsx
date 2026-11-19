@@ -9,7 +9,7 @@ import ThemeToggle from "../../components/ThemeToggle";
 import { BookIcon, BoxIcon, ChatIcon, ClipboardIcon, CloseIcon, CompressIcon, ExpandIcon, HomeIcon, LogoutIcon, MenuIcon, TicketIcon, VideoIcon } from "./icons";
 import { readFull, setFull, subscribeFull } from "./Sidebar";
 
-// The student's menu: light glass panel, each item an icon in a round chip, the open page as a dark pill,
+// The student's menu: flat navigation, each item an icon in a round chip, the open page as a dark pill,
 // grouped under small headings, and the student's own card at the bottom. Same pages and links as before.
 const GROUPS = [
   {
@@ -66,8 +66,8 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                       active ? "bg-[var(--s-dark)] text-white" : "text-ink hover:bg-[var(--s-card)]"
                     }`}
                   >
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${active ? "bg-white/15 text-white" : "bg-[var(--s-icon)] text-ink"}`}>
-                      <Icon className="h-[18px] w-[18px]" />
+                    <span className={`s-nav-icon grid h-9 w-9 shrink-0 place-items-center rounded-full ${active ? "bg-white/15 text-white" : "bg-[var(--s-icon)] text-ink"}`}>
+                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
                     </span>
                     {label}
                   </Link>
@@ -140,7 +140,7 @@ export default function StudentSidebar({ me }: { me: Me }) {
         </nav>
 
         {/* the student's card */}
-        <div className="mt-6 s-card rounded-[1.5rem] p-3">
+        <div className="s-sidebar-account mt-6 rounded-[1.5rem] p-3">
           <div className="flex items-center gap-2">
             <ThemeToggle look="icon" />
             <form action={logout}>
@@ -157,7 +157,7 @@ export default function StudentSidebar({ me }: { me: Me }) {
           <div className="mt-3 flex items-center gap-3 border-t border-[var(--s-line)] pt-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--s-dark)] text-sm font-bold text-white">{me?.initials ?? ""}</span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-ink">{me?.name ?? " "}</span>
+              <span className="s-student-name block truncate text-base font-semibold text-ink">{me?.name ?? " "}</span>
               <span className="block truncate text-xs text-ink">{me?.email ?? ""}</span>
             </span>
           </div>

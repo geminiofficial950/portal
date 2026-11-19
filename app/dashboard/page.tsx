@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import Calendar, { type CalendarDue } from "./_components/Calendar";
 import Notification from "./_components/Notification";
-import { ArrowRightIcon, ClipboardIcon, BoxIcon, TicketIcon } from "./_components/icons";
+import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
 import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
@@ -122,35 +122,67 @@ function Cards({ links }: { links: Card[] }) {
   );
 }
 
-// The student's own card at the top: initials, name, ID, email and the courses they're in
 async function Profile() {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
-  const name = student?.name ?? session.name;
-  const courses = await Promise.all((student?.courses ?? []).map(async (c) => ({ code: c.code, name: (await getCourse(c.code))?.name ?? c.code })));
-  return <ProfileCard name={name} id={session.sub} email={student?.email ?? ""} courses={courses} />;
+  const courses = await Promise.all(
+    (student?.courses ?? []).map(async ({ code }) => ({ code, name: (await getCourse(code))?.name ?? code })),
+  );
+  const details = [
+    { label: "Student ID", value: session.sub, icon: ClipboardIcon },
+    { label: "Email", value: student?.email, icon: MailIcon },
+    { label: "Phone", value: student?.phone, icon: PhoneIcon },
+    { label: "State", value: student?.state, icon: HomeIcon },
+    { label: "Enrolled since", value: student?.enrolled, icon: CalendarIcon },
+    { label: "Account status", value: student?.status, icon: ShieldIcon },
+  ];
+
+  return <ProfileCard name={student?.name ?? session.name} details={details} courses={courses} />;
 }
 
-function ProfileCard({ name, id, email, courses }: { name: string; id: string; email: string; courses: { code: string; name: string }[] }) {
+function ProfileCard({
+  name,
+  details,
+  courses,
+}: {
+  name: string;
+  details: { label: string; value?: string; icon: typeof BoxIcon }[];
+  courses: { code: string; name: string }[];
+}) {
   return (
-    <section aria-label="My details" className="s-card flex flex-wrap items-center gap-5 rounded-[1.75rem] p-5 sm:flex-nowrap">
-      <span className="grid h-24 w-24 shrink-0 place-items-center rounded-[1.5rem] bg-[var(--s-avatar)] text-3xl font-bold text-[var(--s-tile-ink)]">{initials(name) || "·"}</span>
-      <div className="min-w-0 flex-1">
-        <p className="text-2xl font-semibold leading-tight text-ink">{name}</p>
-        <p className="mt-1 text-base text-ink">
-          <span className="font-semibold">Student</span> · ID {id}
-        </p>
-        {email && <p className="mt-0.5 truncate text-base text-ink">{email}</p>}
-        {courses.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {courses.map((c) => (
-              <span key={c.code} className="rounded-full bg-[var(--s-soft)] px-3 py-1 text-sm font-medium text-ink">
-                {c.code} · {c.name}
-              </span>
-            ))}
-          </div>
-        )}
+    <section aria-label="My details" className="s-card @container rounded-[1.75rem] p-5 sm:p-6">
+      <div className="flex items-center gap-4">
+        <span aria-hidden="true" className="s-profile-avatar grid size-16 shrink-0 place-items-center rounded-2xl text-2xl font-bold">
+          {initials(name)}
+        </span>
+        <div className="min-w-0">
+          <h2 className="s-student-name wrap-anywhere text-3xl font-semibold leading-tight">{name}</h2>
+          <p className="mt-1 text-sm font-medium text-ink/75">Student</p>
+        </div>
       </div>
+      <dl className="mt-5 grid gap-x-5 gap-y-4 border-t border-[var(--s-line)] pt-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
+        {details.map(({ label, value, icon: Icon }) => value && (
+          <div key={label} className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5">
+            <span aria-hidden="true" className="row-span-2 grid size-8 place-items-center rounded-lg bg-[var(--s-soft)]">
+              <Icon className="size-4" />
+            </span>
+            <dt className="text-xs font-medium text-ink/75">{label}</dt>
+            <dd className="wrap-anywhere text-sm font-semibold text-ink">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {courses.length > 0 && (
+        <div className="mt-5 border-t border-[var(--s-line)] pt-4">
+          <h3 className="text-xs font-semibold text-ink/75">Enrolled courses</h3>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {courses.map(({ code, name }) => (
+              <li key={code} className="wrap-anywhere rounded-xl bg-[var(--s-soft)] px-3 py-1.5 text-sm text-ink">
+                <span className="font-semibold">{code}</span>{name !== code && <> ? {name}</>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -168,8 +200,8 @@ export default function DashboardPage() {
       <h1 className="text-3xl font-semibold text-ink sm:text-4xl">My Dashboard</h1>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-        <div className="min-w-0 space-y-5">
-          <Suspense fallback={<ProfileCard name="" id="" email="" courses={[]} />}>
+        <div className="s-dashboard-center min-w-0 space-y-5">
+          <Suspense fallback={<div aria-hidden="true" className="s-card min-h-40 rounded-[1.75rem]" />}>
             <Profile />
           </Suspense>
           <Suspense fallback={<Cards links={placeholder} />}>
