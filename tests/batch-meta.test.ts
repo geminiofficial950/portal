@@ -81,13 +81,13 @@ describe("checkBatchName", () => {
 
 describe("checkBatchDetails", () => {
   it("accepts a code, planned dates and a named timezone", () => {
-    expect(checkBatchDetails({ code: " is-2027-01 ", startDate: "2027-01-11", endDate: "2028-01-10", timezone: "Australia/Sydney" })).toEqual({
+    expect(checkBatchDetails({ code: " is-2027-01 ", startDate: "2027-01-11", endDate: "2028-01-10", timezone: "Australia/Sydney", location: "  Melbourne   campus, Room 3 " })).toEqual({
       ok: true,
-      value: { code: "IS-2027-01", startDate: "2027-01-11", endDate: "2028-01-10", timezone: "Australia/Sydney" },
+      value: { code: "IS-2027-01", startDate: "2027-01-11", endDate: "2028-01-10", timezone: "Australia/Sydney", location: "Melbourne campus, Room 3" },
     });
   });
   it("defaults the timezone to Melbourne and allows blank dates", () => {
-    expect(checkBatchDetails({ timezone: "Mars/Base" })).toEqual({ ok: true, value: { code: "", startDate: null, endDate: null, timezone: "Australia/Melbourne" } });
+    expect(checkBatchDetails({ timezone: "Mars/Base" })).toEqual({ ok: true, value: { code: "", startDate: null, endDate: null, timezone: "Australia/Melbourne", location: "" } });
   });
   it("rejects bad codes, bad dates and an end before the start", () => {
     expect(checkBatchDetails({ code: "IS 2027" }).ok).toBe(false);

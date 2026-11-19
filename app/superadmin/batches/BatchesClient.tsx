@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { ArrowRightIcon, PlusIcon } from "../../dashboard/_components/icons";
 import { useTableColumns } from "../_components/useTableColumns";
 import { createBatchAction } from "./actions";
-import { BATCH_CODE_MAX, BATCH_NAME_MAX, DEFAULT_TZ, formatClassTime, TIMEZONES, type BatchDTO } from "@/lib/batch-meta";
+import { BATCH_CODE_MAX, BATCH_LOCATION_MAX, BATCH_NAME_MAX, DEFAULT_TZ, formatClassTime, TIMEZONES, type BatchDTO } from "@/lib/batch-meta";
 
 const field = "rounded-xl bg-white px-4 py-3 text-sm text-ink outline-none ring-1 ring-ink/10 placeholder:text-ink/60 focus:ring-plum/30";
 
@@ -27,7 +27,7 @@ export default function BatchesClient({
   const [batches, setBatches] = useState(initial);
   const [course, setCourse] = useState("All");
   const [adding, setAdding] = useState(false);
-  const emptyForm = { name: "", code: "", courseCode: courses[0]?.code ?? "", trainerIds: [] as string[], startDate: "", endDate: "", timezone: DEFAULT_TZ };
+  const emptyForm = { name: "", code: "", courseCode: courses[0]?.code ?? "", trainerIds: [] as string[], startDate: "", endDate: "", timezone: DEFAULT_TZ, location: "" };
   const [form, setForm] = useState(emptyForm);
   const [saving, startSaving] = useTransition();
   const trainerNames = (b: BatchDTO) => b.trainers.map((t) => trainers.find((x) => x.trainerId === t.trainerId)?.name ?? t.trainerId).join(", ");
@@ -100,6 +100,14 @@ export default function BatchesClient({
             placeholder="Batch code, e.g. IS-2027-01"
             aria-label="Batch code"
             className={`${field} font-mono placeholder:font-sans`}
+          />
+          <input
+            value={form.location}
+            maxLength={BATCH_LOCATION_MAX}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+            placeholder="Location, e.g. Melbourne campus, Room 3"
+            aria-label="Location"
+            className={field}
           />
           {showDates && (
             <>

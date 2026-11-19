@@ -17,7 +17,7 @@ import {
   updateBatchDetailsAction,
   type OpeningPreview,
 } from "./actions";
-import { BATCH_CODE_MAX, BATCH_NAME_MAX, CLASS_DAYS, CLASSES_MAX, formatClassTime, sortClasses, TIMEZONES, type BatchDTO, type ClassSession } from "@/lib/batch-meta";
+import { BATCH_CODE_MAX, BATCH_LOCATION_MAX, BATCH_NAME_MAX, CLASS_DAYS, CLASSES_MAX, formatClassTime, sortClasses, TIMEZONES, type BatchDTO, type ClassSession } from "@/lib/batch-meta";
 import type { ClassSessionDTO } from "@/lib/session-meta";
 import DeadlinesTab from "./DeadlinesTab";
 import { transferWithChecks } from "./transfer-flow";
@@ -752,7 +752,7 @@ function DetailsTab({
   onSaved: (b: BatchDTO) => void;
   onDeleted: () => void;
 }) {
-  const [form, setForm] = useState({ name: batch.name, code: batch.code, startDate: batch.startDate ?? "", endDate: batch.endDate ?? "", timezone: batch.timezone });
+  const [form, setForm] = useState({ name: batch.name, code: batch.code, startDate: batch.startDate ?? "", endDate: batch.endDate ?? "", timezone: batch.timezone, location: batch.location });
   const [busy, start] = useTransition();
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -795,6 +795,10 @@ function DetailsTab({
             </label>
           </>
         )}
+        <label className="space-y-1 text-sm font-semibold text-ink">
+          Location
+          <input disabled={!admin} value={form.location} maxLength={BATCH_LOCATION_MAX} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Melbourne campus, Room 3" className={`${field} w-full font-normal`} />
+        </label>
         <label className="space-y-1 text-sm font-semibold text-ink">
           Timezone
           <select disabled={!admin} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className={`${field} w-full font-normal`}>
