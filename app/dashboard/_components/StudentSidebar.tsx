@@ -125,7 +125,7 @@ export default function StudentSidebar({ me }: { me: Me }) {
           </button>
         </div>
         <div className="mt-5 flex items-center justify-between gap-2 border-b border-[var(--s-line)] px-1 pb-2">
-          <p className="text-lg font-semibold text-ink">Stella Portal</p>
+          <p className="text-lg font-semibold text-ink">Student Portal</p>
           <button
             type="button"
             onClick={() => setFull(true)}
