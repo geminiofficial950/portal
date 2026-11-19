@@ -257,6 +257,8 @@ export default function CourseDetails({
 
       {/* Beside the tabs: trainer and class times */}
       <aside className="space-y-5">
+        {/* hidden while the Trainer tab is open — that tab already shows the trainer, so it would appear twice */}
+        {tab !== "trainer" && (
         <section aria-labelledby="side-trainer-heading" className={`${glass} rounded-[1.5rem] p-5`}>
           <h2 id="side-trainer-heading" className="text-lg font-bold text-ink">
             {trainers.length > 1 ? "Your trainers" : "Your trainer"}
@@ -292,6 +294,7 @@ export default function CourseDetails({
             </p>
           )}
         </section>
+        )}
 
         <section aria-labelledby="schedule-heading" className={`${glass} rounded-[1.5rem] p-5`}>
           <h2 id="schedule-heading" className="text-lg font-bold text-ink">
