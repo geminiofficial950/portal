@@ -18,9 +18,11 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const { getDb } = await import("@/lib/db");
-const { createStudentAction, importStudentsAction } = await import("@/app/superadmin/students/actions");
+const { addStudentCourseAction, createStudentAction, importStudentsAction } = await import("@/app/superadmin/students/actions");
 
-const sentTo = () => (existsSync(capture) ? readFileSync(capture, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l).to as string) : []);
+type Sent = { to: string; subject: string; text: string; html: string; replyTo?: string };
+const sent = (): Sent[] => (existsSync(capture) ? readFileSync(capture, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
+const sentTo = () => sent().map((m) => m.to);
 
 describe("a new student gets no welcome email", () => {
   it("Add student and Bulk upload email the staff, never the new student", async () => {
@@ -42,5 +44,18 @@ describe("a new student gets no welcome email", () => {
     expect(to.filter((t) => t === "ada@college.au")).toHaveLength(2); // the Admin is told both times
     expect(to).not.toContain("sam@x.au");
     expect(to).not.toContain("tia@x.au");
+  });
+
+  it("a student given a new course gets the “You have 1 new update” email, with the college's reply address", async () => {
+    const db = await getDb();
+    await db.collection("courses").insertOne({ code: "C2", name: "Course two", units: [{ code: "U2", title: "Unit" }], createdAt: new Date() });
+    await db.collection("settings").updateOne({ _id: "portal" as never }, { $set: { college: { name: "Stella College", rto: "1", email: "admin@college.au", phone: "1800 000 000" } } });
+    const sam = (await db.collection("students").findOne({ email: "sam@x.au" }))!;
+    expect(await addStudentCourseAction(sam.studentId, "C2", null)).toEqual({ ok: true });
+    for (let i = 0; i < 40 && !sent().some((m) => m.to === "sam@x.au"); i++) await new Promise((r) => setTimeout(r, 50));
+    const mail = sent().find((m) => m.to === "sam@x.au")!;
+    expect(mail).toMatchObject({ subject: "You have 1 new update on Stella College", replyTo: "admin@college.au" });
+    expect(mail.text).toContain("You have 1 new update on the platform.");
+    expect(mail.html).toContain(">Log in</a>");
   });
 });

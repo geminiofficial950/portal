@@ -44,13 +44,15 @@ export function updateEmail(college: string, loginUrl: string, count = 1) {
   return { subject, text, html };
 }
 
-type Mail = { to: string; subject: string; text: string; html: string };
+type Mail = { to: string; subject: string; text: string; html: string; replyTo?: string };
 
+let senderName = "Stella College";
 async function deliver(mail: Mail) {
   const capture = process.env.MAIL_CAPTURE_FILE;
   if (capture) await appendFile(capture, JSON.stringify({ ...mail, at: new Date().toISOString() }) + "\n");
   const t = await smtp();
-  if (t) await t.sendMail({ from: process.env.SMTP_USER, ...mail });
+  // the sender shows the college's name (not just an address) — helps the email land in the inbox
+  if (t) await t.sendMail({ from: { name: senderName, address: process.env.SMTP_USER! }, ...mail });
 }
 
 // one pooled SMTP connection for the whole server, made on first use
@@ -72,16 +74,20 @@ const mailbox = (email: string) => email.trim().toLowerCase().replace(/\+[^@]*@/
 /** Sends one address the update email now */
 export async function sendUpdateEmail(to: string, count = 1) {
   const { college } = await getSettings();
+  senderName = college.name || "Stella College";
   const only = process.env.MAIL_ONLY_TO?.trim().toLowerCase();
   if (only && mailbox(to) !== mailbox(only)) return { sent: false as const, reason: "skipped (MAIL_ONLY_TO)" };
   const loginUrl = process.env.PORTAL_URL || "https://lms.eduskills.com.au";
-  await deliver({ to, ...updateEmail(college.name || "Stella College", loginUrl, count) });
+  // replies go to the college's own address (the sender is a no-reply mailbox)
+  const replyTo = college.email && college.email.toLowerCase() !== (process.env.SMTP_USER ?? "").toLowerCase() ? college.email : undefined;
+  await deliver({ to, ...updateEmail(college.name || "Stella College", loginUrl, count), ...(replyTo ? { replyTo } : {}) });
   return { sent: true as const };
 }
 
 async function safeSend(to: string, count: number, who: string) {
   try {
-    await sendUpdateEmail(to, count);
+    const res = await sendUpdateEmail(to, count);
+    if (!res.sent) console.info(`[student-mail] not emailing ${who}: ${res.reason}`); // e.g. MAIL_ONLY_TO, no SMTP
   } catch (err) {
     console.error(`[student-mail] couldn't email ${who}:`, err instanceof Error ? err.message : err);
   }
