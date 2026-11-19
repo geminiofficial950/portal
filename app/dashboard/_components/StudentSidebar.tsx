@@ -50,11 +50,11 @@ function ActiveLinks({ onNavigate }: { onNavigate: () => void }) {
 
 function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathname?: string | null }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:space-y-5">
       {GROUPS.map((g) => (
         <div key={g.heading}>
           <p className="mb-2 px-2 text-sm font-semibold text-ink">{g.heading}</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1 lg:space-y-0.5">
             {g.items.map(({ label, href, icon }) => {
               const active = isActive(href, pathname);
               return (
@@ -63,11 +63,11 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                     href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-full p-1.5 pr-4 text-[15px] font-medium transition ${
+                    className={`flex min-h-11 items-center gap-3 rounded-full px-1.5 pr-4 text-[15px] font-medium transition lg:min-h-10 lg:gap-2.5 ${
                       active ? "bg-[var(--s-dark)] text-white" : "text-ink hover:bg-[var(--s-card)]"
                     }`}
                   >
-                    <span className={`s-nav-icon grid h-9 w-9 shrink-0 place-items-center rounded-full ${active ? "bg-white/15 text-white" : "bg-[var(--s-icon)] text-ink"}`}>
+                    <span className={`s-nav-icon grid size-8 shrink-0 place-items-center rounded-full lg:size-7 ${active ? "bg-white/5 text-white ring-1 ring-inset ring-white/20" : "bg-[var(--s-icon)] text-ink"}`}>
                       <StudentNavIcon name={icon} />
                     </span>
                     {label}
