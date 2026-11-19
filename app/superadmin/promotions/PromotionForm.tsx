@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useId, useState } from "react";
 import type { PromotionFormat, PromotionSummary } from "@/lib/portal-promotions";
 import { savePromotionAction } from "./actions";
 
@@ -8,6 +8,7 @@ const inputClass = "mt-1 block w-full rounded-xl border border-ink/20 bg-page px
 
 export default function PromotionForm({ promotion }: { promotion?: PromotionSummary }) {
   const [message, submit, pending] = useActionState(savePromotionAction, "");
+  const imageSizeHintId = useId();
   const [format, setFormat] = useState<PromotionFormat>(promotion?.format ?? "text");
 
   return (
@@ -42,7 +43,7 @@ export default function PromotionForm({ promotion }: { promotion?: PromotionSumm
         <>
           <label className="text-sm font-semibold">
             {promotion && promotion.format !== "text" ? "Replace photo" : "Photo"} (JPG or PNG, up to 800 KB)
-            <input className={inputClass} name="image" type="file" accept="image/png,image/jpeg"
+            <input className={inputClass} name="image" type="file" accept="image/png,image/jpeg" aria-describedby={imageSizeHintId}
               onChange={(event) => {
                 const input = event.currentTarget;
                 const file = input.files?.[0];
@@ -50,6 +51,9 @@ export default function PromotionForm({ promotion }: { promotion?: PromotionSumm
                 input.reportValidity();
               }}
               required={!promotion || promotion.format === "text"} />
+            <span id={imageSizeHintId} className="mt-1 block font-normal text-ink/75">
+              {format === "photo" ? "Recommended: 1280 x 720 px (16:9)." : "Recommended: 1200 x 600 px (2:1). Keep important content centered to avoid cropping."}
+            </span>
           </label>
           <label className="text-sm font-semibold">
             Image description
