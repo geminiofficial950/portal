@@ -414,6 +414,8 @@ html[data-theme="dark"] #portal-root .soft-scroll::-webkit-scrollbar-thumb {
   --s-card: #f7f9fa;
   --s-sidebar-glass: rgba(246, 250, 250, 0.22);
   --s-icon: #e0e6eb;
+  --s-nav-icon-ink: #000;
+  --s-nav-active: #c7e5df;
   --s-badge: rgba(19, 33, 36, 0.08);
   --s-badge-hover: rgba(19, 33, 36, 0.14);
   --s-soft: #ebeff3;
@@ -434,6 +436,8 @@ html[data-theme="dark"] #portal-root.student-ui {
   --s-card: #1c1828;
   --s-sidebar-glass: #191428;
   --s-icon: var(--s-card);
+  --s-nav-icon-ink: var(--ink);
+  --s-nav-active: #392c5a;
   --s-badge: rgba(255, 255, 255, 0.12);
   --s-badge-hover: rgba(255, 255, 255, 0.22);
   --s-soft: #231e33;
@@ -490,10 +494,6 @@ html:not([data-theme="dark"]) .student-ui .s-summary-tile {
 .student-ui .s-sidebar-account {
   background: var(--s-sidebar-glass);
   border: 1px solid var(--s-line);
-}
-
-html:not([data-theme="dark"]) .student-ui a:not([aria-current="page"]) .s-nav-icon {
-  color: #10181a;
 }
 
 html:not([data-theme="dark"]) .student-ui .s-profile-avatar {

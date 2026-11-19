@@ -10,7 +10,7 @@ import { CloseIcon, CompressIcon, ExpandIcon, LogoutIcon, MenuIcon } from "./ico
 import { StudentNavIcon } from "./StudentNavIcon";
 import { readFull, setFull, subscribeFull } from "./Sidebar";
 
-// The student's menu: flat navigation, each item an icon in a round chip, the open page as a dark pill,
+// The student's menu: flat navigation, filled navigation icons and a highlighted current page,
 // grouped under small headings, and the student's own card at the bottom. Same pages and links as before.
 const GROUPS = [
   {
@@ -63,11 +63,11 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                     href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`flex min-h-11 items-center gap-3 rounded-full px-1.5 pr-4 text-[15px] font-medium transition lg:min-h-10 lg:gap-2.5 ${
-                      active ? "bg-[var(--s-dark)] text-white" : "text-ink hover:bg-[var(--s-card)]"
+                    className={`flex min-h-11 items-center gap-3 rounded-full px-1.5 pr-4 text-[15px] transition lg:min-h-10 lg:gap-2.5 ${
+                      active ? "bg-[var(--s-nav-active)] font-semibold text-ink" : "font-medium text-ink hover:bg-[var(--s-card)]"
                     }`}
                   >
-                    <span className={`s-nav-icon grid size-8 shrink-0 place-items-center rounded-full lg:size-7 ${active ? "bg-[#e0e6eb] text-[#10181a]" : "bg-[var(--s-icon)] text-ink"}`}>
+                    <span className="grid size-8 shrink-0 place-items-center text-[var(--s-nav-icon-ink)] lg:size-7">
                       <StudentNavIcon name={icon} />
                     </span>
                     {label}
