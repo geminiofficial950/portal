@@ -7,6 +7,7 @@ import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
+import { listExtensionRequests } from "@/lib/deadlines";
 import { listRequests } from "@/lib/documents";
 import { listStudentDueDates } from "@/lib/due-dates";
 import { listHiddenUnits } from "@/lib/hidden-units";
@@ -124,31 +125,50 @@ function Cards({ links }: { links: Card[] }) {
 
 async function Profile() {
   const session = await requireStudent();
-  const student = await getStudent(session.sub);
-  const courses = await Promise.all(
-    (student?.courses ?? []).map(async ({ code }) => ({ code, name: (await getCourse(code))?.name ?? code })),
-  );
+  const [student, requests] = await Promise.all([
+    getStudent(session.sub),
+    listExtensionRequests({ studentId: session.sub }),
+  ]);
   const details = [
     { label: "Student ID", value: session.sub, icon: ClipboardIcon },
     { label: "Email", value: student?.email, icon: MailIcon },
     { label: "Phone", value: student?.phone, icon: PhoneIcon },
     { label: "State", value: student?.state, icon: HomeIcon },
-    { label: "Enrolled since", value: student?.enrolled, icon: CalendarIcon },
+  ];
+  const activity = [
+    { label: "Enrolled since", value: student?.enrolled, icon: CalendarIcon, className: "@[23rem]:col-span-2 @[43rem]:col-span-1" },
     { label: "Account status", value: student?.status, icon: ShieldIcon },
+    { label: "Student portal requests", value: requests.length, icon: TicketIcon, href: "/dashboard/requests" },
   ];
 
-  return <ProfileCard name={student?.name ?? session.name} details={details} courses={courses} />;
+  return <ProfileCard name={student?.name ?? session.name} details={details} activity={activity} />;
 }
 
-function ProfileCard({
-  name,
-  details,
-  courses,
-}: {
-  name: string;
-  details: { label: string; value?: string; icon: typeof BoxIcon }[];
-  courses: { code: string; name: string }[];
-}) {
+type ProfileDetail = {
+  label: string;
+  value?: string | number;
+  icon: typeof BoxIcon;
+  className?: string;
+  href?: string;
+};
+
+function ProfileField({ label, value, icon: Icon, className = "", href }: ProfileDetail) {
+  if (value === undefined || value === "") return null;
+
+  return (
+    <div className={`grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5 ${className}`}>
+      <span aria-hidden="true" className="row-span-2 grid size-8 place-items-center rounded-lg bg-[var(--s-soft)]">
+        <Icon className="size-4" />
+      </span>
+      <dt className="text-xs font-medium text-ink/75">{label}</dt>
+      <dd className="wrap-anywhere text-sm font-semibold text-ink">
+        {href ? <Link href={href} aria-label={`${label}: ${value}`} className="hover:underline">{value}</Link> : value}
+      </dd>
+    </div>
+  );
+}
+
+function ProfileCard({ name, details, activity }: { name: string; details: ProfileDetail[]; activity: ProfileDetail[] }) {
   return (
     <section aria-label="My details" className="s-card @container rounded-[1.75rem] p-5 sm:p-6">
       <div className="flex items-center gap-4">
@@ -161,28 +181,11 @@ function ProfileCard({
         </div>
       </div>
       <dl className="mt-5 grid gap-x-5 gap-y-4 border-t border-[var(--s-line)] pt-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
-        {details.map(({ label, value, icon: Icon }) => value && (
-          <div key={label} className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5">
-            <span aria-hidden="true" className="row-span-2 grid size-8 place-items-center rounded-lg bg-[var(--s-soft)]">
-              <Icon className="size-4" />
-            </span>
-            <dt className="text-xs font-medium text-ink/75">{label}</dt>
-            <dd className="wrap-anywhere text-sm font-semibold text-ink">{value}</dd>
-          </div>
-        ))}
+        {details.map((detail) => <ProfileField key={detail.label} {...detail} />)}
       </dl>
-      {courses.length > 0 && (
-        <div className="mt-5 border-t border-[var(--s-line)] pt-4">
-          <h3 className="text-xs font-semibold text-ink/75">Enrolled courses</h3>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {courses.map(({ code, name }) => (
-              <li key={code} className="wrap-anywhere rounded-xl bg-[var(--s-soft)] px-3 py-1.5 text-sm text-ink">
-                <span className="font-semibold">{code}</span>{name !== code && <> ? {name}</>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <dl className="mt-4 grid gap-x-5 gap-y-4 @[23rem]:grid-cols-2 @[43rem]:grid-cols-3">
+        {activity.map((detail) => <ProfileField key={detail.label} {...detail} />)}
+      </dl>
     </section>
   );
 }
