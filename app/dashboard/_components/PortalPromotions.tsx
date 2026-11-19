@@ -29,7 +29,7 @@ export default async function PortalPromotions() {
               {format !== "photo" && <h3 className="wrap-anywhere text-base font-semibold text-ink">{title}</h3>}
               {description && <p className="wrap-anywhere whitespace-pre-line text-sm text-ink/80">{description}</p>}
               {link && (
-                <a href={link} className="inline-block rounded-full bg-[var(--s-dark)] px-4 py-2 text-sm font-semibold text-white">
+                <a href={link} target="_blank" rel="noopener noreferrer" className="inline-block rounded-full bg-[var(--s-dark)] px-4 py-2 text-sm font-semibold text-white">
                   {linkLabel}
                 </a>
               )}

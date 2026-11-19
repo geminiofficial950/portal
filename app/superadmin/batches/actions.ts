@@ -28,7 +28,7 @@ import { listStudentSubmissions } from "@/lib/submissions";
 import { planBulkOpen, unitAccess } from "@/lib/unit-status-meta";
 import { addSession, cancelSession, updateSession } from "@/lib/class-sessions";
 import { checkSession, sessionWhen, type ClassSessionDTO, type SessionInput } from "@/lib/session-meta";
-import { notifyStudents } from "@/lib/student-notifications";
+import { notifyStudents, notifyUnitChange } from "@/lib/student-notifications";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -199,14 +199,25 @@ export async function openUnitsAction(
   const students = await scopeStudents(batch, scope);
   let changed = 0;
   const opened: string[] = [];
+  // per student, the units opened for them now — so each gets one portal notification listing their units
+  const openedFor = new Map<string, string[]>();
   for (const unitCode of units) {
     const recs = await listUnitRecordsFor(students.map((s) => s.studentId), batch.courseCode, unitCode);
     const plan = planBulkOpen(students.map((s) => ({ studentId: s.studentId, record: recs[s.studentId] ?? null })), resetExceptions);
     await setUnitOpening(plan.affected, batch.courseCode, unitCode, { open: when.mode === "now", releaseAt }, admin.label);
     changed += plan.affected.length;
-    if (when.mode === "now") opened.push(...plan.affected);
+    if (when.mode === "now") {
+      opened.push(...plan.affected);
+      for (const id of plan.affected) openedFor.set(id, [...(openedFor.get(id) ?? []), unitCode]);
+    }
   }
-  if (opened.length) await mailUpdates({ studentIds: opened, kind: "course", courseCodes: [batch.courseCode], unitCodes: units }); // units opened for them
+  if (openedFor.size) {
+    const courseUnits = (await getCourse(batch.courseCode))?.units ?? [];
+    for (const [studentId, codes] of openedFor) {
+      await notifyUnitChange(studentId, batch.courseCode, "unlocked", courseUnits.filter((u) => codes.includes(u.code)));
+    }
+  }
+  if (opened.length) await mailUpdates({ studentIds: [...new Set(opened)], kind: "course", courseCodes: [batch.courseCode], unitCodes: units }); // units opened for them
   const what = when.mode === "now" ? "opened" : when.mode === "close" ? "closed" : `scheduled for ${releaseAt!.toISOString()}`;
   await logActivity(admin.label, `${what} ${units.join(", ")} for ${scope?.studentIds?.length ? `${students.length} student(s) of` : ""} ${batch.name}`, "student");
   refresh();
