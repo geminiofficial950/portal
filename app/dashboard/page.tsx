@@ -5,14 +5,14 @@ import Notification from "./_components/Notification";
 import PortalPromotions from "./_components/PortalPromotions";
 import SupportHub from "./_components/SupportHub";
 import { ArrowRightIcon, BoxIcon, CalendarIcon, ClipboardIcon, HomeIcon, MailIcon, PhoneIcon, ShieldIcon, TicketIcon } from "./_components/icons";
-import { unitDueAt } from "@/lib/assessment-meta";
 import { listCourseAssessments } from "@/lib/assessments";
 import { requireStudent } from "@/lib/auth";
 import { getCourse } from "@/lib/courses";
-import { listExtensionRequests } from "@/lib/deadlines";
+import { listExtensionRequests, studentModuleDues } from "@/lib/deadlines";
 import { listRequests } from "@/lib/documents";
 import { listStudentDueDates } from "@/lib/due-dates";
 import { listHiddenUnits } from "@/lib/hidden-units";
+import { liveModules } from "@/lib/module-meta";
 import { initials } from "@/lib/format";
 import { getStudent, studyCodes } from "@/lib/students";
 import { listTickets } from "@/lib/tickets";
@@ -61,28 +61,44 @@ async function QuickLinks() {
 }
 
 // Due dates for the calendar dots: every unit the student can see (not hidden) without a final result yet;
-// a locked unit is marked "Locked" in the pop-up.
-// A due date Super Admin set for this student replaces the unit's own.
+// a locked unit is marked "Not open yet" in the pop-up.
+// Each module's date is the student's OWN deadline, the same one the unit page shows (studentModuleDues):
+// their module deadline (an exception / extension), else a date Super Admin set for the whole unit, else the
+// module's default. Modules of a unit due at the same time are one entry; a module moved to another date gets its own.
 async function DueCalendar() {
   const session = await requireStudent();
   const student = await getStudent(session.sub);
   const dues: CalendarDue[] = (
     await Promise.all(
       (student ? studyCodes(student) : []).map(async (code) => {
-        const [course, assessments, ownDue, hidden, records] = await Promise.all([
+        const [course, assessments, moduleDue, unitDue, hidden, records] = await Promise.all([
           getCourse(code),
           listCourseAssessments(code),
+          studentModuleDues(session.sub, code),
           listStudentDueDates(session.sub, code),
           listHiddenUnits(session.sub, code),
           listUnitRecords(session.sub, code),
         ]);
         return (course?.units ?? []).flatMap((u) => {
-          const iso = ownDue[u.code] ?? unitDueAt(assessments[u.code]);
           const rec = records[u.code] ?? null;
-          const open = !hidden.has(u.code) && (rec?.status ?? "Active") === "Active";
-          return iso && open
-            ? [{ id: `${code}/${u.code}`, iso, label: `${u.code} - ${u.title}`, note: unitAccess(rec).open ? undefined : "Not open yet" }]
-            : [];
+          if (hidden.has(u.code) || (rec?.status ?? "Active") !== "Active") return [];
+          const note = unitAccess(rec).open ? undefined : "Not open yet";
+          const modules = liveModules(assessments[u.code]?.modules ?? []);
+          // a unit without modules yet can still have a date set for this student
+          if (!modules.length) return unitDue[u.code] ? [{ id: `${code}/${u.code}`, iso: unitDue[u.code], label: `${u.code} - ${u.title}`, note }] : [];
+          // this student's date for each module, grouped by date
+          const byDate = new Map<string, string[]>();
+          for (const m of modules) {
+            const iso = moduleDue[`${u.code}/${m.id}`];
+            if (iso) byDate.set(iso, [...(byDate.get(iso) ?? []), m.title]);
+          }
+          return [...byDate].map(([iso, titles]) => ({
+            id: `${code}/${u.code}/${iso}`,
+            iso,
+            // name the modules only when the unit's modules are due on different dates
+            label: byDate.size > 1 ? `${u.code} - ${u.title} · ${titles.join(", ")}` : `${u.code} - ${u.title}`,
+            note,
+          }));
         });
       }),
     )
