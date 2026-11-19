@@ -103,7 +103,8 @@ export async function mailUpdates(input: MailInput) {
   }
 }
 
-type MailInput = { studentIds: string[]; kind: StudentMailKind; courseCodes: string[]; unitCodes?: string[]; exceptTrainerId?: string };
+// `skipStudents`: email only the staff (e.g. a new student isn't sent a welcome email)
+type MailInput = { studentIds: string[]; kind: StudentMailKind; courseCodes: string[]; unitCodes?: string[]; exceptTrainerId?: string; skipStudents?: boolean };
 
 async function sendUpdates(input: MailInput) {
   try {
@@ -112,7 +113,7 @@ async function sendUpdates(input: MailInput) {
     const students = (await Promise.all(ids.map((id) => getStudent(id)))).filter((s) => s && s.status === "Active");
     if (!students.length) return;
 
-    if (switches[STUDENT_SWITCH[input.kind]]) {
+    if (switches[STUDENT_SWITCH[input.kind]] && !input.skipStudents) {
       for (const s of students) if (s!.email) await safeSend(s!.email, 1, s!.studentId);
     }
 

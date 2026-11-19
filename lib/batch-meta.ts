@@ -24,6 +24,7 @@ export type BatchDTO = {
   startDate: string | null; // planned dates, YYYY-MM-DD
   endDate: string | null;
   timezone: string; // named timezone for class times (daylight saving handled by name)
+  location: string; // where the batch meets, typed by the admin (e.g. "Melbourne campus, Room 3"); "" = not set
   units: string[]; // units assigned to this batch, in course order
   trainers: TrainerAssignment[]; // several trainers, each for specific units
   classes: ClassSession[];
@@ -42,10 +43,11 @@ export const TIMEZONES = [
 export const DEFAULT_TZ = "Australia/Melbourne";
 
 export const BATCH_CODE_MAX = 30;
+export const BATCH_LOCATION_MAX = 120;
 
-/** Batch code, planned dates and timezone from the admin form */
-export function checkBatchDetails(input: { code?: unknown; startDate?: unknown; endDate?: unknown; timezone?: unknown }):
-  | { ok: true; value: { code: string; startDate: string | null; endDate: string | null; timezone: string } }
+/** Batch code, planned dates, timezone and location from the admin form */
+export function checkBatchDetails(input: { code?: unknown; startDate?: unknown; endDate?: unknown; timezone?: unknown; location?: unknown }):
+  | { ok: true; value: { code: string; startDate: string | null; endDate: string | null; timezone: string; location: string } }
   | { ok: false; error: string } {
   const code = String(input?.code ?? "").trim().toUpperCase().slice(0, BATCH_CODE_MAX);
   if (code && !/^[A-Z0-9][A-Z0-9-]*$/.test(code)) return { ok: false, error: "Batch code can use letters, numbers and dashes (e.g. IS-2027-01)." };
@@ -60,7 +62,8 @@ export function checkBatchDetails(input: { code?: unknown; startDate?: unknown; 
     const endDate = day(input?.endDate, "Planned end date");
     if (startDate && endDate && endDate < startDate) return { ok: false, error: "The planned end date must be after the start date." };
     const timezone = TIMEZONES.includes(input?.timezone as (typeof TIMEZONES)[number]) ? String(input!.timezone) : DEFAULT_TZ;
-    return { ok: true, value: { code, startDate, endDate, timezone } };
+    const location = String(input?.location ?? "").trim().replace(/\s+/g, " ").slice(0, BATCH_LOCATION_MAX);
+    return { ok: true, value: { code, startDate, endDate, timezone, location } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

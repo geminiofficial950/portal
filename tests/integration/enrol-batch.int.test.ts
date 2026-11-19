@@ -24,7 +24,7 @@ describe("choosing a batch while enrolling a new student", () => {
       { groupId: "B2", name: "Feb C1", nameKey: "feb c1", courseCode: "C1", units: [], trainers: [], createdAt: new Date() },
       { groupId: "B3", name: "Jan C2", nameKey: "jan c2", courseCode: "C2", units: [], trainers: [], createdAt: new Date() },
     ]);
-    const base = { name: "Riya", email: "riya@x.au", password: "secret123", startDate: "2027-02-01", endDate: "2027-12-20" };
+    const base = { firstName: "Riya", lastName: "Kaur", phone: "0400 000 000", email: "riya@x.au", password: "secret123", startDate: "2027-02-01", endDate: "2027-12-20" };
 
     expect(await createStudentAction({ ...base, courses: ["C1"], batchIds: ["B3"] })).toEqual({ ok: false, error: "Each batch must belong to one of the student’s courses." });
     expect(await createStudentAction({ ...base, courses: ["C1"], batchIds: ["B1", "B2"] })).toEqual({ ok: false, error: "Pick at most one batch per course." });

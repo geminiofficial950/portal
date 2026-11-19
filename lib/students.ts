@@ -4,6 +4,7 @@ import type { ObjectId } from "mongodb";
 import type { CourseStatus } from "./course-status";
 import { nextSeq } from "./counters";
 import { getDb } from "./db";
+import { fullName, splitName, type Profile } from "./student-profile-meta";
 import { formatDate } from "./format";
 
 export type StudentStatus = "Active" | "Pending" | "Suspended";
@@ -28,6 +29,13 @@ type StudentDoc = {
   createdAt: Date;
   startDate?: string | null; // student's start / end date, YYYY-MM-DD (set when the student is created)
   endDate?: string | null;
+  extra?: Record<string, string>; // other details from a bulk upload's extra columns
+  // profile details (older records: only `name`, split into first / last when read)
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  state?: string; // ACT, NSW, NT, QLD, SA, TAS, VIC, WA or ""
+  notes?: string;
 };
 
 export type StudentCourse = { code: string; status: CourseStatus; enrolled: string };
@@ -44,6 +52,12 @@ export type StudentDTO = {
   enrolled: string;
   startDate: string | null;
   endDate: string | null;
+  extra: Record<string, string>;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  state: string;
+  notes: string;
 };
 
 // The batches a record lists, older single `groupId` included
@@ -66,6 +80,11 @@ const toDTO = (d: StudentDoc): StudentDTO => ({
   enrolled: formatDate(d.createdAt),
   startDate: d.startDate ?? null,
   endDate: d.endDate ?? null,
+  extra: d.extra ?? {},
+  ...(d.firstName || d.lastName ? { firstName: d.firstName ?? "", lastName: d.lastName ?? "" } : splitName(d.name)),
+  phone: d.phone ?? "",
+  state: d.state ?? "",
+  notes: d.notes ?? "",
 });
 
 export const hasCourse = (s: StudentDTO, courseCode: string) => s.courses.some((c) => c.code === courseCode);
@@ -159,6 +178,8 @@ export async function createStudent(input: {
   studentId?: string;
   startDate?: string | null;
   endDate?: string | null;
+  extra?: Record<string, string>;
+  profile?: Profile; // first / last name, phone, state, notes (the name is made from first + last)
 }) {
   const col = await collection();
   const doc: StudentDoc = {
@@ -175,6 +196,8 @@ export async function createStudent(input: {
     createdAt: new Date(),
     startDate: input.startDate ?? null,
     endDate: input.endDate ?? null,
+    ...(input.extra && Object.keys(input.extra).length ? { extra: input.extra } : {}),
+    ...(input.profile ? { ...input.profile, name: fullName(input.profile) } : {}),
   };
   try {
     await col.insertOne(doc);
@@ -184,6 +207,12 @@ export async function createStudent(input: {
     throw err;
   }
   return toDTO(doc);
+}
+
+// Admin edits the profile details; the full name follows first + last
+export async function updateStudentProfile(studentId: string, profile: Profile) {
+  const res = await (await collection()).updateOne({ studentId }, { $set: { ...profile, name: fullName(profile) } });
+  return res.matchedCount === 1;
 }
 
 export async function updateStudentStatus(studentId: string, status: StudentStatus) {

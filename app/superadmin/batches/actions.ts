@@ -52,6 +52,7 @@ export async function createBatchAction(input: {
   startDate?: string;
   endDate?: string;
   timezone?: string;
+  location?: string;
   trainerId?: string; // older form: one trainer, for every unit
   trainerIds?: string[]; // optional: one or more trainers, each for every unit
 }): Promise<Result<{ batch: BatchDTO }>> {
@@ -80,7 +81,7 @@ export async function createBatchAction(input: {
 
 export async function updateBatchDetailsAction(
   batchId: string,
-  input: { name: string; code: string; startDate: string; endDate: string; timezone: string },
+  input: { name: string; code: string; startDate: string; endDate: string; timezone: string; location?: string },
 ): Promise<Result<{ batch: BatchDTO }>> {
   const admin = await requireAdmin();
   const name = checkBatchName(input?.name);
@@ -88,8 +89,8 @@ export async function updateBatchDetailsAction(
   const details = checkBatchDetails(admin.isSuper ? (input ?? {}) : { ...input, startDate: "", endDate: "" });
   if (!details.ok) return details;
   // an Admin account never sees the dates, so its save leaves them as they are
-  const { code, timezone } = details.value;
-  const patch = admin.isSuper ? { name: name.name, ...details.value } : { name: name.name, code, timezone };
+  const { code, timezone, location } = details.value;
+  const patch = admin.isSuper ? { name: name.name, ...details.value } : { name: name.name, code, timezone, location };
   try {
     if (!(await updateBatch(String(batchId), patch))) return { ok: false, error: "Batch not found." };
   } catch (err) {

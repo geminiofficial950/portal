@@ -8,11 +8,13 @@ import CredentialsCard, { type Credentials } from "../_components/CredentialsCar
 import { transferWithChecks } from "../batches/transfer-flow";
 import LoginDetailsForm from "../_components/LoginDetailsForm";
 import { useTableColumns } from "../_components/useTableColumns";
+import BulkUpload from "./BulkUpload";
 import CourseStatusDrawer from "./CourseStatusDrawer";
 import type { BatchDTO } from "@/lib/batch-meta";
 import { courseStatusStyle, parseStatusChange, type CourseStatus } from "@/lib/course-status";
 import { STUDENT_ID_MAX } from "@/lib/group-meta";
 import { generatePassword } from "@/lib/password";
+import { AU_STATES } from "@/lib/student-profile-meta";
 import type { StudentLogDTO } from "@/lib/student-logs";
 import type { StudentDTO, StudentStatus } from "@/lib/students";
 import { changeStudentLoginAction, createStudentAction, deleteStudentAction, previewStudentDeletionAction, resetPasswordAction, setStudentStatusAction } from "./actions";
@@ -44,13 +46,14 @@ export default function StudentsClient({
   batchesHref: string;
   recentChanges: StudentLogDTO[];
 }) {
-  const emptyForm = { name: "", email: "", courses: [] as string[], password: "", studentId: "", startDate: "", endDate: "", batches: {} as Record<string, string> };
+  const emptyForm = { firstName: "", lastName: "", phone: "", state: "", notes: "", email: "", courses: [] as string[], password: "", studentId: "", startDate: "", endDate: "", batches: {} as Record<string, string> };
   const [list, setList] = useState(initialStudents);
   const [recent, setRecent] = useState(recentChanges);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"All" | StudentStatus>("All");
   const [batchFilter, setBatchFilter] = useState<string>("All"); // "All", NO_BATCH or a batchId
   const [adding, setAdding] = useState(false);
+  const [bulk, setBulk] = useState(false); // the Bulk upload panel
   const [form, setForm] = useState(emptyForm);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [saving, startSaving] = useTransition();
@@ -91,7 +94,7 @@ export default function StudentsClient({
     if (form.courses.length === 0) return void toast.error("Pick at least one course.");
     startSaving(async () => {
       const batchIds = form.courses.map((code) => form.batches[code]).filter(Boolean);
-      const res = await createStudentAction({ name: form.name, email: form.email, courses: form.courses, password: form.password, studentId: form.studentId, startDate: form.startDate, endDate: form.endDate, batchIds });
+      const res = await createStudentAction({ firstName: form.firstName, lastName: form.lastName, phone: form.phone, state: form.state, notes: form.notes, email: form.email, courses: form.courses, password: form.password, studentId: form.studentId, startDate: form.startDate, endDate: form.endDate, batchIds });
       if (!res.ok) return void toast.error(res.error);
       setList((l) => [res.student, ...l]);
       setCredentials({ title: `${res.student.name} added`, idLabel: "Student ID", id: res.student.studentId, email: res.student.email, password: form.password });
@@ -189,7 +192,16 @@ export default function StudentsClient({
             Batches ({batches.length})
           </Link>
           <button
+            onClick={() => (setBulk((v) => !v), setAdding(false))}
+            aria-expanded={bulk}
+            className="inline-flex items-center gap-2 rounded-xl border border-plum/40 bg-white px-4 py-2.5 text-sm font-semibold text-plum transition hover:bg-lilac"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Bulk upload
+          </button>
+          <button
             onClick={() => {
+              setBulk(false);
               setAdding((v) => !v);
               setForm((f) => ({ ...f, password: f.password || generatePassword() }));
             }}
@@ -203,10 +215,20 @@ export default function StudentsClient({
 
       {credentials && <CredentialsCard credentials={credentials} onClose={() => setCredentials(null)} />}
 
+      {bulk && <BulkUpload onClose={() => setBulk(false)} onAdded={(added) => setList((l) => [...added, ...l])} />}
+
       {adding && (
         <form onSubmit={addStudent} className="grid gap-3 rounded-[1.5rem] bg-lilac/80 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" className={inputClass} />
-          <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className={inputClass} />
+          <input required value={form.firstName} maxLength={60} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder="First name" aria-label="First name" className={inputClass} />
+          <input required value={form.lastName} maxLength={60} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder="Last name" aria-label="Last name" className={inputClass} />
+          <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" aria-label="Email" className={inputClass} />
+          <input required type="tel" value={form.phone} maxLength={20} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone number" aria-label="Phone number" className={inputClass} />
+          <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} aria-label="State" className={inputClass}>
+            <option value="">State (optional)</option>
+            {AU_STATES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-2 rounded-xl bg-white pl-4 pr-1.5 ring-1 ring-ink/10 focus-within:ring-plum/30">
             <input
               required
@@ -237,6 +259,15 @@ export default function StudentsClient({
             End date
             <input required type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} aria-label="End date" className={`${inputClass} w-full font-normal`} />
           </label>
+          <textarea
+            value={form.notes}
+            maxLength={1000}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            placeholder="Notes (optional)"
+            aria-label="Notes"
+            rows={1}
+            className={`${inputClass} resize-y sm:col-span-2 lg:col-span-4`}
+          />
           <fieldset className="rounded-xl bg-white p-3 ring-1 ring-ink/10 sm:col-span-2 lg:col-span-3">
             <legend className="sr-only">Courses</legend>
             <p className="px-1 pb-2 text-xs font-medium text-ink">Courses (tick one or more)</p>

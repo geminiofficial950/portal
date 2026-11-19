@@ -20,11 +20,16 @@ import {
   setStudentCourseStatus,
   setStudentBatches,
   setStudentCourses,
+  updateStudentProfile,
   updateStudentStatus,
   type StudentDTO,
   type StudentStatus,
 } from "@/lib/students";
+import { generatePassword } from "@/lib/password";
+import { checkProfile, fullName } from "@/lib/student-profile-meta";
 import { getStudentProgress, type StudentProgressDTO } from "@/lib/progress";
+import { importContext } from "@/lib/student-import";
+import { EXTRA_FIELD_MAX, EXTRA_VALUE_MAX, IMPORT_MAX_ROWS, checkRows, type ImportRow } from "@/lib/student-import-meta";
 import { logStudent, type StudentLogDTO } from "@/lib/student-logs";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -42,7 +47,11 @@ async function checkCourses(codesIn: unknown): Promise<{ codes: string[] } | { e
 }
 
 export async function createStudentAction(input: {
-  name: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  state?: string; // optional, e.g. VIC
+  notes?: string; // optional
   email: string;
   courses: string[];
   password: string;
@@ -53,9 +62,10 @@ export async function createStudentAction(input: {
 }): Promise<Result<{ student: StudentDTO }>> {
   const admin = await requireAdmin();
 
-  const name = input.name.trim();
+  const profile = checkProfile(input);
+  if (!profile.ok) return profile;
+  const name = fullName(profile.value);
   const email = input.email.trim();
-  if (!name) return { ok: false, error: "Name is required." };
   const courses = await checkCourses(input.courses);
   if ("error" in courses) return { ok: false, error: courses.error };
   if (!EMAIL.test(email)) return { ok: false, error: "Enter a valid email." };
@@ -81,7 +91,7 @@ export async function createStudentAction(input: {
   }
 
   try {
-    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId, startDate: input.startDate, endDate: input.endDate });
+    const student = await createStudent({ name, email, courses: courses.codes, password: input.password, studentId, startDate: input.startDate, endDate: input.endDate, profile: profile.value });
     await logActivity(student.name, `was enrolled in ${courses.codes.join(", ")} (${student.studentId})`, "student");
     if (batches.length) {
       await setStudentBatches(student.studentId, picked);
@@ -90,8 +100,8 @@ export async function createStudentAction(input: {
       }
       await logActivity(admin.label, `put ${student.name} in ${batches.map((b) => b!.name).join(", ")}`, "student");
     }
-    // “You have 1 new update” — after the batch is set, so the batch's trainers are emailed too
-    await mailUpdates({ studentIds: [student.studentId], kind: "course", courseCodes: courses.codes });
+    // staff are told (after the batch is set, so the batch's trainers too); the student gets no welcome email
+    await mailUpdates({ studentIds: [student.studentId], kind: "course", courseCodes: courses.codes, skipStudents: true }); // no welcome email to the student
     revalidatePath("/superadmin", "layout");
     return { ok: true, student: { ...student, batchIds: picked } };
   } catch (err) {
@@ -174,6 +184,95 @@ export async function setStudentCoursesAction(studentId: string, codesIn: string
   revalidatePath("/trainer", "layout");
   revalidatePath("/dashboard", "layout");
   return { ok: true };
+}
+
+// Admin edits a student's profile details (first / last name, phone, state, notes)
+export async function updateStudentProfileAction(studentId: string, input: { firstName: string; lastName: string; phone: string; state?: string; notes?: string }): Promise<Result<{ student: StudentDTO }>> {
+  const admin = await requireAdmin();
+  const profile = checkProfile(input ?? {});
+  if (!profile.ok) return profile;
+  if (!(await updateStudentProfile(String(studentId), profile.value))) return { ok: false, error: "Student not found." };
+  const student = (await getStudent(String(studentId)))!;
+  await logStudent({ studentId: student.studentId, studentName: student.name, action: "Profile updated", detail: `by ${admin.label}` });
+  revalidatePath("/superadmin", "layout");
+  revalidatePath("/trainer", "layout");
+  return { ok: true, student };
+}
+
+// ---------- Bulk upload: create the ready rows of a checked sheet ----------
+export type ImportResult = {
+  created: { row: number; studentId: string; name: string; email: string; password: string; courses: string[] }[];
+  skipped: { row: number; name: string; errors: string[] }[];
+  students: StudentDTO[]; // the new students, for the list on screen
+};
+
+// Rows come from the upload preview; they're checked again here against the current students, courses and batches.
+// `keepColumns`: the sheet's extra columns the admin chose to import (the rest are skipped). Blank passwords are made up.
+export async function importStudentsAction(rowsIn: ImportRow[], keepColumns: string[]): Promise<Result<ImportResult>> {
+  const keep = new Set((Array.isArray(keepColumns) ? keepColumns : []).map((c) => String(c)));
+  const admin = await requireAdmin();
+  const rows = (Array.isArray(rowsIn) ? rowsIn : []).slice(0, IMPORT_MAX_ROWS).map((r) => ({
+    row: Number(r?.row) || 0,
+    name: fullName({ firstName: String(r?.firstName ?? "").trim(), lastName: String(r?.lastName ?? "").trim() }),
+    firstName: String(r?.firstName ?? "").trim(),
+    lastName: String(r?.lastName ?? "").trim(),
+    phone: String(r?.phone ?? "").trim(),
+    state: String(r?.state ?? "").trim(),
+    notes: String(r?.notes ?? ""),
+    email: String(r?.email ?? "").trim().toLowerCase(),
+    courses: Array.isArray(r?.courses) ? r.courses.map((c) => String(c).trim().toUpperCase()).filter(Boolean) : [],
+    startDate: String(r?.startDate ?? ""),
+    endDate: String(r?.endDate ?? ""),
+    studentId: String(r?.studentId ?? "").trim().toUpperCase(),
+    password: String(r?.password ?? ""),
+    batch: String(r?.batch ?? "").trim(),
+    extra: r?.extra && typeof r.extra === "object" ? Object.fromEntries(Object.entries(r.extra).filter(([k]) => keep.has(k)).slice(0, EXTRA_FIELD_MAX).map(([k, v]) => [String(k).replace(/[.$]/g, " ").trim().slice(0, 60), String(v ?? "").slice(0, EXTRA_VALUE_MAX)]).filter(([k, v]) => k && v)) : {},
+  }));
+  if (!rows.length) return { ok: false, error: "There are no students to add." };
+
+  const checked = checkRows(rows, await importContext());
+  const out: ImportResult = { created: [], skipped: [], students: [] };
+  for (const r of checked) {
+    if (r.errors.length) {
+      out.skipped.push({ row: r.row, name: r.name, errors: r.errors });
+      continue;
+    }
+    const password = r.password || generatePassword();
+    try {
+      const student = await createStudent({
+        name: r.name,
+        email: r.email,
+        courses: r.courses,
+        password,
+        studentId: r.studentId || undefined,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        extra: r.extra,
+        profile: { firstName: r.firstName, lastName: r.lastName, phone: r.phone, state: r.state, notes: r.notes },
+      });
+      if (r.batchId) {
+        await setStudentBatches(student.studentId, [r.batchId]);
+        await logStudent({ studentId: student.studentId, studentName: student.name, courseCode: r.courses[0], action: "Batch changed", detail: `added to ${r.batch} by ${admin.label} (bulk upload)` });
+      }
+      out.created.push({ row: r.row, studentId: student.studentId, name: student.name, email: student.email, password, courses: r.courses });
+      out.students.push({ ...student, batchIds: r.batchId ? [r.batchId] : [] });
+    } catch (err) {
+      if (err instanceof DuplicateEmailError) out.skipped.push({ row: r.row, name: r.name, errors: [`${r.email} is already a student`] });
+      else if (err instanceof DuplicateStudentIdError) out.skipped.push({ row: r.row, name: r.name, errors: [`Student ID ${r.studentId} is already taken`] });
+      else {
+        console.error("bulk upload row failed:", err);
+        out.skipped.push({ row: r.row, name: r.name, errors: ["couldn’t be saved — try this row again"] });
+      }
+    }
+  }
+  if (out.created.length) {
+    await logActivity(admin.label, `added ${out.created.length} student${out.created.length === 1 ? "" : "s"} by bulk upload`, "student");
+    // staff get one email with the count; the new students aren't sent a welcome email
+    await mailUpdates({ studentIds: out.created.map((c) => c.studentId), kind: "course", courseCodes: [...new Set(out.created.flatMap((c) => c.courses))], skipStudents: true });
+    revalidatePath("/superadmin", "layout");
+    revalidatePath("/trainer", "layout");
+  }
+  return { ok: true, ...out };
 }
 
 // Admin: one course's units, results and dates for a student (shown in the profile's View popup)

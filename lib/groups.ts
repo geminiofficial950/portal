@@ -19,6 +19,7 @@ type BatchDoc = {
   startDate?: string | null;
   endDate?: string | null;
   timezone?: string;
+  location?: string;
   units?: string[]; // assigned units; older batches: every unit of the course
   trainers?: TrainerAssignment[];
   trainerId?: string | null; // older batches: one trainer for every unit
@@ -53,6 +54,7 @@ const toDTO = (d: BatchDoc, students = 0, courseUnits: string[] = []): BatchDTO 
     startDate: d.startDate ?? null,
     endDate: d.endDate ?? null,
     timezone: d.timezone ?? DEFAULT_TZ,
+    location: d.location ?? "",
     units,
     trainers: d.trainers ?? (d.trainerId ? [{ trainerId: d.trainerId, unitCodes: units }] : []),
     classes: sortClasses(d.classes ?? []),
@@ -110,6 +112,7 @@ export async function createBatch(input: {
   startDate: string | null;
   endDate: string | null;
   timezone: string;
+  location: string;
   units: string[];
   trainers: TrainerAssignment[];
 }) {
@@ -126,7 +129,7 @@ export async function createBatch(input: {
 
 export async function updateBatch(
   batchId: string,
-  change: { name?: string; code?: string; courseCode?: string; startDate?: string | null; endDate?: string | null; timezone?: string; units?: string[]; trainers?: TrainerAssignment[] },
+  change: { name?: string; code?: string; courseCode?: string; startDate?: string | null; endDate?: string | null; timezone?: string; location?: string; units?: string[]; trainers?: TrainerAssignment[] },
 ) {
   const set: Partial<BatchDoc> = { ...change };
   if (change.name) set.nameKey = change.name.toLowerCase();
