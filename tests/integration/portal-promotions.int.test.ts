@@ -10,7 +10,9 @@ it("keeps drafts private, limits the dashboard to four published banners, and re
     linkLabel: "",
     imageAlt: "Student event poster",
   };
-  const photo = { mime: "image/png" as const, bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47) };
+  const bytes = new Uint8Array(3 * 1024 * 1024);
+  bytes.set([0x89, 0x50, 0x4e, 0x47]);
+  const photo = { mime: "image/png" as const, bytes };
   expect(await savePromotion("", content, undefined)).toBe(false);
   expect(await savePromotion("", content, photo)).toBe(true);
   const [draft] = await listPromotions();
@@ -18,7 +20,7 @@ it("keeps drafts private, limits the dashboard to four published banners, and re
   expect(await listPromotions(true)).toEqual([]);
   expect(await getPromotionImage(draft.id, false)).toBeUndefined();
   const storedPhoto = await getPromotionImage(draft.id, true);
-  expect(storedPhoto?.data.value()).toEqual(Buffer.from(photo.bytes));
+  expect(Buffer.from(storedPhoto?.data.value() ?? []).equals(photo.bytes)).toBe(true);
 
   await setPromotionActive(draft.id, true);
   expect(await listPromotions(true)).toMatchObject([{ id: draft.id }]);

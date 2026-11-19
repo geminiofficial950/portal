@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { checkUpload } from "@/lib/file-types";
 import { PROMOTION_FORMATS, savePromotion, setPromotionActive } from "@/lib/portal-promotions";
+import { PROMOTION_IMAGE_LIMIT_BYTES, PROMOTION_IMAGE_LIMIT_MB } from "./upload-limit";
 
 function refreshPromotions() {
   revalidatePath("/superadmin/promotions");
@@ -46,7 +47,7 @@ export async function savePromotionAction(_previous: string, form: FormData): Pr
   const file = form.get("image");
   let image: Parameters<typeof savePromotion>[2];
   if (format !== "text" && file instanceof File && file.size > 0) {
-    if (file.size > 800 * 1024) return "Choose a JPG or PNG no larger than 800 KB.";
+    if (file.size > PROMOTION_IMAGE_LIMIT_BYTES) return `Choose a JPG or PNG no larger than ${PROMOTION_IMAGE_LIMIT_MB} MB.`;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const check = checkUpload(file.name, bytes);
     if (!check.ok || (check.mime !== "image/png" && check.mime !== "image/jpeg")) return "Choose a valid JPG or PNG image.";

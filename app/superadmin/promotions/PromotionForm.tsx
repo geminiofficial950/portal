@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useId, useState } from "react";
 import type { PromotionFormat, PromotionSummary } from "@/lib/portal-promotions";
 import { savePromotionAction } from "./actions";
+import { PROMOTION_IMAGE_LIMIT_BYTES, PROMOTION_IMAGE_LIMIT_MB } from "./upload-limit";
 
 const inputClass = "mt-1 block w-full rounded-xl border border-ink/20 bg-page px-3 py-2 text-ink";
 
@@ -42,12 +43,12 @@ export default function PromotionForm({ promotion }: { promotion?: PromotionSumm
       {format !== "text" && (
         <>
           <label className="text-sm font-semibold">
-            {promotion && promotion.format !== "text" ? "Replace photo" : "Photo"} (JPG or PNG, up to 800 KB)
+            {promotion && promotion.format !== "text" ? "Replace photo" : "Photo"} (JPG or PNG, up to {PROMOTION_IMAGE_LIMIT_MB} MB)
             <input className={inputClass} name="image" type="file" accept="image/png,image/jpeg" aria-describedby={imageSizeHintId}
               onChange={(event) => {
                 const input = event.currentTarget;
                 const file = input.files?.[0];
-                input.setCustomValidity(file && file.size > 800 * 1024 ? "Choose an image no larger than 800 KB." : "");
+                input.setCustomValidity(file && file.size > PROMOTION_IMAGE_LIMIT_BYTES ? `Choose an image no larger than ${PROMOTION_IMAGE_LIMIT_MB} MB.` : "");
                 input.reportValidity();
               }}
               required={!promotion || promotion.format === "text"} />
