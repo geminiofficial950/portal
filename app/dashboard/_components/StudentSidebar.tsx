@@ -67,7 +67,7 @@ function Links({ onNavigate, pathname = null }: { onNavigate: () => void; pathna
                       active ? "bg-[var(--s-dark)] text-white" : "text-ink hover:bg-[var(--s-card)]"
                     }`}
                   >
-                    <span className={`s-nav-icon grid size-8 shrink-0 place-items-center rounded-full lg:size-7 ${active ? "bg-white/5 text-white ring-1 ring-inset ring-white/20" : "bg-[var(--s-icon)] text-ink"}`}>
+                    <span className={`s-nav-icon grid size-8 shrink-0 place-items-center rounded-full lg:size-7 ${active ? "bg-[#e0e6eb] text-[#10181a]" : "bg-[var(--s-icon)] text-ink"}`}>
                       <StudentNavIcon name={icon} />
                     </span>
                     {label}
