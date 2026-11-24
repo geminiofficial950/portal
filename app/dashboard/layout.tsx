@@ -5,6 +5,7 @@ import StudentSidebar from "./_components/StudentSidebar";
 import Header from "./_components/Header";
 import AppToaster from "./_components/AppToaster";
 import ServerClock from "./_components/ServerClock";
+import ProblemReporter from "./_components/ProblemReporter";
 import { requireStudent } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { getStudent } from "@/lib/students";
@@ -51,6 +52,8 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         </main>
       </div>
       <AppToaster />
+      {/* a problem on the page: screenshot it and offer to report it (saved only if the student reports it) */}
+      <ProblemReporter />
       <ServerClock />
     </div>
   );

@@ -17,6 +17,7 @@
     "bcryptjs": "^3.0.3",
     "docx-preview": "^0.3.6",
     "exceljs": "^4.4.0",
+    "html-to-image": "^1.11.13",
     "jose": "^6.2.14",
     "jszip": "^3.10.2",
     "mongodb": "^7.7.0",

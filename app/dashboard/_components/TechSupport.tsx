@@ -8,7 +8,14 @@ import { CloseIcon, HeadsetIcon, PlusIcon } from "./icons";
 import { TICKET_ATTACHMENTS_MAX } from "@/lib/ticket-meta";
 import { FILE_RULES, type FileRef } from "@/lib/submission-meta";
 
-type Shot = FileRef & { preview: string }; // an uploaded screenshot + a local preview of it
+let shotKey = 0;
+const toShot = (file: File): Shot => ({ key: `shot-${++shotKey}`, file, preview: URL.createObjectURL(file) });
+
+// A screenshot waiting in the browser. Nothing is uploaded or saved until the student selects Raise ticket.
+type Shot = { key: string; file: File; preview: string };
+
+/** Opens the form already filled in — used by the problem reporter (automatic screenshot of a problem). */
+export type TechSupportRequest = { id: number; subject: string; details: string; files: File[] };
 
 const EASE = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 const CLOSE_MS = 220;
@@ -17,13 +24,21 @@ const field =
 
 // "Tech support" in the student's sidebar card: opens a short form that raises a ticket.
 // The ticket goes to Admin (Support → Tech support) and shows in the student's own Student support page.
-export default function TechSupport({ onNavigate }: { onNavigate?: () => void }) {
+// `request` opens it pre-filled (the problem reporter's screenshot and details); `showButton={false}` hides the pill.
+export default function TechSupport({
+  onNavigate,
+  showButton = true,
+  request = null,
+}: {
+  onNavigate?: () => void;
+  showButton?: boolean;
+  request?: TechSupportRequest | null;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [visible, setVisible] = useState(false);
   const [subject, setSubject] = useState("");
   const [details, setDetails] = useState("");
   const [shots, setShots] = useState<Shot[]>([]);
-  const [uploading, setUploading] = useState(0); // screenshots still uploading
   const fileInput = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const titleId = useId();
@@ -47,9 +62,24 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
     };
   }, [visible]);
 
-  // Each picked screenshot is uploaded straight away (/api/files); the ticket then refers to the uploaded files
-  const addShots = async (files: FileList | null) => {
-    const room = TICKET_ATTACHMENTS_MAX - shots.length - uploading;
+  // a pre-filled report (from the problem reporter) opens the form with its text and screenshot
+  const lastRequest = useRef<number | null>(null);
+  useEffect(() => {
+    if (!request || lastRequest.current === request.id) return;
+    lastRequest.current = request.id;
+    setSubject(request.subject);
+    setDetails(request.details);
+    setShots((old) => {
+      old.forEach((s) => URL.revokeObjectURL(s.preview));
+      return request.files.slice(0, TICKET_ATTACHMENTS_MAX).map(toShot);
+    });
+    dialogRef.current?.showModal();
+    requestAnimationFrame(() => setVisible(true));
+  }, [request]);
+
+  // Picked screenshots stay in the browser; they're uploaded only when the ticket is raised
+  const addShots = (files: FileList | null) => {
+    const room = TICKET_ATTACHMENTS_MAX - shots.length;
     const picked = [...(files ?? [])];
     if (fileInput.current) fileInput.current.value = "";
     if (picked.length > room) toast.error(`You can add up to ${TICKET_ATTACHMENTS_MAX} screenshots.`);
@@ -62,33 +92,34 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
         toast.error(`${file.name} is over 10 MB.`);
         continue;
       }
-      setUploading((n) => n + 1);
-      try {
-        const body = new FormData();
-        body.append("file", file);
-        const res = await fetch("/api/files", { method: "POST", body });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) toast.error(data.error ?? "Upload failed. Try again.");
-        else setShots((list) => [...list, { ...(data as FileRef), preview: URL.createObjectURL(file) }]);
-      } catch {
-        toast.error("Upload failed. Check your connection.");
-      } finally {
-        setUploading((n) => n - 1);
-      }
+      setShots((list) => [...list, toShot(file)]);
     }
   };
-  const removeShot = (id: string) =>
+  const removeShot = (key: string) =>
     setShots((list) => {
-      const gone = list.find((s) => s.id === id);
+      const gone = list.find((s) => s.key === key);
       if (gone) URL.revokeObjectURL(gone.preview);
-      return list.filter((s) => s.id !== id);
+      return list.filter((s) => s.key !== key);
     });
 
+  // Raise ticket: upload the screenshots now (/api/files), then raise the ticket with them
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (uploading) return void toast.error("Wait for the screenshots to finish uploading.");
     startTransition(async () => {
-      const res = await raiseTechSupportAction({ subject, details, fileIds: shots.map((s) => s.id) });
+      const fileIds: string[] = [];
+      for (const s of shots) {
+        try {
+          const body = new FormData();
+          body.append("file", s.file);
+          const res = await fetch("/api/files", { method: "POST", body });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) return void toast.error(data.error ?? "A screenshot didn’t upload. Try again.");
+          fileIds.push((data as FileRef).id);
+        } catch {
+          return void toast.error("A screenshot didn’t upload. Check your connection.");
+        }
+      }
+      const res = await raiseTechSupportAction({ subject, details, fileIds });
       if (!res.ok) return void toast.error(res.error);
       toast.success(`Ticket ${res.ticket.ticketId} raised. We’ll reply in Student support.`);
       shots.forEach((s) => URL.revokeObjectURL(s.preview));
@@ -101,6 +132,7 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
 
   return (
     <>
+      {showButton && (
       <button
         type="button"
         onClick={open}
@@ -111,6 +143,7 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
         <HeadsetIcon className="h-4 w-4 shrink-0" />
         <span className="text-white">Tech support</span>
       </button>
+      )}
 
       <dialog
         ref={dialogRef}
@@ -194,25 +227,20 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
             />
             <ul className="flex flex-wrap gap-2.5">
               {shots.map((s) => (
-                <li key={s.id} className="relative size-20 overflow-hidden rounded-xl border border-[var(--s-line)] bg-[var(--s-soft)]">
+                <li key={s.key} className="relative size-20 overflow-hidden rounded-xl border border-[var(--s-line)] bg-[var(--s-soft)]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- local preview of the student's own file */}
-                  <img src={s.preview} alt={s.name} className="size-full object-cover" />
+                  <img src={s.preview} alt={s.file.name} className="size-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => removeShot(s.id)}
-                    aria-label={`Remove ${s.name}`}
+                    onClick={() => removeShot(s.key)}
+                    aria-label={`Remove ${s.file.name}`}
                     className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
                 </li>
               ))}
-              {Array.from({ length: uploading }, (_, i) => (
-                <li key={`up-${i}`} className="grid size-20 place-items-center rounded-xl border border-dashed border-[var(--s-line)] text-xs text-ink/60">
-                  Uploading…
-                </li>
-              ))}
-              {shots.length + uploading < TICKET_ATTACHMENTS_MAX && (
+              {shots.length < TICKET_ATTACHMENTS_MAX && (
                 <li>
                   <button
                     type="button"
@@ -242,7 +270,7 @@ export default function TechSupport({ onNavigate }: { onNavigate?: () => void })
             </Link>
             <button
               type="submit"
-              disabled={pending || uploading > 0}
+              disabled={pending}
               className="rounded-full bg-[var(--s-dark)] px-6 py-3 text-base font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
             >
               {pending ? "Sending…" : "Raise ticket"}
